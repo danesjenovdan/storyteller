@@ -1,0 +1,54 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: storyteller
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-sandbox"
+    nginx.ingress.kubernetes.io/proxy-body-size: 1000m
+    nginx.org/client-max-body-size: "1000m"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - storyteller.lb.djnd.si
+      secretName: storyteller-tls
+  rules:
+    - host: storyteller.lb.djnd.si
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: storyteller
+                port:
+                  number: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: storyteller-nginx
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-sandbox"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*" # TODO
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: 10m
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - files.storyteller.lb.djnd.si
+      secretName: storyteller-nginx-tls
+  rules:
+    - host: files.storyteller.lb.djnd.si
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: storyteller-nginx
+                port:
+                  number: 80

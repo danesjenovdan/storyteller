@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: storyteller
+spec:
+  selector:
+    app: storyteller
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: storyteller-nginx
+spec:
+  selector:
+    app: storyteller
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80

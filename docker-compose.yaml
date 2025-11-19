@@ -1,0 +1,80 @@
+services:
+  valkey:
+    image: valkey/valkey:7.2.10
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - valkey_data:/data
+    command: >
+      --requirepass "geslo"
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: storyteller
+      POSTGRES_USER: storyteller
+      POSTGRES_PASSWORD: storyteller
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  django:
+    build: .
+    ports:
+      - 8000:8000
+    restart: unless-stopped
+    volumes:
+      - ./:/app
+    environment:
+      - DJANGO_SETTINGS_MODULE=storyteller.settings
+      - REDIS_URL=valkey
+      - GOOGLE_API_KEY=
+      - AWS_SECRET_ACCESS_KEY=key
+      - AWS_ACCESS_KEY_ID=id
+      - ENABLE_S3=
+      - AWS_STORAGE_BUCKET_NAME=storyteller
+      - AWS_LOCATION=media
+      - DATABASE_HOST=db
+      - DATABASE_NAME=storyteller
+      - DATABASE_USER=storyteller
+      - DATABASE_PASSWORD=storyteller
+      - REDIS_PASSWORD=geslo
+      - REDIS_DB=2
+      - ELEVENLABS_API_KEY=
+      - OPENAI_API_KEY=
+      - PEXELS_API_KEY=
+
+
+    depends_on:
+      - valkey
+
+  huey:
+    build: .
+    restart: unless-stopped
+    volumes:
+      - ./:/app
+    command: ["python", "manage.py", "run_huey"]
+    environment:
+      - DJANGO_SETTINGS_MODULE=storyteller.settings
+      - REDIS_URL=valkey
+      - GOOGLE_API_KEY=
+      - AWS_SECRET_ACCESS_KEY=key
+      - AWS_ACCESS_KEY_ID=id
+      - ENABLE_S3=
+      - AWS_STORAGE_BUCKET_NAME=storyteller
+      - AWS_LOCATION=media
+      - DATABASE_HOST=db
+      - DATABASE_NAME=storyteller
+      - DATABASE_USER=storyteller
+      - DATABASE_PASSWORD=storyteller
+      - REDIS_PASSWORD=geslo
+      - REDIS_DB=2
+      - ELEVENLABS_API_KEY=
+      - OPENAI_API_KEY=
+    depends_on:
+      - valkey
+
+volumes:
+  valkey_data:
+  pgdata:

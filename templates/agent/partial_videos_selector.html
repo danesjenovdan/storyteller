@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Izberi video - {{ video_segment.text|truncatewords:5 }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .video-card {
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .video-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        }
+        .video-thumbnail {
+            width: 100%;
+            height: 300px;
+            object-fit: cover;
+            border-radius: 8px 8px 0 0;
+        }
+        .video-info {
+            padding: 10px;
+        }
+        .selected {
+            border: 3px solid #0d6efd;
+        }
+        #loadingSpinner {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <h2>Izberi video za segment: "{{ video_segment.text|truncatewords:10 }}"</h2>
+                <p class="text-muted">
+                    <strong>Potrebna dolžina:</strong> ~{{ duration|floatformat:1 }} sekund
+                </p>
+                <a href="{% url 'video_list' %}" class="btn btn-secondary mb-3">← Nazaj</a>
+            </div>
+        </div>
+
+        <!-- Search Form -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-body">
+                        <h5>Iskalni pojmi</h5>
+                        <form id="searchForm">
+                            <div class="mb-3">
+                                <label for="searchQuery" class="form-label">Ključne besede</label>
+                                <input type="text" class="form-control" id="searchQuery" 
+                                       value="{{ query }}" placeholder="Vnesi ključne besede">
+                                <small class="text-muted">Primer: sunset beach, mountain landscape, city night</small>
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <span id="searchButtonText">Išči videe</span>
+                                <span id="loadingSpinner" class="spinner-border spinner-border-sm ms-2"></span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alert Messages -->
+        <div id="alertContainer"></div>
+
+        <!-- Videos Grid -->
+        <div id="videosContainer" class="row">
+            <div class="col-12 text-center">
+                <p class="text-muted">Uporabi zgornji obrazec za iskanje videov</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const videoSegmentId = {{ video_segment.id }};
+        const searchUrl = "{% url 'search_pexels_videos' video_segment.id %}";
+        const saveUrl = "{% url 'save_selected_video' video_segment.id %}";
+        const csrfToken = "{{ csrf_token }}";
+
+        // Search videos
+        document.getElementById('searchForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const query = document.getElementById('searchQuery').value;
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            const searchButton = document.getElementById('searchButtonText');
+            
+            // Show loading
+            loadingSpinner.style.display = 'inline-block';
+            searchButton.textContent = 'Iščem...';
+            
+            try {
+                const response = await fetch(`${searchUrl}?query=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                
+                console.log('Response data:', data);
+                console.log('Videos array:', data.videos);
+                console.log('Videos length:', data.videos ? data.videos.length : 'undefined');
+                
+                if (data.error) {
+                    showAlert(data.error, 'danger');
+                    document.getElementById('videosContainer').innerHTML = '';
+                } else if (!data.videos || data.videos.length === 0) {
+                    showAlert('Ni najdenih videov. Poskusi z drugimi ključnimi besedami.', 'info');
+                    document.getElementById('videosContainer').innerHTML = '<div class="col-12 text-center"><p class="text-muted">Ni rezultatov</p></div>';
+                } else {
+                    displayVideos(data.videos);
+                    showAlert(`Najdenih ${data.total} video(v)`, 'success');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showAlert('Napaka pri iskanju: ' + error.message, 'danger');
+            } finally {
+                loadingSpinner.style.display = 'none';
+                searchButton.textContent = 'Išči videe';
+            }
+        });
+
+        // Display videos
+        function displayVideos(videos) {
+            const container = document.getElementById('videosContainer');
+            
+            if (videos.length === 0) {
+                container.innerHTML = '<div class="col-12 text-center"><p class="text-muted">Ni rezultatov</p></div>';
+                return;
+            }
+            
+            container.innerHTML = videos.map(video => `
+                <div class="col-md-4 col-lg-3 mb-4">
+                    <div class="card video-card">
+                        <img src="${video.image}" class="video-thumbnail" alt="Video thumbnail">
+                        <div class="card-body video-info">
+                            <p class="mb-1"><strong>Dolžina:</strong> ${video.duration.toFixed(1)}s</p>
+                            <p class="mb-1"><strong>Resolucija:</strong> ${video.width}x${video.height}</p>
+                            <p class="mb-1 text-muted"><small>Avtor: ${video.user}</small></p>
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-primary btn-sm select-video" 
+                                        data-video='${JSON.stringify(video)}'>
+                                    Izberi ta video
+                                </button>
+                                <a href="${video.url}" target="_blank" class="btn btn-outline-secondary btn-sm">
+                                    Oglej na Pexels
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Add click handlers
+            document.querySelectorAll('.select-video').forEach(button => {
+                button.addEventListener('click', function() {
+                    selectVideo(JSON.parse(this.dataset.video));
+                });
+            });
+        }
+
+        // Select and save video
+        async function selectVideo(video) {
+            if (!confirm(`Izberi video "${video.user}" (${video.duration.toFixed(1)}s)?\n\nVideo bo prenešen in shranjen.`)) {
+                return;
+            }
+            
+            showAlert('Prenašam video...', 'info');
+            
+            try {
+                const response = await fetch(saveUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({
+                        video_url: video.video_url,
+                        metadata: {
+                            id: video.id,
+                            url: video.url,
+                            user: video.user,
+                            duration: video.duration,
+                            width: video.width,
+                            height: video.height
+                        }
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert(data.message, 'success');
+                    setTimeout(() => {
+                        window.location.href = data.redirect_url;
+                    }, 1500);
+                } else {
+                    showAlert(data.error || 'Napaka pri shranjevanju', 'danger');
+                }
+            } catch (error) {
+                showAlert('Napaka: ' + error.message, 'danger');
+            }
+        }
+
+        // Show alert
+        function showAlert(message, type) {
+            const alertContainer = document.getElementById('alertContainer');
+            alertContainer.innerHTML = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+        }
+
+        // Auto-search on page load
+        window.addEventListener('load', () => {
+            document.getElementById('searchForm').dispatchEvent(new Event('submit'));
+        });
+    </script>
+</body>
+</html>
