@@ -587,62 +587,63 @@ def render_final_video(video: GenVideo) -> None:
             # Step 4: Add audio and subtitles (if available)
             final_output = temp_path / "final.mp4"
             print("Adding audio and subtitles...")
+            with get_temporary_file_path(video.voice_file) as voice_file:
+                cmd = [
+                    "ffmpeg",
+                    "-i",
+                    str(concatenated_file),
+                    "-i",
+                    voice_file,
+                ]
 
-            cmd = [
-                "ffmpeg",
-                "-i",
-                str(concatenated_file),
-                "-i",
-                video.voice_file.path,
-            ]
+                # Add subtitles if available
+                if video.srt_file:
+                    with get_temporary_file_path(video.srt_file) as srt_file:
+                        # Burn-in subtitles
+                        subtitle_filter = f"subtitles={srt_file}"
+                        cmd.extend(
+                            [
+                                "-vf",
+                                subtitle_filter,
+                                "-c:v",
+                                "libx264",
+                                "-preset",
+                                "medium",
+                                "-crf",
+                                "23",
+                            ]
+                        )
+                else:
+                    # Just copy video
+                    cmd.extend(["-c:v", "copy"])
 
-            # Add subtitles if available
-            if video.srt_file:
-                # Burn-in subtitles
-                subtitle_filter = f"subtitles={video.srt_file.path}"
+                # Add audio settings
                 cmd.extend(
                     [
-                        "-vf",
-                        subtitle_filter,
-                        "-c:v",
-                        "libx264",
-                        "-preset",
-                        "medium",
-                        "-crf",
-                        "23",
+                        "-c:a",
+                        "aac",
+                        "-b:a",
+                        "192k",
+                        "-shortest",  # End when shortest stream ends
+                        "-y",
+                        str(final_output),
                     ]
                 )
-            else:
-                # Just copy video
-                cmd.extend(["-c:v", "copy"])
 
-            # Add audio settings
-            cmd.extend(
-                [
-                    "-c:a",
-                    "aac",
-                    "-b:a",
-                    "192k",
-                    "-shortest",  # End when shortest stream ends
-                    "-y",
-                    str(final_output),
-                ]
-            )
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                if result.returncode != 0:
+                    raise RuntimeError(f"FFmpeg final render failed: {result.stderr}")
 
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            if result.returncode != 0:
-                raise RuntimeError(f"FFmpeg final render failed: {result.stderr}")
+                # Step 5: Save to model
+                print("Saving final video to database...")
+                with open(final_output, "rb") as f:
+                    filename = f"final_video_{video.id}.mp4"
+                    video.final_file.save(filename, ContentFile(f.read()), save=False)
 
-            # Step 5: Save to model
-            print("Saving final video to database...")
-            with open(final_output, "rb") as f:
-                filename = f"final_video_{video.id}.mp4"
-                video.final_file.save(filename, ContentFile(f.read()), save=False)
+                video.status = GenVideo.Statuses.COMPLETED
+                video.save()
 
-            video.status = GenVideo.Statuses.COMPLETED
-            video.save()
-
-            print(f"Video {video} rendered successfully!")
+                print(f"Video {video} rendered successfully!")
 
     except Exception as e:
         print(f"Error rendering video {video}: {str(e)}")
