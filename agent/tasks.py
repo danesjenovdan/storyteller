@@ -1,25 +1,30 @@
-import os, json, time, sys, logging
+import json
+import logging
+import os
+import sys
+import time
+
 from django.conf import settings
 from django.core.files.base import ContentFile
-from langchain.chat_models import init_chat_model
 from elevenlabs.client import ElevenLabs
-from openai import OpenAI
 from google import genai
 from google.genai.types import Content, Part
-from agent.models import GenVideo, VideoSegment
 from huey.contrib.djhuey import db_task
+from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage
-from agent.utils import get_temporary_file_path, ensure_google_api_key
+from openai import OpenAI
+
+from agent.models import GenVideo, VideoSegment
+from agent.utils import ensure_google_api_key, get_temporary_file_path
 
 # Configure logging for Huey tasks
 logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.INFO,
-    format='[%(asctime)s] %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-    stream=sys.stdout
+    format="[%(asctime)s] %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    stream=sys.stdout,
 )
-
 
 
 @db_task()
@@ -30,26 +35,32 @@ def generate_scenario_from_prompt(video_instance: GenVideo) -> None:
     """
     try:
         ensure_google_api_key()
-        
+
         if not video_instance.start_prompt:
-            logger.warning(f"Video {video_instance.id} has no start_prompt, skipping scenario generation")
+            logger.warning(
+                f"Video {video_instance.id} has no start_prompt, skipping scenario generation"
+            )
             return
-        
+
         video_instance.status = GenVideo.Statuses.GENERATING_SCENARIO
         video_instance.save()
-        
-        logger.info(f"Generating scenario for video {video_instance.id} from start_prompt")
-        
+
+        logger.info(
+            f"Generating scenario for video {video_instance.id} from start_prompt"
+        )
+
         model = init_chat_model("gemini-2.5-flash", model_provider="google_genai")
         model_response = model.invoke(video_instance.start_prompt)
         video_instance.scenario = model_response.content
         video_instance.status = GenVideo.Statuses.SCENARIO_READY
         video_instance.save()
-        
+
         logger.info(f"✓ Scenario generated for video {video_instance.id}")
-    
+
     except Exception as e:
-        logger.error(f"✗ Error generating scenario for video {video_instance.id}: {str(e)}")
+        logger.error(
+            f"✗ Error generating scenario for video {video_instance.id}: {str(e)}"
+        )
         video_instance.status = GenVideo.Statuses.FAILED
         video_instance.save()
         raise
@@ -66,20 +77,22 @@ def simplify_scenario(video_instance: GenVideo) -> None:
 
         video_instance.status = GenVideo.Statuses.GENERATING_SCRIPT
         video_instance.save()
-        
+
         logger.info(f"Simplifying scenario for video {video_instance.id}")
-        
+
         # prompt the model for the minutes
         model = init_chat_model("gemini-2.5-flash", model_provider="google_genai")
         model_response = model.invoke(video_instance.simplify_prompt)
         video_instance.content_script = model_response.content
         video_instance.status = GenVideo.Statuses.SCRIPT_READY
         video_instance.save()
-        
+
         logger.info(f"✓ Content script generated for video {video_instance.id}")
-    
+
     except Exception as e:
-        logger.error(f"✗ Error generating content script for video {video_instance.id}: {str(e)}")
+        logger.error(
+            f"✗ Error generating content script for video {video_instance.id}: {str(e)}"
+        )
         video_instance.status = GenVideo.Statuses.FAILED
         video_instance.save()
         raise
@@ -96,7 +109,7 @@ def generate_voice_file_eleven_labs(video: int) -> None:
     try:
         video.status = GenVideo.Statuses.GENERATING_VOICE
         video.save()
-        
+
         if not video.content_script:
             raise ValueError(
                 f"Video {video.id} has no content_script to convert to speech"
@@ -139,7 +152,9 @@ def generate_voice_file_eleven_labs(video: int) -> None:
         video.status = GenVideo.Statuses.VOICE_READY
         video.save()
 
-        logger.info(f"✓ Voice file generated successfully for video {video.id} [ElevenLabs]")
+        logger.info(
+            f"✓ Voice file generated successfully for video {video.id} [ElevenLabs]"
+        )
 
     except GenVideo.DoesNotExist:
         logger.error(f"Video with id {video.id} does not exist")
@@ -164,7 +179,7 @@ def generate_voice_file_openai(video: int) -> None:
     try:
         video.status = GenVideo.Statuses.GENERATING_VOICE
         video.save()
-        
+
         if not video.content_script:
             raise ValueError(
                 f"Video {video.id} has no content_script to convert to speech"
@@ -208,7 +223,9 @@ def generate_voice_file_openai(video: int) -> None:
         video.status = GenVideo.Statuses.VOICE_READY
         video.save()
 
-        logger.info(f"✓ Voice file generated successfully for video {video.id} [OpenAI]")
+        logger.info(
+            f"✓ Voice file generated successfully for video {video.id} [OpenAI]"
+        )
 
     except GenVideo.DoesNotExist:
         logger.error(f"Video with id {video.id} does not exist")
@@ -236,7 +253,7 @@ def generate_voice_file_gemini(video: int) -> None:
 
         video.status = GenVideo.Statuses.GENERATING_VOICE
         video.save()
-        
+
         if not video.content_script:
             raise ValueError(
                 f"Video {video.id} has no content_script to convert to speech"
@@ -260,7 +277,9 @@ def generate_voice_file_gemini(video: int) -> None:
 
         voice_name = gemini_voices.get(video.voice_model, "Puck")
 
-        logger.info(f"Generating voice for video {video.id} with Gemini voice: {voice_name}")
+        logger.info(
+            f"Generating voice for video {video.id} with Gemini voice: {voice_name}"
+        )
 
         # Initialize Gemini model with audio generation
         model = ChatGoogleGenerativeAI(
@@ -274,14 +293,12 @@ def generate_voice_file_gemini(video: int) -> None:
                 "response_modalities": ["AUDIO"],
                 "speech_config": {
                     "voice_config": {
-                        "prebuilt_voice_config": {
-                            "voice_name": voice_name
-                        }
+                        "prebuilt_voice_config": {"voice_name": voice_name}
                     }
-                }
+                },
             },
         )
-        
+
         logger.info(f"Response type: {type(response)}")
         logger.info(f"Response attributes: {dir(response)}")
         if hasattr(response, "additional_kwargs"):
@@ -291,17 +308,23 @@ def generate_voice_file_gemini(video: int) -> None:
 
         # Extract audio data from response
         audio_data = None
-        if hasattr(response, "additional_kwargs") and "audio" in response.additional_kwargs:
+        if (
+            hasattr(response, "additional_kwargs")
+            and "audio" in response.additional_kwargs
+        ):
             audio_data = response.additional_kwargs["audio"]
             logger.info(f"Found audio in additional_kwargs, type: {type(audio_data)}")
-        elif hasattr(response, "response_metadata") and "audio" in response.response_metadata:
+        elif (
+            hasattr(response, "response_metadata")
+            and "audio" in response.response_metadata
+        ):
             audio_data = response.response_metadata["audio"]
             logger.info(f"Found audio in response_metadata, type: {type(audio_data)}")
-        
+
         if audio_data:
             # Check if it's already bytes or needs base64 decoding
             import base64
-            
+
             if isinstance(audio_data, dict) and "data" in audio_data:
                 # Gemini returns {data: base64_string}
                 audio_content = base64.b64decode(audio_data["data"])
@@ -321,9 +344,11 @@ def generate_voice_file_gemini(video: int) -> None:
             # Update video status
             video.status = GenVideo.Statuses.VOICE_READY
             video.save()
-            
-            logger.info(f"✓ Voice file generated successfully for video {video.id} [Google/Gemini] - {len(audio_content)} bytes")
-            
+
+            logger.info(
+                f"✓ Voice file generated successfully for video {video.id} [Google/Gemini] - {len(audio_content)} bytes"
+            )
+
             # Automatically generate SRT file
             generate_srt_file(video)
         else:
@@ -338,20 +363,22 @@ def generate_voice_file_gemini(video: int) -> None:
         video = GenVideo.objects.get(id=video.id)
         video.status = GenVideo.Statuses.FAILED
         video.save()
-        raise          
+        raise
 
 
 @db_task()
 def get_video_segments(video_instance: GenVideo) -> None:
     try:
         ensure_google_api_key()
-        
+
         video_instance.status = GenVideo.Statuses.GENERATING_SEGMENTS
         video_instance.save()
 
         # prompt the model for the minutes
         model = init_chat_model("gemini-2.5-flash", model_provider="google_genai")
-        logger.info(f"Video segments prompt for video {video_instance.id}: {video_instance.video_segments_keywords_prompt}")
+        logger.info(
+            f"Video segments prompt for video {video_instance.id}: {video_instance.video_segments_keywords_prompt}"
+        )
         model_response = model.invoke(video_instance.video_segments_keywords_prompt)
         data = model_response.content
         data = json.loads(data.strip("`").strip("python"))
@@ -366,13 +393,17 @@ def get_video_segments(video_instance: GenVideo) -> None:
                 start_time=float(segment_data["start"].strip()),
                 end_time=float(segment_data["end"].strip()),
             )
-            logger.info(f"✓ Created segment {i+1} for video {video_instance.id}: {segment_data['text'][:50]}...")
-        
+            logger.info(
+                f"✓ Created segment {i+1} for video {video_instance.id}: {segment_data['text'][:50]}..."
+            )
+
         video_instance.status = GenVideo.Statuses.SEGMENTS_READY
         video_instance.save()
-    
+
     except Exception as e:
-        logger.error(f"✗ Error generating segments for video {video_instance.id}: {str(e)}")
+        logger.error(
+            f"✗ Error generating segments for video {video_instance.id}: {str(e)}"
+        )
         video_instance.status = GenVideo.Statuses.FAILED
         video_instance.save()
         raise
@@ -389,10 +420,10 @@ def generate_srt_file(video: GenVideo) -> None:
     try:
         video.status = GenVideo.Statuses.GENERATING_SUBTITLES
         video.save()
-        
+
         if not video.voice_file:
             raise ValueError(f"Video {video.id} has no voice_file to generate SRT from")
-        
+
         client = genai.Client()
         with get_temporary_file_path(video.voice_file) as voice_file:
             logger.info(f"Uploading voice file for video {video.id}: {voice_file}")
@@ -400,7 +431,7 @@ def generate_srt_file(video: GenVideo) -> None:
             while gemini_file.state.name == "PROCESSING":
                 time.sleep(2)
                 gemini_file = client.files.get(name=gemini_file.name)
-        
+
         contents = [
             Content(
                 role="user",
@@ -408,13 +439,15 @@ def generate_srt_file(video: GenVideo) -> None:
                     Part.from_uri(
                         file_uri=gemini_file.uri, mime_type=gemini_file.mime_type
                     ),
-                    Part.from_text(text="""
+                    Part.from_text(
+                        text="""
 Zgeneriraj podnapise in mi vrni vsebino za SRT datoteko. Vsebuje naj tudi časovne kode. Spodaj je primer za enkratno referenco:
 1
 00:02:16,612 --> 00:02:19,376
 Senator, we're making
 our final approach into Coruscant.
-"""),
+"""
+                    ),
                 ],
             )
         ]
@@ -428,12 +461,12 @@ our final approach into Coruscant.
         video.srt_file.save(filename, ContentFile(srt_content), save=False)
         video.status = GenVideo.Statuses.SUBTITLES_READY
         video.save()
-        
+
         logger.info(f"✓ SRT file generated for video {video.id}: {filename}")
-        
+
         # Automatically generate video segments
         get_video_segments(video)
-    
+
     except Exception as e:
         logger.error(f"✗ Error generating SRT file for video {video.id}: {str(e)}")
         video.status = GenVideo.Statuses.FAILED
@@ -445,141 +478,172 @@ our final approach into Coruscant.
 def render_final_video(video: GenVideo) -> None:
     """
     Combine all VideoSegment clips with ffmpeg, add audio and subtitles.
-    
+
     Process:
     1. Cut each VideoSegment.video_file according to start_time/end_time
     2. Concatenate all clips in order
     3. Add voice_file as audio track
     4. Burn-in subtitles from srt_file
     5. Save to GenVideo.final_file
-    
+
     Args:
         video_id: ID of the GenVideo instance
     """
     import subprocess
     import tempfile
     from pathlib import Path
-    
+
     try:
         video.status = GenVideo.Statuses.PROCESSING
         video.save()
-        
+
         # Get all segments with video files
-        segments = video.segments.filter(
-            video_file__isnull=False
-        ).exclude(video_file='').order_by('order')
-        
+        segments = (
+            video.segments.filter(video_file__isnull=False)
+            .exclude(video_file="")
+            .order_by("order")
+        )
+
         if not segments.exists():
             raise ValueError(f"Video {video} has no segment video files")
-        
+
         if not video.voice_file:
             raise ValueError(f"Video {video} has no voice file")
-        
+
         logger.info(f"Starting render for video {video} with {segments.count()} clips")
-        
+
         # Create temp directory for processing
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
-            
+
             # Step 1: Cut and prepare each clip
             clip_files = []
             for i, segment in enumerate(segments):
                 input_file = segment.video_file.path
                 duration = segment.end_time - segment.start_time
                 output_file = temp_path / f"clip_{i:03d}.mp4"
-                
-                logger.info(f"Processing clip {i+1}/{segments.count()}: {duration:.2f}s")
-                
+
+                logger.info(
+                    f"Processing clip {i+1}/{segments.count()}: {duration:.2f}s"
+                )
+
                 # Cut video to exact duration (no audio, we'll add it later)
                 # Scale to consistent resolution (1080x1920 for portrait)
                 cmd = [
-                    'ffmpeg', '-i', input_file,
-                    '-t', str(duration),
-                    '-vf', 'scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1',
-                    '-c:v', 'libx264',
-                    '-preset', 'medium',
-                    '-crf', '23',
-                    '-an',  # Remove audio
-                    '-y',
-                    str(output_file)
+                    "ffmpeg",
+                    "-i",
+                    input_file,
+                    "-t",
+                    str(duration),
+                    "-vf",
+                    "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    "medium",
+                    "-crf",
+                    "23",
+                    "-an",  # Remove audio
+                    "-y",
+                    str(output_file),
                 ]
-                
+
                 result = subprocess.run(cmd, capture_output=True, text=True)
                 if result.returncode != 0:
-                    raise RuntimeError(f"FFmpeg clip processing failed: {result.stderr}")
-                
+                    raise RuntimeError(
+                        f"FFmpeg clip processing failed: {result.stderr}"
+                    )
+
                 clip_files.append(output_file)
-            
+
             # Step 2: Create concat file
             concat_file = temp_path / "concat.txt"
-            with open(concat_file, 'w') as f:
+            with open(concat_file, "w") as f:
                 for clip in clip_files:
                     f.write(f"file '{clip}'\n")
-            
+
             # Step 3: Concatenate all clips
             concatenated_file = temp_path / "concatenated.mp4"
             print("Concatenating clips...")
-            
+
             cmd = [
-                'ffmpeg', '-f', 'concat', '-safe', '0',
-                '-i', str(concat_file),
-                '-c', 'copy',
-                '-y',
-                str(concatenated_file)
+                "ffmpeg",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                str(concat_file),
+                "-c",
+                "copy",
+                "-y",
+                str(concatenated_file),
             ]
-            
+
             result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode != 0:
                 raise RuntimeError(f"FFmpeg concatenation failed: {result.stderr}")
-            
+
             # Step 4: Add audio and subtitles (if available)
             final_output = temp_path / "final.mp4"
             print("Adding audio and subtitles...")
-            
+
             cmd = [
-                'ffmpeg',
-                '-i', str(concatenated_file),
-                '-i', video.voice_file.path,
+                "ffmpeg",
+                "-i",
+                str(concatenated_file),
+                "-i",
+                video.voice_file.path,
             ]
-            
+
             # Add subtitles if available
             if video.srt_file:
                 # Burn-in subtitles
                 subtitle_filter = f"subtitles={video.srt_file.path}"
-                cmd.extend([
-                    '-vf', subtitle_filter,
-                    '-c:v', 'libx264',
-                    '-preset', 'medium',
-                    '-crf', '23',
-                ])
+                cmd.extend(
+                    [
+                        "-vf",
+                        subtitle_filter,
+                        "-c:v",
+                        "libx264",
+                        "-preset",
+                        "medium",
+                        "-crf",
+                        "23",
+                    ]
+                )
             else:
                 # Just copy video
-                cmd.extend(['-c:v', 'copy'])
-            
+                cmd.extend(["-c:v", "copy"])
+
             # Add audio settings
-            cmd.extend([
-                '-c:a', 'aac',
-                '-b:a', '192k',
-                '-shortest',  # End when shortest stream ends
-                '-y',
-                str(final_output)
-            ])
-            
+            cmd.extend(
+                [
+                    "-c:a",
+                    "aac",
+                    "-b:a",
+                    "192k",
+                    "-shortest",  # End when shortest stream ends
+                    "-y",
+                    str(final_output),
+                ]
+            )
+
             result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode != 0:
                 raise RuntimeError(f"FFmpeg final render failed: {result.stderr}")
-            
+
             # Step 5: Save to model
             print("Saving final video to database...")
-            with open(final_output, 'rb') as f:
+            with open(final_output, "rb") as f:
                 filename = f"final_video_{video.id}.mp4"
                 video.final_file.save(filename, ContentFile(f.read()), save=False)
-            
+
             video.status = GenVideo.Statuses.COMPLETED
             video.save()
-            
+
             print(f"Video {video} rendered successfully!")
-            
+
     except Exception as e:
         print(f"Error rendering video {video}: {str(e)}")
         video.status = GenVideo.Statuses.FAILED

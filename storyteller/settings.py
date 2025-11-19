@@ -10,10 +10,11 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
-from pathlib import Path
-from huey import RedisHuey
-from typing import List
 import os
+from pathlib import Path
+from typing import List
+
+from huey import RedisHuey
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -190,7 +191,9 @@ else:
 DEFAULT_PROMPT = "Vrni mi samo text iz scenarija, da ga lahko pošljem v TTS."
 
 # TTS Provider Settings
-TTS_PROVIDER = os.getenv("TTS_PROVIDER", "gemini")  # Options: "openai", "elevenlabs", or "gemini"
+TTS_PROVIDER = os.getenv(
+    "TTS_PROVIDER", "gemini"
+)  # Options: "openai", "elevenlabs", or "gemini"
 
 # ElevenLabs API Settings
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")

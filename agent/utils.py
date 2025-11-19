@@ -76,7 +76,7 @@ def file_exists(file_field: File) -> bool:
 def ensure_google_api_key():
     """
     Ensure GOOGLE_API_KEY is set in environment variables.
-    
+
     Raises:
         ValueError: If GOOGLE_API_KEY is not configured in settings
     """

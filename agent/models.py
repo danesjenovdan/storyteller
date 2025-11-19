@@ -1,5 +1,5 @@
-from django.db import models
 from django.conf import settings
+from django.db import models
 
 # Create your models here.
 
@@ -27,7 +27,9 @@ class GenVideo(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="videos"
     )
     title = models.CharField(max_length=255)
-    start_prompt = models.TextField(help_text="Initial prompt for video generation", null=True, blank=True)
+    start_prompt = models.TextField(
+        help_text="Initial prompt for video generation", null=True, blank=True
+    )
     scenario = models.TextField(null=True, blank=True)
     prompt = models.TextField(default=settings.DEFAULT_PROMPT)
     content_script = models.TextField(blank=True, null=True)
@@ -44,7 +46,9 @@ class GenVideo(models.Model):
         blank=True,
         help_text="Subtitle file in SRT format",
     )
-    srt_content = models.TextField(blank=True, null=True, help_text="Content of the SRT subtitle file")
+    srt_content = models.TextField(
+        blank=True, null=True, help_text="Content of the SRT subtitle file"
+    )
     final_file = models.FileField(
         upload_to="final_videos/",
         null=True,
@@ -58,26 +62,31 @@ class GenVideo(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    video_segments_prompt = models.TextField(blank=True, null=True, help_text="""
+    video_segments_prompt = models.TextField(
+        blank=True,
+        null=True,
+        help_text="""
 Prompt za določitev ključnih segmentov videa. Na koncu prompta se bo še dodal text:
 Za vsak segment mi določi še start in endtime Vrni mi samo python seznam slovarjev v obliki 
 [{{"start": "0.00", "end": "5.00", "text": "besedilo", "keywords": ["keyword_eng_1", "keyword_eng_2"]}}, ...]
-""", default="""
+""",
+        default="""
 Spodaj imaš scenarij videa in transkript scenarija.
 Vsebino mi razbij v 3-4 segmente in določi keyworde v angleščini, ki najbolje opisujejo vsebino, po katerih lahko nato iščem videe.
-""")
+""",
+    )
 
     def __str__(self):
         return f"Task {self.id} - {self.status}"
-    
+
     @property
     def simplify_prompt(self):
         return f"{self.prompt}\n\n{self.scenario}"
-    
+
     @property
     def srt_from_content_script_prompt(self):
         return f"Generate an SRT subtitle file for the following script:\n\n{self.content_script}"
-    
+
     @property
     def video_segments_keywords_prompt(self):
         return f"""
