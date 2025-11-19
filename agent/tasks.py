@@ -494,7 +494,7 @@ def render_final_video(video: GenVideo) -> None:
     from pathlib import Path
 
     try:
-        video.status = GenVideo.Statuses.PROCESSING
+        video.status = GenVideo.Statuses.RENDERING
         video.save()
 
         # Get all segments with video files
@@ -519,42 +519,42 @@ def render_final_video(video: GenVideo) -> None:
             # Step 1: Cut and prepare each clip
             clip_files = []
             for i, segment in enumerate(segments):
-                input_file = segment.video_file.path
-                duration = segment.end_time - segment.start_time
-                output_file = temp_path / f"clip_{i:03d}.mp4"
+                with get_temporary_file_path(segment.video_file) as input_file:
+                    duration = segment.end_time - segment.start_time
+                    output_file = temp_path / f"clip_{i:03d}.mp4"
 
-                logger.info(
-                    f"Processing clip {i+1}/{segments.count()}: {duration:.2f}s"
-                )
-
-                # Cut video to exact duration (no audio, we'll add it later)
-                # Scale to consistent resolution (1080x1920 for portrait)
-                cmd = [
-                    "ffmpeg",
-                    "-i",
-                    input_file,
-                    "-t",
-                    str(duration),
-                    "-vf",
-                    "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
-                    "-c:v",
-                    "libx264",
-                    "-preset",
-                    "medium",
-                    "-crf",
-                    "23",
-                    "-an",  # Remove audio
-                    "-y",
-                    str(output_file),
-                ]
-
-                result = subprocess.run(cmd, capture_output=True, text=True)
-                if result.returncode != 0:
-                    raise RuntimeError(
-                        f"FFmpeg clip processing failed: {result.stderr}"
+                    logger.info(
+                        f"Processing clip {i+1}/{segments.count()}: {duration:.2f}s"
                     )
 
-                clip_files.append(output_file)
+                    # Cut video to exact duration (no audio, we'll add it later)
+                    # Scale to consistent resolution (1080x1920 for portrait)
+                    cmd = [
+                        "ffmpeg",
+                        "-i",
+                        input_file,
+                        "-t",
+                        str(duration),
+                        "-vf",
+                        "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                        "-c:v",
+                        "libx264",
+                        "-preset",
+                        "medium",
+                        "-crf",
+                        "23",
+                        "-an",  # Remove audio
+                        "-y",
+                        str(output_file),
+                    ]
+
+                    result = subprocess.run(cmd, capture_output=True, text=True)
+                    if result.returncode != 0:
+                        raise RuntimeError(
+                            f"FFmpeg clip processing failed: {result.stderr}"
+                        )
+
+                    clip_files.append(output_file)
 
             # Step 2: Create concat file
             concat_file = temp_path / "concat.txt"
