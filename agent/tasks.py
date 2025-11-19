@@ -613,24 +613,37 @@ def render_final_video(video: GenVideo) -> None:
                                 "23",
                             ]
                         )
+                        # Add audio settings
+                        cmd.extend(
+                            [
+                                "-c:a",
+                                "aac",
+                                "-b:a",
+                                "192k",
+                                "-shortest",  # End when shortest stream ends
+                                "-y",
+                                str(final_output),
+                            ]
+                        )
+                        result = subprocess.run(cmd, capture_output=True, text=True)
                 else:
                     # Just copy video
                     cmd.extend(["-c:v", "copy"])
 
-                # Add audio settings
-                cmd.extend(
-                    [
-                        "-c:a",
-                        "aac",
-                        "-b:a",
-                        "192k",
-                        "-shortest",  # End when shortest stream ends
-                        "-y",
-                        str(final_output),
-                    ]
-                )
+                    # Add audio settings
+                    cmd.extend(
+                        [
+                            "-c:a",
+                            "aac",
+                            "-b:a",
+                            "192k",
+                            "-shortest",  # End when shortest stream ends
+                            "-y",
+                            str(final_output),
+                        ]
+                    )
 
-                result = subprocess.run(cmd, capture_output=True, text=True)
+                    result = subprocess.run(cmd, capture_output=True, text=True)
                 if result.returncode != 0:
                     raise RuntimeError(f"FFmpeg final render failed: {result.stderr}")
 
