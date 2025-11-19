@@ -17,14 +17,14 @@ from .models import GenVideo, VideoSegment
 # Create your views here.
 
 
-@login_required
+@login_required(login_url="/admin/login/")
 def video_list(request):
     user = request.user
     videos = user.videos.all().order_by("-created_at")
     return render(request, "agent/videos.html", {"videos": videos})
 
 
-@login_required
+@login_required(login_url="/admin/login/")
 def video_create(request):
     """View for creating a new video with title, scenario, and prompt."""
     if request.method == "POST":
@@ -62,7 +62,7 @@ def video_create(request):
     return render(request, "agent/video_create.html", {"form": form})
 
 
-@login_required
+@login_required(login_url="/admin/login/")
 def video_edit_scenario(request, video_id):
     """View for editing the scenario after it's generated from start_prompt."""
     video = get_object_or_404(GenVideo, id=video_id, user=request.user)
@@ -87,7 +87,7 @@ def video_edit_scenario(request, video_id):
     )
 
 
-@login_required
+@login_required(login_url="/admin/login/")
 def video_edit_script(request, video_id):
     """View for editing the content_script after LLM generation."""
     from django.conf import settings as django_settings
@@ -154,7 +154,7 @@ def video_edit_script(request, video_id):
     )
 
 
-@login_required
+@login_required(login_url="/admin/login/")
 def video_segment_videos_selector(request, video_segment_id):
     """
     Query Pexels API for partial video selection.
@@ -177,7 +177,7 @@ def video_segment_videos_selector(request, video_segment_id):
     )
 
 
-@login_required
+@login_required(login_url="/admin/login/")
 def search_pexels_videos(request, video_segment_id):
     """
     AJAX endpoint to search Pexels videos with custom query.
@@ -264,7 +264,7 @@ def search_pexels_videos(request, video_segment_id):
         return JsonResponse({"error": f"Unexpected error: {str(e)}"}, status=500)
 
 
-@login_required
+@login_required(login_url="/admin/login/")
 def save_selected_video(request, video_segment_id):
     """
     Save selected video to VideoSegment.
@@ -379,7 +379,7 @@ def save_selected_video(request, video_segment_id):
         return JsonResponse({"error": f"Error saving video: {str(e)}"}, status=500)
 
 
-@login_required
+@login_required(login_url="/admin/login/")
 def video_detail(request, video_id):
     """
     Display video details, status, and all associated files.
@@ -416,7 +416,7 @@ def video_detail(request, video_id):
     return render(request, "agent/video_detail.html", context)
 
 
-@login_required
+@login_required(login_url="/admin/login/")
 def render_video(request, video_id):
     """
     Trigger rendering of final video from all VideoSentence clips.
@@ -453,7 +453,7 @@ def render_video(request, video_id):
     return redirect("video_detail", video_id=video_id)
 
 
-@login_required
+@login_required(login_url="/admin/login/")
 def generate_voice(request, video_id):
     """
     Generate voice file from content_script based on TTS provider.
@@ -495,7 +495,7 @@ def generate_voice(request, video_id):
     return redirect("video_detail", video_id=video_id)
 
 
-@login_required
+@login_required(login_url="/admin/login/")
 def regenerate_segments(request, video_id):
     """
     Regenerate video segments from content script.
