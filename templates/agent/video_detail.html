@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ video.title }} - Podrobnosti</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        .status-badge {
+            font-size: 0.9rem;
+            padding: 0.5rem 1rem;
+        }
+        .file-card {
+            transition: transform 0.2s;
+        }
+        .file-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .segment-card {
+            border-left: 3px solid #0d6efd;
+        }
+        .segment-card.completed {
+            border-left-color: #198754;
+        }
+        .segment-card.missing {
+            border-left-color: #dc3545;
+        }
+        .video-preview {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 8px;
+        }
+        .progress {
+            height: 30px;
+            font-size: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="{% url 'video_list' %}">Videi</a></li>
+                        <li class="breadcrumb-item active">{{ video.title }}</li>
+                    </ol>
+                </nav>
+                <h1>{{ video.title }}</h1>
+                <p class="text-muted">Ustvarjeno: {{ video.created_at|date:"d.m.Y H:i" }}</p>
+            </div>
+        </div>
+
+        <!-- Status and Progress -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Status</h5>
+                        <div class="d-flex align-items-center mb-3">
+                            <span class="badge status-badge 
+                                {% if video.status == 'COMPLETED' %}bg-success
+                                {% elif video.status == 'PROCESSING' %}bg-primary
+                                {% elif video.status == 'FAILED' %}bg-danger
+                                {% else %}bg-secondary{% endif %}">
+                                {{ video.get_status_display }}
+                            </span>
+                            <span class="ms-3 text-muted">Posodobljeno: {{ video.updated_at|date:"d.m.Y H:i" }}</span>
+                        </div>
+                        
+                        <h6>Napredek video klipov</h6>
+                        <div class="progress mb-2">
+                            <div class="progress-bar {% if progress_percentage == 100 %}bg-success{% endif %}" 
+                                 role="progressbar" 
+                                 style="width: {{ progress_percentage }}%"
+                                 aria-valuenow="{{ progress_percentage }}" 
+                                 aria-valuemin="0" 
+                                 aria-valuemax="100">
+                                {{ completed_segments }}/{{ total_segments }} ({{ progress_percentage|floatformat:0 }}%)
+                            </div>
+                        </div>
+                        <small class="text-muted">
+                            {% if completed_segments == total_segments %}
+                                ✓ Vsi video klipi so izbrani
+                            {% else %}
+                                {{ total_segments|add:"-"|add:completed_segments }} segmentov še potrebuje video klip
+                            {% endif %}
+                        </small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Akcije</h5>
+                        <div class="d-grid gap-2">
+                            <a href="{% url 'video_edit_script' video.id %}" class="btn btn-primary">
+                                <i class="bi bi-pencil"></i> Uredi skript
+                            </a>
+                            
+                            {% if video.content_script and not video.voice_file %}
+                                <form method="post" action="{% url 'generate_voice' video.id %}" style="margin: 0;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-outline-primary w-100">
+                                        <i class="bi bi-mic"></i> Generiraj zvočni posnetek
+                                    </button>
+                                </form>
+                            {% endif %}
+                            
+                            {% if video.content_script %}
+                                <form method="post" action="{% url 'regenerate_segments' video.id %}" style="margin: 0;" onsubmit="return confirm('Ali si prepričan? Vsi obstoječi segmenti bodo izbrisani!');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-outline-warning w-100">
+                                        <i class="bi bi-arrow-clockwise"></i> Ponovno generiraj segmente
+                                    </button>
+                                </form>
+                            {% endif %}
+                            
+                            {% if completed_segments == total_segments and total_segments > 0 and video.voice_file %}
+                                {% if video.status == 'PROCESSING' %}
+                                    <button class="btn btn-warning" disabled>
+                                        <span class="spinner-border spinner-border-sm me-2"></span>
+                                        Renderiranje...
+                                    </button>
+                                {% else %}
+                                    <form method="post" action="{% url 'render_video' video.id %}" style="margin: 0;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-success w-100">
+                                            <i class="bi bi-film"></i> Renderiraj končni video
+                                        </button>
+                                    </form>
+                                {% endif %}
+                            {% endif %}
+                            {% if video.final_file %}
+                            <a href="{{ video.final_file.url }}" class="btn btn-success" target="_blank">
+                                <i class="bi bi-play-circle"></i> Predvajaj končni video
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scenario and Script -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Scenarij</h5>
+                        <p class="card-text">{{ video.scenario }}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Vsebinski skript</h5>
+                        {% if video.content_script %}
+                            <p class="card-text">{{ video.content_script }}</p>
+                        {% else %}
+                            <p class="text-muted">Skript še ni generiran</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Files Section -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <h3>Datoteke</h3>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <!-- Voice File -->
+            <div class="col-md-4 mb-3">
+                <div class="card file-card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-mic-fill"></i> Zvočna datoteka
+                        </h5>
+                        {% if video.voice_file %}
+                            <p class="text-success"><i class="bi bi-check-circle-fill"></i> Naložena</p>
+                            <p class="text-muted">Model: {{ video.voice_model }}</p>
+                            <audio controls class="w-100 mb-2">
+                                <source src="{{ video.voice_file.url }}" type="audio/mpeg">
+                                Vaš brskalnik ne podpira predvajanja zvoka.
+                            </audio>
+                            <a href="{{ video.voice_file.url }}" class="btn btn-sm btn-outline-primary" download>
+                                <i class="bi bi-download"></i> Prenesi
+                            </a>
+                        {% else %}
+                            <p class="text-muted">Ni na voljo</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- SRT File -->
+            <div class="col-md-4 mb-3">
+                <div class="card file-card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-file-text-fill"></i> Podnapisi (SRT)
+                        </h5>
+                        {% if video.srt_file %}
+                            <p class="text-success"><i class="bi bi-check-circle-fill"></i> Naloženi</p>
+                            <a href="{{ video.srt_file.url }}" class="btn btn-sm btn-outline-primary" download>
+                                <i class="bi bi-download"></i> Prenesi
+                            </a>
+                        {% else %}
+                            <p class="text-muted">Ni na voljo</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Final Video -->
+            <div class="col-md-4 mb-3">
+                <div class="card file-card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-camera-video-fill"></i> Končni video
+                        </h5>
+                        {% if video.final_file %}
+                            <p class="text-success"><i class="bi bi-check-circle-fill"></i> Pripravljen</p>
+                            <video controls class="w-100 mb-2" style="max-height: 200px;">
+                                <source src="{{ video.final_file.url }}" type="video/mp4">
+                                Vaš brskalnik ne podpira predvajanja videa.
+                            </video>
+                            <a href="{{ video.final_file.url }}" class="btn btn-sm btn-success" target="_blank">
+                                <i class="bi bi-play-circle"></i> Predvajaj
+                            </a>
+                            <a href="{{ video.final_file.url }}" class="btn btn-sm btn-outline-primary" download>
+                                <i class="bi bi-download"></i> Prenesi
+                            </a>
+                        {% else %}
+                            <p class="text-muted">Še ni renderiran</p>
+                            {% if completed_segments == total_segments and total_segments > 0 and video.voice_file %}
+                                <small class="text-info">
+                                    <i class="bi bi-info-circle"></i> Vsi klipi so pripravljeni, lahko renderiraš video!
+                                </small>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Video Segments -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <h3>Video segmenti ({{ total_segments }})</h3>
+            </div>
+        </div>
+
+        {% for segment in segments %}
+        <div class="row mb-3">
+            <div class="col-md-12">
+                <div class="card segment-card {% if segment.video_file %}completed{% else %}missing{% endif %}">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <h5 class="card-title">
+                                    #{{ segment.order }} 
+                                    {% if segment.video_file %}
+                                        <span class="badge bg-success">✓</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">✗</span>
+                                    {% endif %}
+                                </h5>
+                                <p class="card-text">{{ segment.text }}</p>
+                                <p class="text-muted mb-1">
+                                    <i class="bi bi-clock"></i> 
+                                    {{ segment.start_time|floatformat:1 }}s - {{ segment.end_time|floatformat:1 }}s 
+                                    (trajanje: {{ segment.end_time|add:"-"|add:segment.start_time|floatformat:1 }}s)
+                                </p>
+                                <p class="text-muted mb-1">
+                                    <i class="bi bi-search"></i> Ključne besede: {{ segment.query }}
+                                </p>
+                                
+                                {% if not segment.video_file %}
+                                <a href="{% url 'video_segment_videos_selector' segment.id %}" class="btn btn-sm btn-primary mt-2">
+                                    <i class="bi bi-film"></i> Izberi video
+                                </a>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-4">
+                                {% if segment.video_file %}
+                                    <video controls class="video-preview">
+                                        <source src="{{ segment.video_file.url }}" type="video/mp4">
+                                        Vaš brskalnik ne podpira predvajanja videa.
+                                    </video>
+                                    <div class="mt-2">
+                                        <a href="{{ segment.video_file.url }}" class="btn btn-sm btn-outline-primary" download>
+                                            <i class="bi bi-download"></i> Prenesi
+                                        </a>
+                                        <a href="{% url 'video_segment_videos_selector' segment.id %}" class="btn btn-sm btn-outline-secondary">
+                                            <i class="bi bi-arrow-repeat"></i> Zamenjaj
+                                        </a>
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted text-center">
+                                        <i class="bi bi-exclamation-triangle" style="font-size: 3rem;"></i><br>
+                                        Video ni izbran
+                                    </p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="row">
+            <div class="col-md-12">
+                <div class="alert alert-info">
+                    Ni stavkov. Dodaj vsebinski skript, da se samodejno ustvarijo stavki.
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

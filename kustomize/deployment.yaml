@@ -1,0 +1,136 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: storyteller-deployment
+  labels:
+    app: storyteller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: storyteller
+  template:
+    metadata:
+      labels:
+        app: storyteller
+    spec:
+      volumes:
+        - name: storyteller-storage
+          emptyDir: {}
+      initContainers:
+        - name: collectstatic
+          image: storyteller
+          volumeMounts:
+            - name: storyteller-storage
+              mountPath: /storage
+          command:
+            - python
+            - manage.py
+            - collectstatic
+            - --no-input
+          env:
+            - name: DJANGO_STATIC_ROOT
+              value: '/storage/static'
+          envFrom:
+            - secretRef:
+                name: storyteller-credentials
+          resources:
+            requests:
+              memory: 200Mi
+              cpu: 200m
+            limits:
+              memory: 200Mi
+              cpu: 200m
+        - name: migrate
+          image: storyteller
+          command:
+            - python
+            - manage.py
+            - migrate
+          envFrom:
+            - secretRef:
+                name: storyteller-credentials
+          resources:
+            requests:
+              memory: 200Mi
+              cpu: 200m
+            limits:
+              memory: 200Mi
+              cpu: 200m
+      containers:
+        - name: storyteller
+          image: storyteller
+          volumeMounts:
+            - name: storyteller-storage
+              mountPath: /storage
+          command:
+            - gunicorn
+            - storyteller.wsgi:application
+            - -b
+            - 0.0.0.0:8000
+            - --log-level
+            - DEBUG
+            - --workers
+            - "1"
+            - --threads
+            - "3"
+            - --timeout
+            - "30"
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: storyteller-credentials
+          env:
+            - name: DJANGO_STATIC_ROOT
+              value: '/storage/static'
+            - name: DJANGO_STATIC_URL_BASE
+              value: "https://files.storyteller.lb.djnd.si/static/"
+          resources:
+            requests:
+              memory: 400Mi
+              cpu: 200m
+            limits:
+              memory: 400Mi
+              cpu: 200m
+        - name: storyteller-huey
+          image: storyteller
+          volumeMounts:
+            - name: storyteller-storage
+              mountPath: /storage
+          command:
+            - "python"
+            - "manage.py"
+            - "run_huey"
+            - "--workers"
+            - "1"
+            - "--worker-type"
+            - "thread"
+          env:
+            - name: DJANGO_STATIC_ROOT
+              value: '/storage/static'
+            - name: DJANGO_STATIC_URL_BASE
+              value: "https://files.storyteller.lb.djnd.si/static/"
+          envFrom:
+            - secretRef:
+                name: storyteller-credentials
+          resources:
+            requests:
+              memory: 400Mi
+              cpu: 200m
+        - name: storyteller-nginx
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          image: nginx:alpine
+          volumeMounts:
+            - name: storyteller-storage
+              mountPath: /usr/share/nginx/html
+          resources:
+            requests:
+              memory: 100Mi
+              cpu: 100m
+            limits:
+              memory: 100Mi
+              cpu: 100m
