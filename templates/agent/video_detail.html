@@ -6,6 +6,7 @@
     <title>{{ video.title }} - Podrobnosti</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&family=Bebas+Neue&family=Roboto:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         .status-badge {
             font-size: 0.9rem;
@@ -36,6 +37,55 @@
             height: 30px;
             font-size: 1rem;
         }
+        .subtitle-preview-container {
+            background: #87CEEB;
+            border-radius: 8px;
+            position: relative;
+            width: 100%;
+            max-width: 200px;
+            margin: 0 auto;
+        }
+        .subtitle-preview-container::before {
+            content: "";
+            display: block;
+            padding-top: 177.78%; /* 9:16 aspect ratio */
+        }
+        .subtitle-preview-container > .subtitle-preview {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            right: 0;
+        }
+        .subtitle-style-option {
+            cursor: pointer;
+            padding: 5px;
+            border: 3px solid transparent;
+            border-radius: 6px;
+            transition: all 0.3s;
+            background: #B0D4E3;
+        }
+        .subtitle-style-option:hover {
+            border-color: #0d6efd;
+            transform: scale(1.05);
+        }
+        .subtitle-style-option.selected {
+            border-color: #198754;
+            background: #7FB3D5;
+        }
+        .subtitle-preview {
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            text-align: center;
+            padding-bottom: 36px;
+            transition: padding-bottom 0.3s ease;
+            height: 100%;
+        }
+        .subtitle-preview span {
+            color: white;
+            transition: all 0.3s ease;
+        }
     </style>
 </head>
 <body>
@@ -61,6 +111,11 @@
                     <div class="card-body">
                         <h5 class="card-title">Status</h5>
                         <div class="d-flex align-items-center mb-3">
+                            {% if video.status == 'GENERATING_VOICE' or video.status == 'GENERATING_SUBTITLES' or video.status == 'GENERATING_SEGMENTS' or video.status == 'RENDERING' %}
+                                <div class="spinner-border text-primary me-2" role="status" style="width: 1.5rem; height: 1.5rem;">
+                                    <span class="visually-hidden">Nalaganje...</span>
+                                </div>
+                            {% endif %}
                             <span class="badge status-badge 
                                 {% if video.status == 'COMPLETED' %}bg-success
                                 {% elif video.status == 'PROCESSING' %}bg-primary
@@ -97,11 +152,8 @@
                     <div class="card-body">
                         <h5 class="card-title">Akcije</h5>
                         <div class="d-grid gap-2">
-                            <a href="{% url 'video_edit_script' video.id %}" class="btn btn-primary">
-                                <i class="bi bi-pencil"></i> Uredi skript
-                            </a>
                             
-                            {% if video.content_script and not video.voice_file %}
+                            {% if video.scenario and not video.voice_file %}
                                 <form method="post" action="{% url 'generate_voice' video.id %}" style="margin: 0;">
                                     {% csrf_token %}
                                     <button type="submit" class="btn btn-outline-primary w-100">
@@ -110,7 +162,7 @@
                                 </form>
                             {% endif %}
                             
-                            {% if video.content_script %}
+                            {% if video.scenario %}
                                 <form method="post" action="{% url 'regenerate_segments' video.id %}" style="margin: 0;" onsubmit="return confirm('Ali si prepričan? Vsi obstoječi segmenti bodo izbrisani!');">
                                     {% csrf_token %}
                                     <button type="submit" class="btn btn-outline-warning w-100">
@@ -155,18 +207,6 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">Vsebinski skript</h5>
-                        {% if video.content_script %}
-                            <p class="card-text">{{ video.content_script }}</p>
-                        {% else %}
-                            <p class="text-muted">Skript še ni generiran</p>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
         </div>
 
         <!-- Files Section -->
@@ -202,7 +242,7 @@
             </div>
 
             <!-- SRT File -->
-            <div class="col-md-4 mb-3">
+            <div class="col-md-8 mb-3">
                 <div class="card file-card h-100">
                     <div class="card-body">
                         <h5 class="card-title">
@@ -210,9 +250,61 @@
                         </h5>
                         {% if video.srt_file %}
                             <p class="text-success"><i class="bi bi-check-circle-fill"></i> Naloženi</p>
-                            <a href="{{ video.srt_file.url }}" class="btn btn-sm btn-outline-primary" download>
+                            <a href="{{ video.srt_file.url }}" class="btn btn-sm btn-outline-primary mb-3" download>
                                 <i class="bi bi-download"></i> Prenesi
                             </a>
+                            
+                            <h6 class="mt-3 mb-2">Prilagodi podnapise:</h6>
+                            
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Font</label>
+                                    <select class="form-select" id="fontFamily" onchange="updateSubtitlePreview()">
+                                        <option value="Montserrat" {% if video.subtitle_font_family == 'Montserrat' or not video.subtitle_font_family %}selected{% endif %}>Montserrat</option>
+                                        <option value="Impact" {% if video.subtitle_font_family == 'Impact' %}selected{% endif %}>Impact</option>
+                                        <option value="Arial" {% if video.subtitle_font_family == 'Arial' %}selected{% endif %}>Arial</option>
+                                        <option value="Bebas Neue" {% if video.subtitle_font_family == 'Bebas Neue' %}selected{% endif %}>Bebas Neue</option>
+                                        <option value="Roboto" {% if video.subtitle_font_family == 'Roboto' %}selected{% endif %}>Roboto</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Font Weight</label>
+                                    <select class="form-select" id="fontWeight" onchange="updateSubtitlePreview()">
+                                        <option value="400" {% if video.subtitle_font_weight == '400' %}selected{% endif %}>Normal (400)</option>
+                                        <option value="700" {% if video.subtitle_font_weight == '700' %}selected{% endif %}>Bold (700)</option>
+                                        <option value="900" {% if video.subtitle_font_weight == '900' or not video.subtitle_font_weight %}selected{% endif %}>Heavy (900)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-3">
+                                    <label class="form-label">Velikost: <span id="fontSizeValue">{{ video.subtitle_font_size|default:12 }}</span>px</label>
+                                    <input type="range" class="form-range" min="10" max="20" value="{{ video.subtitle_font_size|default:12 }}" id="fontSize" oninput="updateSubtitlePreview()">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Stroke: <span id="strokeValue">{{ video.subtitle_stroke_weight|default:3 }}</span>px</label>
+                                    <input type="range" class="form-range" min="0" max="6" value="{{ video.subtitle_stroke_weight|default:3 }}" id="strokeWeight" oninput="updateSubtitlePreview()">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Shadow: <span id="shadowValue">{{ video.subtitle_shadow|default:1 }}</span></label>
+                                    <input type="range" class="form-range" min="0" max="3" value="{{ video.subtitle_shadow|default:1 }}" id="shadow" oninput="updateSubtitlePreview()">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Višina: <span id="verticalPositionValue">{{ video.subtitle_vertical_position|default:10 }}</span>%</label>
+                                    <input type="range" class="form-range" min="0" max="50" value="{{ video.subtitle_vertical_position|default:10 }}" id="verticalPosition" oninput="updateSubtitlePreview()">
+                                </div>
+                            </div>
+                            
+                            <div class="subtitle-preview-container mb-3">
+                                <div class="subtitle-preview">
+                                    <span id="subtitlePreviewText">Primer Teksta je takšen, a bi mel drugačnega?</span>
+                                </div>
+                            </div>
+                            
+                            <button class="btn btn-primary" onclick="saveSubtitleSettings('{{ video.id }}')">
+                                <i class="bi bi-check-circle"></i> Shrani nastavitve
+                            </button>
                         {% else %}
                             <p class="text-muted">Ni na voljo</p>
                         {% endif %}
@@ -329,5 +421,113 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Auto-reload page every 15 seconds if video is being processed
+        const videoStatus = '{{ video.status }}';
+        const processingStatuses = ['GENERATING_VOICE', 'GENERATING_SUBTITLES', 'GENERATING_SEGMENTS', 'RENDERING'];
+        
+        // Function to update subtitle preview
+        function updateSubtitlePreview() {
+            const fontSize = document.getElementById('fontSize').value;
+            const fontFamily = document.getElementById('fontFamily').value;
+            const fontWeight = document.getElementById('fontWeight').value;
+            const strokeWeight = document.getElementById('strokeWeight').value;
+            const shadow = document.getElementById('shadow').value;
+            const verticalPosition = document.getElementById('verticalPosition').value;
+            
+            // Update display values
+            document.getElementById('fontSizeValue').textContent = fontSize;
+            document.getElementById('strokeValue').textContent = strokeWeight;
+            document.getElementById('shadowValue').textContent = shadow;
+            document.getElementById('verticalPositionValue').textContent = verticalPosition;
+            
+            // Update preview
+            const previewSpan = document.getElementById('subtitlePreviewText');
+            const previewContainer = previewSpan.closest('.subtitle-preview');
+            
+            previewSpan.style.fontFamily = fontFamily + ', sans-serif';
+            previewSpan.style.fontSize = fontSize + 'px';
+            previewSpan.style.fontWeight = fontWeight;
+            
+            // Update vertical position (padding from bottom)
+            // Convert percentage to pixels based on container height (~355px for 200px width)
+            // At 50% slider, we want ~180px from bottom
+            const paddingPx = (verticalPosition / 50) * 180; // Linear scale: 0-50% → 0-180px
+            previewContainer.style.paddingBottom = paddingPx + 'px';
+            
+            // Build text-shadow for stroke and shadow
+            let textShadow = [];
+            const stroke = parseInt(strokeWeight);
+            
+            // Add stroke (black outline)
+            if (stroke > 0) {
+                for (let x = -stroke; x <= stroke; x++) {
+                    for (let y = -stroke; y <= stroke; y++) {
+                        if (x !== 0 || y !== 0) {
+                            textShadow.push(`${x}px ${y}px 0 #000`);
+                        }
+                    }
+                }
+            }
+            
+            // Add shadow
+            if (shadow > 0) {
+                const shadowSize = parseInt(shadow) * 2;
+                textShadow.push(`-${shadowSize}px -${shadowSize}px ${shadowSize}px rgba(0,0,0,0.5)`);
+            }
+            
+            previewSpan.style.textShadow = textShadow.join(', ');
+        }
+        
+        // Function to save subtitle settings
+        async function saveSubtitleSettings(videoId) {
+            const fontSize = document.getElementById('fontSize').value;
+            const fontFamily = document.getElementById('fontFamily').value;
+            const fontWeight = document.getElementById('fontWeight').value;
+            const strokeWeight = document.getElementById('strokeWeight').value;
+            const shadow = document.getElementById('shadow').value;
+            const verticalPosition = document.getElementById('verticalPosition').value;
+            
+            try {
+                const response = await fetch(`/videos/${videoId}/set-subtitle-style/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify({ 
+                        font_size: fontSize,
+                        font_family: fontFamily,
+                        font_weight: fontWeight,
+                        stroke_weight: strokeWeight,
+                        shadow: shadow,
+                        vertical_position: verticalPosition
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to save subtitle settings');
+                }
+                
+                const result = await response.json();
+                alert('Nastavitve podnapisov so shranjene!');
+                console.log('Subtitle settings saved:', result);
+            } catch (error) {
+                console.error('Error saving subtitle settings:', error);
+                alert('Napaka pri shranjevanju nastavitev');
+            }
+        }
+        
+        // Initialize preview on page load
+        window.addEventListener('DOMContentLoaded', function() {
+            updateSubtitlePreview();
+        });
+        
+        if (processingStatuses.includes(videoStatus)) {
+            setTimeout(function() {
+                location.reload();
+            }, 15000); // 15 seconds
+        }
+    </script>
 </body>
 </html>

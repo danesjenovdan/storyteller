@@ -1,17 +1,16 @@
 from django.contrib import messages
+from django.conf import settings as django_settings
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 
 from agent.tasks import (
-    generate_scenario_from_prompt,
     generate_voice_file_eleven_labs,
     generate_voice_file_gemini,
     generate_voice_file_openai,
     render_final_video,
-    simplify_scenario,
 )
 
-from .forms import ContentScriptEditForm, ScenarioEditForm, VideoCreateForm
+from .forms import ScenarioEditForm, VideoCreateForm
 from .models import GenVideo, VideoSegment
 
 # Create your views here.
@@ -25,75 +24,49 @@ def video_list(request):
 
 
 @login_required(login_url="/admin/login/")
+def modify_scenario_with_gemini(request):
+    """AJAX endpoint to modify scenario using Gemini API."""
+    import json
+    from django.http import JsonResponse
+    from langchain.chat_models import init_chat_model
+    from agent.utils import ensure_google_api_key
+
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        scenario = data.get("scenario", "")
+        modify_prompt = data.get("modify_prompt", "")
+
+        if not modify_prompt:
+            return JsonResponse({"error": "Modify prompt is required"}, status=400)
+
+        # Ensure Google API key is set
+        ensure_google_api_key()
+
+        # Build the prompt - if scenario is empty, just use the modify_prompt
+        if scenario:
+            full_prompt = f"Ukaz:\n{modify_prompt}\n\nScenarij:\n{scenario}"
+        else:
+            full_prompt = modify_prompt
+
+        # Call Gemini model
+        model = init_chat_model("gemini-2.5-flash", model_provider="google_genai")
+        model_response = model.invoke(full_prompt)
+
+        return JsonResponse({
+            "success": True,
+            "modified_scenario": model_response.content
+        })
+
+    except Exception as e:
+        return JsonResponse({"error": f"Error calling Gemini: {str(e)}"}, status=500)
+
+
+@login_required(login_url="/admin/login/")
 def video_create(request):
     """View for creating a new video with title, scenario, and prompt."""
-    if request.method == "POST":
-        form = VideoCreateForm(request.POST)
-        if form.is_valid():
-            video = form.save(commit=False)
-            video.user = request.user
-            video.save()
-
-            # If start_prompt is provided, generate scenario first then redirect to edit
-            if video.start_prompt:
-                messages.success(
-                    request,
-                    "Video ustvarjen! Generiranje scenarija iz start_prompt, osveži stran po nekaj trenutkih...",
-                )
-                generate_scenario_from_prompt(video)
-                return redirect("video_edit_scenario", video_id=video.id)
-            elif video.scenario:
-                # If only scenario is provided, directly simplify to content_script
-                messages.success(
-                    request, "Video ustvarjen! Generiranje content_script..."
-                )
-                simplify_scenario(video)
-                return redirect("video_edit_script", video_id=video.id)
-            else:
-                messages.success(
-                    request, "Video mora vsebovati vsaj start_prompt ali scenario!"
-                )
-                return render(request, "agent/video_create.html", {"form": form})
-        else:
-            messages.error(request, "Napaka pri ustvarjanju videa.")
-    else:
-        form = VideoCreateForm()
-
-    return render(request, "agent/video_create.html", {"form": form})
-
-
-@login_required(login_url="/admin/login/")
-def video_edit_scenario(request, video_id):
-    """View for editing the scenario after it's generated from start_prompt."""
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
-
-    if request.method == "POST":
-        form = ScenarioEditForm(request.POST, instance=video)
-        if form.is_valid():
-            form.save()
-            messages.success(
-                request,
-                "Scenarij shranjen! Generiranje content_script. Osveži stran po nekaj trenutkih...",
-            )
-            simplify_scenario(video)
-            return redirect("video_edit_script", video_id=video.id)
-        else:
-            messages.error(request, "Napaka pri shranjevanju scenarija.")
-    else:
-        form = ScenarioEditForm(instance=video)
-
-    return render(
-        request, "agent/video_edit_scenario.html", {"form": form, "video": video}
-    )
-
-
-@login_required(login_url="/admin/login/")
-def video_edit_script(request, video_id):
-    """View for editing the content_script after LLM generation."""
-    from django.conf import settings as django_settings
-
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
-
     # Get TTS provider from settings
     tts_provider = django_settings.TTS_PROVIDER
 
@@ -130,28 +103,33 @@ def video_edit_script(request, video_id):
             ("nova", "Nova - Female, energetic"),
             ("shimmer", "Shimmer - Female, soft and warm"),
         ]
-
     if request.method == "POST":
-        form = ContentScriptEditForm(
-            request.POST, instance=video, voice_models=VOICE_MODELS
-        )
+        form = VideoCreateForm(request.POST, voice_models=VOICE_MODELS)
         if form.is_valid():
-            form.save()
-            messages.success(
-                request,
-                "Vsebinski skript uspešno posodobljen! Generiraj zvočni posnetek v podrobnostih videa.",
-            )
-            return redirect("video_detail", video_id=video.id)
-        else:
-            messages.error(request, "Napaka pri shranjevanju skripta.")
-    else:
-        form = ContentScriptEditForm(instance=video, voice_models=VOICE_MODELS)
+            video = form.save(commit=False)
+            video.user = request.user
+            video.save()
 
-    return render(
-        request,
-        "agent/video_edit_script.html",
-        {"form": form, "video": video, "tts_provider": tts_provider},
-    )
+            if video.scenario:
+                # If only scenario is provided, directly simplify to scenario
+                messages.success(
+                    request, "Video ustvarjen! Generiranje zvočne datoteke..."
+                )
+                video.status = GenVideo.Statuses.GENERATING_VOICE
+                video.save()
+                generate_voice_file_gemini(video)
+                return redirect("video_detail", video_id=video.id)
+            else:
+                messages.success(
+                    request, "Video mora vsebovati scenario!"
+                )
+                return render(request, "agent/video_create.html", {"form": form})
+        else:
+            messages.error(request, "Napaka pri ustvarjanju videa.")
+    else:
+        form = VideoCreateForm(voice_models=VOICE_MODELS)
+
+    return render(request, "agent/video_create.html", {"form": form})
 
 
 @login_required(login_url="/admin/login/")
@@ -358,7 +336,7 @@ def save_selected_video(request, video_segment_id):
         else:
             from django.urls import reverse
 
-            redirect_url = reverse("video_list")
+            redirect_url = reverse("video_detail", kwargs={"video_id": video_segment.video.id})
             message = "Video uspešno shranjen. Vsi segmenti so obdelani!"
 
         return JsonResponse(
@@ -456,7 +434,7 @@ def render_video(request, video_id):
 @login_required(login_url="/admin/login/")
 def generate_voice(request, video_id):
     """
-    Generate voice file from content_script based on TTS provider.
+    Generate voice file from scenario based on TTS provider.
     """
     from django.conf import settings as django_settings
 
@@ -465,7 +443,7 @@ def generate_voice(request, video_id):
 
     video = get_object_or_404(GenVideo, id=video_id, user=request.user)
 
-    if not video.content_script:
+    if not video.scenario:
         messages.error(request, "Ne moreš generirati zvoka - manjka vsebinski skript")
         return redirect("video_detail", video_id=video_id)
 
@@ -511,7 +489,7 @@ def regenerate_segments(request, video_id):
 
     video = get_object_or_404(GenVideo, id=video_id, user=request.user)
 
-    if not video.content_script:
+    if not video.scenario:
         messages.error(
             request, "Ne moreš generirati segmentov - manjka vsebinski skript"
         )
@@ -528,3 +506,47 @@ def regenerate_segments(request, video_id):
     )
 
     return redirect("video_detail", video_id=video_id)
+
+
+@login_required(login_url="/admin/login/")
+def set_subtitle_style(request, video_id):
+    """
+    Set subtitle style for video rendering.
+    """
+    import json
+    from django.http import JsonResponse
+
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+
+    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+
+    try:
+        data = json.loads(request.body)
+        font_size = data.get("font_size", 12)
+        font_family = data.get("font_family", "Montserrat")
+        font_weight = data.get("font_weight", "900")
+        stroke_weight = data.get("stroke_weight", 3)
+        shadow = data.get("shadow", 1)
+        vertical_position = data.get("vertical_position", 10)
+
+        video.subtitle_font_size = int(font_size)
+        video.subtitle_font_family = font_family
+        video.subtitle_font_weight = str(font_weight)
+        video.subtitle_stroke_weight = int(stroke_weight)
+        video.subtitle_shadow = int(shadow)
+        video.subtitle_vertical_position = int(vertical_position)
+        video.save()
+
+        return JsonResponse({
+            "success": True, 
+            "font_size": font_size,
+            "font_family": font_family,
+            "font_weight": font_weight,
+            "stroke_weight": stroke_weight,
+            "shadow": shadow,
+            "vertical_position": vertical_position
+        })
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)

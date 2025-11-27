@@ -28,80 +28,9 @@ logging.basicConfig(
 
 
 @db_task()
-def generate_scenario_from_prompt(video_instance: GenVideo) -> None:
-    """
-    Generate scenario from start_prompt using Gemini.
-    This runs first and creates the scenario text.
-    """
-    try:
-        ensure_google_api_key()
-
-        if not video_instance.start_prompt:
-            logger.warning(
-                f"Video {video_instance.id} has no start_prompt, skipping scenario generation"
-            )
-            return
-
-        video_instance.status = GenVideo.Statuses.GENERATING_SCENARIO
-        video_instance.save()
-
-        logger.info(
-            f"Generating scenario for video {video_instance.id} from start_prompt"
-        )
-
-        model = init_chat_model("gemini-2.5-flash", model_provider="google_genai")
-        model_response = model.invoke(video_instance.start_prompt)
-        video_instance.scenario = model_response.content
-        video_instance.status = GenVideo.Statuses.SCENARIO_READY
-        video_instance.save()
-
-        logger.info(f"✓ Scenario generated for video {video_instance.id}")
-
-    except Exception as e:
-        logger.error(
-            f"✗ Error generating scenario for video {video_instance.id}: {str(e)}"
-        )
-        video_instance.status = GenVideo.Statuses.FAILED
-        video_instance.save()
-        raise
-
-
-@db_task()
-def simplify_scenario(video_instance: GenVideo) -> None:
-    """
-    Generate content_script from scenario using Gemini.
-    This runs second and creates the simplified script.
-    """
-    try:
-        ensure_google_api_key()
-
-        video_instance.status = GenVideo.Statuses.GENERATING_SCRIPT
-        video_instance.save()
-
-        logger.info(f"Simplifying scenario for video {video_instance.id}")
-
-        # prompt the model for the minutes
-        model = init_chat_model("gemini-2.5-flash", model_provider="google_genai")
-        model_response = model.invoke(video_instance.simplify_prompt)
-        video_instance.content_script = model_response.content
-        video_instance.status = GenVideo.Statuses.SCRIPT_READY
-        video_instance.save()
-
-        logger.info(f"✓ Content script generated for video {video_instance.id}")
-
-    except Exception as e:
-        logger.error(
-            f"✗ Error generating content script for video {video_instance.id}: {str(e)}"
-        )
-        video_instance.status = GenVideo.Statuses.FAILED
-        video_instance.save()
-        raise
-
-
-@db_task()
 def generate_voice_file_eleven_labs(video: int) -> None:
     """
-    Generate voice file from content_script using ElevenLabs SDK.
+    Generate voice file from scenario using ElevenLabs SDK.
 
     Args:
         video.id: ID of the GenVideo instance
@@ -110,16 +39,16 @@ def generate_voice_file_eleven_labs(video: int) -> None:
         video.status = GenVideo.Statuses.GENERATING_VOICE
         video.save()
 
-        if not video.content_script:
+        if not video.scenario:
             raise ValueError(
-                f"Video {video.id} has no content_script to convert to speech"
+                f"Video {video.id} has no scenario to convert to speech"
             )
 
         if not settings.ELEVENLABS_API_KEY:
             raise ValueError("ELEVENLABS_API_KEY is not configured in settings")
 
         # Check text length (ElevenLabs charges per character)
-        text_length = len(video.content_script)
+        text_length = len(video.scenario)
         logger.info(f"Content script length: {text_length} characters")
 
         # Warning for very long texts (>5000 chars may be expensive)
@@ -134,10 +63,10 @@ def generate_voice_file_eleven_labs(video: int) -> None:
         # Initialize ElevenLabs client
         client = ElevenLabs(api_key=settings.ELEVENLABS_API_KEY)
 
-        # Generate speech from content_script
+        # Generate speech from scenario
         audio_generator = client.text_to_speech.convert(
             voice_id=voice_id,
-            text=video.content_script,
+            text=video.scenario,
             model_id="eleven_multilingual_v2",
         )
 
@@ -170,7 +99,7 @@ def generate_voice_file_eleven_labs(video: int) -> None:
 @db_task()
 def generate_voice_file_openai(video: int) -> None:
     """
-    Generate voice file from content_script using OpenAI TTS API.
+    Generate voice file from scenario using OpenAI TTS API.
     Much cheaper than ElevenLabs - ~$0.015 per 1000 characters.
 
     Args:
@@ -180,16 +109,16 @@ def generate_voice_file_openai(video: int) -> None:
         video.status = GenVideo.Statuses.GENERATING_VOICE
         video.save()
 
-        if not video.content_script:
+        if not video.scenario:
             raise ValueError(
-                f"Video {video.id} has no content_script to convert to speech"
+                f"Video {video.id} has no scenario to convert to speech"
             )
 
         if not settings.OPENAI_API_KEY:
             raise ValueError("OPENAI_API_KEY is not configured in settings")
 
         # Check text length
-        text_length = len(video.content_script)
+        text_length = len(video.scenario)
         logger.info(f"Content script length: {text_length} characters")
         logger.info(f"Estimated cost: ${(text_length / 1000) * 0.015:.4f}")
 
@@ -208,11 +137,11 @@ def generate_voice_file_openai(video: int) -> None:
         # Initialize OpenAI client
         client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
-        # Generate speech from content_script
+        # Generate speech from scenario
         response = client.audio.speech.create(
             model="tts-1",  # or "tts-1-hd" for higher quality
             voice=voice,
-            input=video.content_script,
+            input=video.scenario,
         )
 
         # Save the audio file to the model
@@ -241,7 +170,7 @@ def generate_voice_file_openai(video: int) -> None:
 @db_task()
 def generate_voice_file_gemini(video: int) -> None:
     """
-    Generate voice file from content_script using Google Gemini Audio Generation via LangChain.
+    Generate voice file from scenario using Google Gemini Audio Generation via LangChain.
     Part of Google AI services - uses same API key as Gemini.
     Free tier available with Gemini API!
 
@@ -254,15 +183,15 @@ def generate_voice_file_gemini(video: int) -> None:
         video.status = GenVideo.Statuses.GENERATING_VOICE
         video.save()
 
-        if not video.content_script:
+        if not video.scenario:
             raise ValueError(
-                f"Video {video.id} has no content_script to convert to speech"
+                f"Video {video.id} has no scenario to convert to speech"
             )
 
         ensure_google_api_key()
 
         # Check text length
-        text_length = len(video.content_script)
+        text_length = len(video.scenario)
         logger.info(f"Content script length: {text_length} characters")
 
         # Map voice models to Gemini voice names
@@ -288,7 +217,7 @@ def generate_voice_file_gemini(video: int) -> None:
         )
 
         response = model.invoke(
-            f"Pripravi mi zvokovni posnetek za naslednji text, spodaj imaš še scenarij, ki ga upoštevaj:\n ------ \n {video.content_script}\n ------ \n {video.scenario}",
+            f"Pripravi mi zvokovni posnetek za naslednji text, spodaj imaš še scenarij, ki ga upoštevaj:\n ------ \n {video.scenario}\n ------ \n {video.scenario}",
             generation_config={
                 "response_modalities": ["AUDIO"],
                 "speech_config": {
@@ -381,6 +310,9 @@ def get_video_segments(video_instance: GenVideo) -> None:
         )
         model_response = model.invoke(video_instance.video_segments_keywords_prompt)
         data = model_response.content
+        logger.info(
+            data
+        )
         data = json.loads(data.strip("`").strip("python"))
         for i, segment_data in enumerate(data):
             logger.info(segment_data["start"])
@@ -599,8 +531,31 @@ def render_final_video(video: GenVideo) -> None:
                 # Add subtitles if available
                 if video.srt_file:
                     with get_temporary_file_path(video.srt_file) as srt_file:
-                        # Burn-in subtitles
-                        subtitle_filter = f"subtitles={srt_file}"
+                        # Get subtitle parameters from video model
+                        font_size = video.subtitle_font_size or 12
+                        font_family = video.subtitle_font_family or "Montserrat"
+                        font_weight = video.subtitle_font_weight or "900"
+                        stroke_weight = video.subtitle_stroke_weight or 3
+                        shadow = video.subtitle_shadow or 1
+                        vertical_position = video.subtitle_vertical_position or 10
+                        
+                        # Determine if font should be bold based on weight
+                        bold = 1 if int(font_weight) >= 700 else 0
+                        
+                        # Calculate MarginV (distance from bottom in pixels)
+                        # In ASS format, MarginV is the margin from the bottom edge
+                        # For 1080p video, convert percentage to pixels from bottom
+                        # Higher percentage = higher position = larger margin from bottom
+                        max_margin_v = 300
+                        margin_v = int((vertical_position / 100) * max_margin_v)
+                        print("Margin:" , margin_v)
+                        #margin_v = 200
+                        
+                        # Build style string dynamically
+                        style = f"FontName={font_family},FontSize={font_size},Bold={bold},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline={stroke_weight},Shadow={shadow},MarginV={margin_v}"
+                        
+                        # Burn-in subtitles with custom style
+                        subtitle_filter = f"subtitles={srt_file}:force_style='{style}'"
                         cmd.extend(
                             [
                                 "-vf",

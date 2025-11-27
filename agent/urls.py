@@ -6,17 +6,12 @@ urlpatterns = [
     path("", views.video_list, name="video_list"),
     path("videos/", views.video_list, name="video_list"),
     path("videos/create/", views.video_create, name="video_create"),
+    path(
+        "videos/modify-scenario/",
+        views.modify_scenario_with_gemini,
+        name="modify_scenario_with_gemini",
+    ),
     path("videos/<int:video_id>/", views.video_detail, name="video_detail"),
-    path(
-        "videos/<int:video_id>/edit-scenario/",
-        views.video_edit_scenario,
-        name="video_edit_scenario",
-    ),
-    path(
-        "videos/<int:video_id>/edit-script/",
-        views.video_edit_script,
-        name="video_edit_script",
-    ),
     path(
         "videos/<int:video_id>/generate-voice/",
         views.generate_voice,
@@ -27,6 +22,11 @@ urlpatterns = [
         "videos/<int:video_id>/regenerate-segments/",
         views.regenerate_segments,
         name="regenerate_segments",
+    ),
+    path(
+        "videos/<int:video_id>/set-subtitle-style/",
+        views.set_subtitle_style,
+        name="set_subtitle_style",
     ),
     path(
         "video-segments/<int:video_segment_id>/videos-selector/",

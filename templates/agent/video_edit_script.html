@@ -40,19 +40,19 @@
                             {% csrf_token %}
                             
                             <div class="mb-3">
-                                <label for="{{ form.content_script.id_for_label }}" class="form-label">
-                                    {{ form.content_script.label }}
+                                <label for="{{ form.scenario.id_for_label }}" class="form-label">
+                                    {{ form.scenario.label }}
                                 </label>
                                 <small class="text-muted d-block mb-2">
-                                    {% if video.content_script %}
+                                    {% if video.scenario %}
                                         LLM je generiral vsebino. Lahko jo uredite pred nadaljevanjem.
                                     {% else %}
                                         Vsebina še ni bila generirana. Vnesite ali generirajte vsebino.
                                     {% endif %}
                                 </small>
-                                {{ form.content_script }}
-                                {% if form.content_script.errors %}
-                                    <div class="text-danger">{{ form.content_script.errors }}</div>
+                                {{ form.scenario }}
+                                {% if form.scenario.errors %}
+                                    <div class="text-danger">{{ form.scenario.errors }}</div>
                                 {% endif %}
                             </div>
                             

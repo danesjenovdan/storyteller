@@ -189,7 +189,9 @@ if ENABLE_S3:
 else:
     MEDIA_URL = "/media/"
     MEDIA_ROOT = BASE_DIR / "media"
-DEFAULT_PROMPT = "Vrni mi samo text iz scenarija, da ga lahko pošljem v TTS."
+DEFAULT_PROMPT = """"Pripravi mi text iz scenarija, ki je podan spodaj, tako da ga lahko pošljem v TTS sistem za generacijo govora.
+Izpis naj bo formatiran kot navaden text brez dodatnih oznak ali formatiranja.
+"""
 
 # TTS Provider Settings
 TTS_PROVIDER = os.getenv(

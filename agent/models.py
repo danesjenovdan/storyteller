@@ -27,12 +27,9 @@ class GenVideo(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="videos"
     )
     title = models.CharField(max_length=255)
-    start_prompt = models.TextField(
-        help_text="Initial prompt for video generation", null=True, blank=True
-    )
     scenario = models.TextField(null=True, blank=True)
     prompt = models.TextField(default=settings.DEFAULT_PROMPT)
-    content_script = models.TextField(blank=True, null=True)
+    modify_prompt = models.TextField(blank=True, null=True)
     voice_model = models.CharField(max_length=100, null=True, blank=True)
     voice_file = models.FileField(
         upload_to="voice_files/",
@@ -48,6 +45,37 @@ class GenVideo(models.Model):
     )
     srt_content = models.TextField(
         blank=True, null=True, help_text="Content of the SRT subtitle file"
+    )
+    subtitle_style = models.CharField(
+        max_length=50,
+        default="style1",
+        help_text="Selected subtitle style for video rendering"
+    )
+    subtitle_font_size = models.IntegerField(
+        default=12,
+        help_text="Font size for subtitles (in pixels)"
+    )
+    subtitle_font_family = models.CharField(
+        max_length=50,
+        default="Montserrat",
+        help_text="Font family for subtitles"
+    )
+    subtitle_font_weight = models.CharField(
+        max_length=20,
+        default="900",
+        help_text="Font weight for subtitles"
+    )
+    subtitle_stroke_weight = models.IntegerField(
+        default=3,
+        help_text="Stroke weight for subtitles (in pixels)"
+    )
+    subtitle_shadow = models.IntegerField(
+        default=1,
+        help_text="Shadow intensity for subtitles"
+    )
+    subtitle_vertical_position = models.IntegerField(
+        default=10,
+        help_text="Vertical position from bottom in percentage (0-50)"
     )
     final_file = models.FileField(
         upload_to="final_videos/",
@@ -78,14 +106,14 @@ Vsebino mi razbij v 3-4 segmente in določi keyworde v angleščini, ki najbolje
 
     def __str__(self):
         return f"Task {self.id} - {self.status}"
+    
+    @property
+    def modify_llm_prompt(self):
+        return f"Ukaz:\n{self.modify_prompt}\n\nScenarij:\n{self.scenario}"
 
     @property
-    def simplify_prompt(self):
-        return f"{self.prompt}\n\n{self.scenario}"
-
-    @property
-    def srt_from_content_script_prompt(self):
-        return f"Generate an SRT subtitle file for the following script:\n\n{self.content_script}"
+    def srt_from_scenario_prompt(self):
+        return f"Generate an SRT subtitle file for the following script:\n\n{self.scenario}"
 
     @property
     def video_segments_keywords_prompt(self):

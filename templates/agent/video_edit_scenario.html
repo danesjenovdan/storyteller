@@ -26,15 +26,7 @@
                     <div class="card-body">
                         <form method="post">
                             {% csrf_token %}
-                            
-                            <div class="mb-3">
-                                <label for="{{ form.scenario.id_for_label }}" class="form-label">Scenarij videa</label>
-                                <small class="text-muted d-block mb-2">Gemini je generiral scenarij iz vašega start_prompt. Pregledate in uredite ga.</small>
-                                {{ form.scenario }}
-                                {% if form.scenario.errors %}
-                                    <div class="text-danger">{{ form.scenario.errors }}</div>
-                                {% endif %}
-                            </div>
+
                             
                             <div class="mb-3">
                                 <label for="{{ form.prompt.id_for_label }}" class="form-label">{{ form.prompt.label }}</label>
