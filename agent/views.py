@@ -10,7 +10,7 @@ from agent.tasks import (
     render_final_video,
 )
 
-from .forms import ScenarioEditForm, VideoCreateForm
+from .forms import VideoCreateForm
 from .models import GenVideo, VideoSegment
 
 # Create your views here.
