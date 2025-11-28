@@ -206,7 +206,8 @@ def search_pexels_videos(request, video_segment_id):
                 f"DEBUG: Checking video {video_item.get('id')}: duration={video_duration}"
             )
 
-            if min_duration <= video_duration <= max_duration:
+            #if min_duration <= video_duration <= max_duration:
+            if min_duration <= video_duration:
                 # Get portrait video file
                 video_file = None
                 for file in video_item.get("video_files", []):
