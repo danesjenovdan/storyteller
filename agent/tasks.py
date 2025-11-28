@@ -167,7 +167,37 @@ def generate_voice_file_openai(video: int) -> None:
         raise
 
 
-@db_task()
+def get_audio_duration(audio_file_path):
+    """
+    Get duration of audio file in seconds using ffprobe.
+    
+    Args:
+        audio_file_path: Path to audio file
+        
+    Returns:
+        float: Duration in seconds
+    """
+    import subprocess
+    import json
+    
+    cmd = [
+        "ffprobe",
+        "-v", "quiet",  # Suppress ffprobe output
+        "-print_format", "json",  # Output in JSON format
+        "-show_format",  # Show format information (includes duration)
+        str(audio_file_path)
+    ]
+    
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"ffprobe failed: {result.stderr}")
+    
+    data = json.loads(result.stdout)
+    duration = float(data["format"]["duration"])
+    logger.info(f"Audio duration: {duration:.2f} seconds")
+    return duration
+
+
 def generate_voice_file_gemini(video: int) -> None:
     """
     Generate voice file from scenario using Google Gemini Audio Generation via LangChain.
@@ -269,13 +299,23 @@ def generate_voice_file_gemini(video: int) -> None:
             # Save the audio file to the model
             filename = f"voice_{video.id}.wav"
             video.voice_file.save(filename, ContentFile(audio_content), save=False)
+            video.save()
+
+            # Get audio duration using ffprobe
+            try:
+                with get_temporary_file_path(video.voice_file) as temp_audio_path:
+                    duration = get_audio_duration(temp_audio_path)
+                    video.voice_duration = duration
+                    logger.info(f"Voice file duration: {duration:.2f} seconds")
+            except Exception as e:
+                logger.warning(f"Could not get audio duration: {e}")
 
             # Update video status
             video.status = GenVideo.Statuses.VOICE_READY
             video.save()
 
             logger.info(
-                f"✓ Voice file generated successfully for video {video.id} [Google/Gemini] - {len(audio_content)} bytes"
+                f"✓ Voice file generated successfully for video {video.id} [Google/Gemini] - {len(audio_content)} bytes, {video.voice_duration:.2f}s"
             )
 
             # Automatically generate SRT file
@@ -315,15 +355,27 @@ def get_video_segments(video_instance: GenVideo) -> None:
         )
         data = json.loads(data.strip("`").strip("python"))
         for i, segment_data in enumerate(data):
+            start = float(segment_data["start"].strip())
+            end = float(segment_data["end"].strip())
             logger.info(segment_data["start"])
             logger.info(segment_data["end"])
+            
+            # If this is the last segment and we have voice_duration, use it
+            if i == len(data) - 1 and video_instance.voice_duration:
+                logger.info(f"Adjusting last segment end_time from {end} to {video_instance.voice_duration}")
+                end = video_instance.voice_duration
+            elif len(data) > i + 1:
+                next_start = float(data[i+1]['start'].strip())
+                if next_start > end + 0.01:
+                    end = next_start - 0.01
+            
             VideoSegment.objects.create(
                 video=video_instance,
                 text=segment_data["text"],
                 order=i + 1,
                 query=", ".join(segment_data["keywords"]),
-                start_time=float(segment_data["start"].strip()),
-                end_time=float(segment_data["end"].strip()),
+                start_time=start,
+                end_time=end,
             )
             logger.info(
                 f"✓ Created segment {i+1} for video {video_instance.id}: {segment_data['text'][:50]}..."
@@ -452,40 +504,42 @@ def render_final_video(video: GenVideo) -> None:
             clip_files = []
             for i, segment in enumerate(segments):
                 with get_temporary_file_path(segment.video_file) as input_file:
-                    duration = segment.end_time - segment.start_time
+                    duration = segment.duration()
                     output_file = temp_path / f"clip_{i:03d}.mp4"
 
                     logger.info(
-                        f"Processing clip {i+1}/{segments.count()}: {duration:.2f}s"
+                        f"Processing clip {i+1}/{segments.count()}: {duration:.2f}s from {segment.video_file.name}"
                     )
 
                     # Cut video to exact duration (no audio, we'll add it later)
                     # Scale to consistent resolution (1080x1920 for portrait)
                     cmd = [
                         "ffmpeg",
-                        "-i",
-                        input_file,
-                        "-t",
-                        str(duration),
-                        "-vf",
+                        "-i", input_file,  # Input video file (segment video)
+                        "-t", str(duration),  # Set output duration (cut to segment length)
+                        "-vf",  # Video filter
+                        # scale: Resize video to 1080x1920, maintain aspect ratio (decrease if needed)
+                        # pad: Add black bars if video is smaller than 1080x1920
+                        # (ow-iw)/2: Center horizontally, (oh-ih)/2: Center vertically
+                        # setsar=1: Set Sample Aspect Ratio to 1:1 (square pixels)
                         "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
-                        "-c:v",
-                        "libx264",
-                        "-preset",
-                        "medium",
-                        "-crf",
-                        "23",
-                        "-an",  # Remove audio
-                        "-y",
-                        str(output_file),
+                        "-c:v", "libx264",  # Video codec: H.264
+                        "-preset", "medium",  # Encoding speed preset (balance speed/quality)
+                        "-crf", "23",  # Constant Rate Factor: quality level (lower=better, 18-28 range)
+                        "-an",  # Remove audio (we'll add voice later)
+                        "-y",  # Overwrite output file without asking
+                        str(output_file),  # Output file path
                     ]
 
+                    logger.info(f"Running FFmpeg command: {' '.join(cmd)}")
                     result = subprocess.run(cmd, capture_output=True, text=True)
                     if result.returncode != 0:
+                        logger.error(f"FFmpeg stderr: {result.stderr}")
                         raise RuntimeError(
-                            f"FFmpeg clip processing failed: {result.stderr}"
+                            f"FFmpeg clip processing failed for clip {i}: {result.stderr}"
                         )
-
+                    
+                    logger.info(f"Successfully created clip {i}: {output_file}")
                     clip_files.append(output_file)
 
             # Step 2: Create concat file
@@ -500,16 +554,12 @@ def render_final_video(video: GenVideo) -> None:
 
             cmd = [
                 "ffmpeg",
-                "-f",
-                "concat",
-                "-safe",
-                "0",
-                "-i",
-                str(concat_file),
-                "-c",
-                "copy",
-                "-y",
-                str(concatenated_file),
+                "-f", "concat",  # Use concat demuxer (reads from concat.txt file)
+                "-safe", "0",  # Allow absolute file paths in concat.txt
+                "-i", str(concat_file),  # Input: concat.txt with list of video files
+                "-c", "copy",  # Copy video/audio streams without re-encoding (fast!)
+                "-y",  # Overwrite output file without asking
+                str(concatenated_file),  # Output: single concatenated video
             ]
 
             result = subprocess.run(cmd, capture_output=True, text=True)
@@ -522,10 +572,8 @@ def render_final_video(video: GenVideo) -> None:
             with get_temporary_file_path(video.voice_file) as voice_file:
                 cmd = [
                     "ffmpeg",
-                    "-i",
-                    str(concatenated_file),
-                    "-i",
-                    voice_file,
+                    "-i", str(concatenated_file),  # Input 1: Concatenated video (no audio)
+                    "-i", voice_file,  # Input 2: Voice audio file (narration)
                 ]
 
                 # Add subtitles if available
@@ -551,50 +599,52 @@ def render_final_video(video: GenVideo) -> None:
                         print("Margin:" , margin_v)
                         #margin_v = 200
                         
-                        # Build style string dynamically
+                        # Build style string dynamically (ASS subtitle format)
+                        # FontName: Font family to use
+                        # FontSize: Size in pixels
+                        # Bold: 1=bold, 0=normal
+                        # PrimaryColour: Text color in &HAABBGGRR format (white = &H00FFFFFF)
+                        # OutlineColour: Stroke/outline color (black = &H00000000)
+                        # Outline: Stroke width in pixels
+                        # Shadow: Shadow offset/intensity
+                        # MarginV: Vertical margin from bottom edge in pixels
                         style = f"FontName={font_family},FontSize={font_size},Bold={bold},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline={stroke_weight},Shadow={shadow},MarginV={margin_v}"
                         
                         # Burn-in subtitles with custom style
+                        # subtitles filter: Renders SRT file onto video permanently
+                        # force_style: Overrides all subtitle styling with our custom style
                         subtitle_filter = f"subtitles={srt_file}:force_style='{style}'"
                         cmd.extend(
                             [
-                                "-vf",
-                                subtitle_filter,
-                                "-c:v",
-                                "libx264",
-                                "-preset",
-                                "medium",
-                                "-crf",
-                                "23",
+                                "-vf", subtitle_filter,  # Apply subtitle video filter
+                                "-c:v", "libx264",  # Video codec: H.264 (must re-encode to burn-in subtitles)
+                                "-preset", "medium",  # Encoding speed preset
+                                "-crf", "23",  # Quality level (constant rate factor)
                             ]
                         )
                         # Add audio settings
                         cmd.extend(
                             [
-                                "-c:a",
-                                "aac",
-                                "-b:a",
-                                "192k",
-                                "-shortest",  # End when shortest stream ends
-                                "-y",
-                                str(final_output),
+                                "-c:a", "aac",  # Audio codec: AAC
+                                "-b:a", "192k",  # Audio bitrate: 192 kbps (good quality)
+                                "-shortest",  # End output when shortest input stream ends (video or audio)
+                                "-y",  # Overwrite output file without asking
+                                str(final_output),  # Output file path
                             ]
                         )
                         result = subprocess.run(cmd, capture_output=True, text=True)
                 else:
-                    # Just copy video
-                    cmd.extend(["-c:v", "copy"])
+                    # No subtitles - just copy video stream (fast, no re-encoding)
+                    cmd.extend(["-c:v", "copy"])  # Copy video codec as-is
 
                     # Add audio settings
                     cmd.extend(
                         [
-                            "-c:a",
-                            "aac",
-                            "-b:a",
-                            "192k",
-                            "-shortest",  # End when shortest stream ends
-                            "-y",
-                            str(final_output),
+                            "-c:a", "aac",  # Audio codec: AAC
+                            "-b:a", "192k",  # Audio bitrate: 192 kbps
+                            "-shortest",  # End when shortest input stream ends
+                            "-y",  # Overwrite output file without asking
+                            str(final_output),  # Output file path
                         ]
                     )
 
