@@ -535,6 +535,9 @@ def render_final_video(video: GenVideo) -> None:
                         "-c:v", "libx264",  # Video codec: H.264
                         "-preset", "medium",  # Encoding speed preset (balance speed/quality)
                         "-crf", "23",  # Constant Rate Factor: quality level (lower=better, 18-28 range)
+                        "-r", "30",  # Force constant frame rate: 30 fps (consistent across all clips)
+                        "-g", "30",  # GOP size (keyframe interval): 1 keyframe per second at 30fps
+                        "-pix_fmt", "yuv420p",  # Pixel format: ensures compatibility
                         "-an",  # Remove audio (we'll add voice later)
                         "-y",  # Overwrite output file without asking
                         str(output_file),  # Output file path
