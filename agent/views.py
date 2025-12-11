@@ -58,10 +58,9 @@ def modify_scenario_with_gemini(request):
         model = init_chat_model("gemini-2.5-flash", model_provider="google_genai")
         model_response = model.invoke(full_prompt)
 
-        return JsonResponse({
-            "success": True,
-            "modified_scenario": model_response.content
-        })
+        return JsonResponse(
+            {"success": True, "modified_scenario": model_response.content}
+        )
 
     except Exception as e:
         return JsonResponse({"error": f"Error calling Gemini: {str(e)}"}, status=500)
@@ -123,9 +122,7 @@ def video_create(request):
                 generate_voice_file_gemini(video)
                 return redirect("video_detail", video_id=video.id)
             else:
-                messages.success(
-                    request, "Video mora vsebovati scenario!"
-                )
+                messages.success(request, "Video mora vsebovati scenario!")
                 return render(request, "agent/video_create.html", {"form": form})
         else:
             messages.error(request, "Napaka pri ustvarjanju videa.")
@@ -214,7 +211,7 @@ def search_pexels_videos(request, video_segment_id):
                     f"DEBUG: Checking video {video_item.get('id')}: duration={video_duration}"
                 )
 
-                #if min_duration <= video_duration <= max_duration:
+                # if min_duration <= video_duration <= max_duration:
                 if min_duration <= video_duration:
                     # Get portrait video file
                     video_file = None
@@ -240,7 +237,9 @@ def search_pexels_videos(request, video_segment_id):
                                 "video_url": video_file.get("link"),
                                 "width": video_file.get("width"),
                                 "height": video_file.get("height"),
-                                "user": video_item.get("user", {}).get("name", "Unknown"),
+                                "user": video_item.get("user", {}).get(
+                                    "name", "Unknown"
+                                ),
                                 "url": video_item.get("url"),
                             }
                         )
@@ -350,7 +349,9 @@ def save_selected_video(request, video_segment_id):
         else:
             from django.urls import reverse
 
-            redirect_url = reverse("video_detail", kwargs={"video_id": video_segment.video.id})
+            redirect_url = reverse(
+                "video_detail", kwargs={"video_id": video_segment.video.id}
+            )
             message = "Video uspešno shranjen. Vsi segmenti so obdelani!"
 
         return JsonResponse(
@@ -552,15 +553,17 @@ def set_subtitle_style(request, video_id):
         video.subtitle_vertical_position = int(vertical_position)
         video.save()
 
-        return JsonResponse({
-            "success": True, 
-            "font_size": font_size,
-            "font_family": font_family,
-            "font_weight": font_weight,
-            "stroke_weight": stroke_weight,
-            "shadow": shadow,
-            "vertical_position": vertical_position
-        })
+        return JsonResponse(
+            {
+                "success": True,
+                "font_size": font_size,
+                "font_family": font_family,
+                "font_weight": font_weight,
+                "stroke_weight": stroke_weight,
+                "shadow": shadow,
+                "vertical_position": vertical_position,
+            }
+        )
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)

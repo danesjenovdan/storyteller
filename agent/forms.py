@@ -5,6 +5,7 @@ from .models import GenVideo
 
 class VideoCreateForm(forms.ModelForm):
     """Form for creating a new video with title, scenario, and prompt."""
+
     voice_model = forms.ChoiceField(
         choices=[],
         required=False,
@@ -15,6 +16,7 @@ class VideoCreateForm(forms.ModelForm):
         ),
         label="Glasovni model",
     )
+
     class Meta:
         model = GenVideo
         fields = ["title", "scenario", "modify_prompt", "voice_model"]
@@ -43,6 +45,7 @@ class VideoCreateForm(forms.ModelForm):
             "modify_prompt": "Navodila za LLM",
             "voice_model": "Glasovni model",
         }
+
     def __init__(self, *args, voice_models=None, **kwargs):
         super().__init__(*args, **kwargs)
         if voice_models:
