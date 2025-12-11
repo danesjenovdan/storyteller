@@ -126,6 +126,18 @@
                             <span class="ms-3 text-muted">Posodobljeno: {{ video.updated_at|date:"d.m.Y H:i" }}</span>
                         </div>
                         
+                        {% if video.status == 'FAILED' and video.error_details %}
+                            <div class="alert alert-danger mb-3" role="alert">
+                                <h6 class="alert-heading">
+                                    <i class="bi bi-exclamation-triangle-fill"></i> Napaka
+                                    {% if video.error_type %}
+                                        <span class="badge bg-danger ms-2">{{ video.get_error_type_display }}</span>
+                                    {% endif %}
+                                </h6>
+                                <p class="mb-0">{{ video.error_details }}</p>
+                            </div>
+                        {% endif %}
+                        
                         <h6>Napredek video klipov</h6>
                         <div class="progress mb-2">
                             <div class="progress-bar {% if progress_percentage == 100 %}bg-success{% endif %}" 

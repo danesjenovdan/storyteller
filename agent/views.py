@@ -1,6 +1,8 @@
-from django.contrib import messages
+import requests
 from django.conf import settings as django_settings
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from agent.tasks import (
@@ -27,8 +29,10 @@ def video_list(request):
 def modify_scenario_with_gemini(request):
     """AJAX endpoint to modify scenario using Gemini API."""
     import json
+
     from django.http import JsonResponse
     from langchain.chat_models import init_chat_model
+
     from agent.utils import ensure_google_api_key
 
     if request.method != "POST":
@@ -55,10 +59,9 @@ def modify_scenario_with_gemini(request):
         model = init_chat_model("gemini-2.5-flash", model_provider="google_genai")
         model_response = model.invoke(full_prompt)
 
-        return JsonResponse({
-            "success": True,
-            "modified_scenario": model_response.content
-        })
+        return JsonResponse(
+            {"success": True, "modified_scenario": model_response.content}
+        )
 
     except Exception as e:
         return JsonResponse({"error": f"Error calling Gemini: {str(e)}"}, status=500)
@@ -120,9 +123,7 @@ def video_create(request):
                 generate_voice_file_gemini(video)
                 return redirect("video_detail", video_id=video.id)
             else:
-                messages.success(
-                    request, "Video mora vsebovati scenario!"
-                )
+                messages.success(request, "Video mora vsebovati scenario!")
                 return render(request, "agent/video_create.html", {"form": form})
         else:
             messages.error(request, "Napaka pri ustvarjanju videa.")
@@ -160,17 +161,15 @@ def search_pexels_videos(request, video_segment_id):
     """
     AJAX endpoint to search Pexels videos with custom query.
     """
-    import requests
-    from django.conf import settings
-    from django.http import JsonResponse
 
     video_segment = get_object_or_404(
         VideoSegment, id=video_segment_id, video__user=request.user
     )
 
     query = request.GET.get("query", video_segment.query)
+    page = request.GET.get("page", 1)
 
-    if not settings.PEXELS_API_KEY:
+    if not django_settings.PEXELS_API_KEY:
         return JsonResponse({"error": "PEXELS_API_KEY is not configured"}, status=500)
 
     try:
@@ -179,59 +178,73 @@ def search_pexels_videos(request, video_segment_id):
 
         # Pexels API endpoint for video search
         url = "https://api.pexels.com/videos/search"
-        headers = {"Authorization": settings.PEXELS_API_KEY}
+        headers = {"Authorization": django_settings.PEXELS_API_KEY}
 
-        params = {
-            "query": query,
-            "orientation": "portrait",
-            "per_page": 50,
-            "size": "medium",
-        }
-
-        response = requests.get(url, headers=headers, params=params)
-        response.raise_for_status()
-
-        data = response.json()
-
-        # Filter videos by duration
-        min_duration = duration
-        max_duration = duration + 15
-
-        print(f"DEBUG: Total videos from Pexels: {len(data.get('videos', []))}")
-
+        keywords = query.split(",")
+        keywords.append(query)
         videos = []
-        for video_item in data.get("videos", []):
-            video_duration = video_item.get("duration", 0)
-            print(
-                f"DEBUG: Checking video {video_item.get('id')}: duration={video_duration}"
-            )
+        ids = []
+        for keyword in keywords:
+            keyword = keyword.strip()
 
-            #if min_duration <= video_duration <= max_duration:
-            if min_duration <= video_duration:
-                # Get portrait video file
-                video_file = None
-                for file in video_item.get("video_files", []):
-                    width = file.get("width", 0)
-                    height = file.get("height", 0)
-                    if width < height:
-                        video_file = file
-                        print(f"DEBUG: Found portrait file: {width}x{height}")
-                        break
+            params = {
+                "query": keyword,
+                "orientation": "portrait",
+                "per_page": 20,
+                "page": page,
+                "size": "medium",
+            }
 
-                if video_file:
-                    videos.append(
-                        {
-                            "id": video_item.get("id"),
-                            "image": video_item.get("image"),
-                            "duration": video_duration,
-                            "video_url": video_file.get("link"),
-                            "width": video_file.get("width"),
-                            "height": video_file.get("height"),
-                            "user": video_item.get("user", {}).get("name", "Unknown"),
-                            "url": video_item.get("url"),
-                        }
-                    )
-                    print(f"DEBUG: Added video {video_item.get('id')}")
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+
+            data = response.json()
+
+            # Filter videos by duration
+            min_duration = duration
+            max_duration = duration + 15
+
+            print(f"DEBUG: Total videos from Pexels: {len(data.get('videos', []))}")
+
+            for video_item in data.get("videos", []):
+                video_duration = video_item.get("duration", 0)
+                print(
+                    f"DEBUG: Checking video {video_item.get('id')}: duration={video_duration}"
+                )
+
+                # if min_duration <= video_duration <= max_duration:
+                if min_duration <= video_duration:
+                    # Get portrait video file
+                    video_file = None
+                    for file in video_item.get("video_files", []):
+                        width = file.get("width", 0)
+                        height = file.get("height", 0)
+                        if width < height:
+                            video_file = file
+                            print(f"DEBUG: Found portrait file: {width}x{height}")
+                            break
+
+                    if video_file:
+                        video_id = video_item.get("id")
+                        if video_id in ids:
+                            print(f"DEBUG: Skipping duplicate video {video_id}")
+                            continue
+                        ids.append(video_item.get("id"))
+                        videos.append(
+                            {
+                                "id": video_item.get("id"),
+                                "image": video_item.get("image"),
+                                "duration": video_duration,
+                                "video_url": video_file.get("link"),
+                                "width": video_file.get("width"),
+                                "height": video_file.get("height"),
+                                "user": video_item.get("user", {}).get(
+                                    "name", "Unknown"
+                                ),
+                                "url": video_item.get("url"),
+                            }
+                        )
+                        print(f"DEBUG: Added video {video_item.get('id')}")
 
         print(f"DEBUG: Returning {len(videos)} filtered videos")
 
@@ -337,7 +350,9 @@ def save_selected_video(request, video_segment_id):
         else:
             from django.urls import reverse
 
-            redirect_url = reverse("video_detail", kwargs={"video_id": video_segment.video.id})
+            redirect_url = reverse(
+                "video_detail", kwargs={"video_id": video_segment.video.id}
+            )
             message = "Video uspešno shranjen. Vsi segmenti so obdelani!"
 
         return JsonResponse(
@@ -515,6 +530,7 @@ def set_subtitle_style(request, video_id):
     Set subtitle style for video rendering.
     """
     import json
+
     from django.http import JsonResponse
 
     if request.method != "POST":
@@ -539,15 +555,17 @@ def set_subtitle_style(request, video_id):
         video.subtitle_vertical_position = int(vertical_position)
         video.save()
 
-        return JsonResponse({
-            "success": True, 
-            "font_size": font_size,
-            "font_family": font_family,
-            "font_weight": font_weight,
-            "stroke_weight": stroke_weight,
-            "shadow": shadow,
-            "vertical_position": vertical_position
-        })
+        return JsonResponse(
+            {
+                "success": True,
+                "font_size": font_size,
+                "font_family": font_family,
+                "font_weight": font_weight,
+                "stroke_weight": stroke_weight,
+                "shadow": shadow,
+                "vertical_position": vertical_position,
+            }
+        )
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
