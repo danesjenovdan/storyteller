@@ -1,10 +1,9 @@
 import requests
-
-from django.contrib import messages
 from django.conf import settings as django_settings
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import get_object_or_404, redirect, render
 from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
 
 from agent.tasks import (
     generate_voice_file_eleven_labs,
@@ -30,8 +29,10 @@ def video_list(request):
 def modify_scenario_with_gemini(request):
     """AJAX endpoint to modify scenario using Gemini API."""
     import json
+
     from django.http import JsonResponse
     from langchain.chat_models import init_chat_model
+
     from agent.utils import ensure_google_api_key
 
     if request.method != "POST":
@@ -529,6 +530,7 @@ def set_subtitle_style(request, video_id):
     Set subtitle style for video rendering.
     """
     import json
+
     from django.http import JsonResponse
 
     if request.method != "POST":

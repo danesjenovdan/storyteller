@@ -178,8 +178,8 @@ def get_audio_duration(audio_file_path):
     Returns:
         float: Duration in seconds
     """
-    import subprocess
     import json
+    import subprocess
 
     cmd = [
         "ffprobe",
