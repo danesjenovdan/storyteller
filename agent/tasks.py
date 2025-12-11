@@ -92,6 +92,8 @@ def generate_voice_file_eleven_labs(video: int) -> None:
         logger.error(f"✗ Error generating voice file for video {video.id}: {str(e)}")
         video = GenVideo.objects.get(id=video.id)
         video.status = GenVideo.Statuses.FAILED
+        video.error_type = GenVideo.ErrorTypes.VOICE_GENERATION
+        video.error_details = f"Error generating voice file (ElevenLabs): {str(e)}"
         video.save()
         raise
 
@@ -163,6 +165,9 @@ def generate_voice_file_openai(video: int) -> None:
         logger.error(f"✗ Error generating voice file for video {video.id}: {str(e)}")
         video = GenVideo.objects.get(id=video.id)
         video.status = GenVideo.Statuses.FAILED
+        video.error_type = GenVideo.ErrorTypes.VOICE_GENERATION
+        video.error_details = f"Error generating voice file (Gemini): {str(e)}"
+        video.error_details = f"Error generating voice file (OpenAI): {str(e)}"
         video.save()
         raise
 
@@ -389,6 +394,8 @@ def get_video_segments(video_instance: GenVideo) -> None:
             f"✗ Error generating segments for video {video_instance.id}: {str(e)}"
         )
         video_instance.status = GenVideo.Statuses.FAILED
+        video_instance.error_type = GenVideo.ErrorTypes.SEGMENTS_GENERATION
+        video_instance.error_details = f"Error generating segments: {str(e)}"
         video_instance.save()
         raise
 
@@ -454,6 +461,8 @@ our final approach into Coruscant.
     except Exception as e:
         logger.error(f"✗ Error generating SRT file for video {video.id}: {str(e)}")
         video.status = GenVideo.Statuses.FAILED
+        video.error_type = GenVideo.ErrorTypes.SRT_GENERATION
+        video.error_details = f"Error generating SRT file: {str(e)}"
         video.save()
         raise
 
@@ -666,5 +675,7 @@ def render_final_video(video: GenVideo) -> None:
     except Exception as e:
         print(f"Error rendering video {video}: {str(e)}")
         video.status = GenVideo.Statuses.FAILED
+        video.error_type = GenVideo.ErrorTypes.RENDERING
+        video.error_details = f"Error rendering final video: {str(e)}"
         video.save()
         raise

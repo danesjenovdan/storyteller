@@ -22,6 +22,12 @@ class GenVideo(models.Model):
         RENDERING = "RENDERING", "Renderiranje končnega videa"
         COMPLETED = "COMPLETED", "Končano"
         FAILED = "FAILED", "Napaka"
+    
+    class ErrorTypes(models.TextChoices):
+        VOICE_GENERATION = "VOICE_GENERATION", "Napaka pri generiranju zvoka"
+        SRT_GENERATION = "SRT_GENERATION", "Napaka pri generiranju podnapisov"
+        SEGMENTS_GENERATION = "SEGMENTS_GENERATION", "Napaka pri generiranju segmentov"
+        RENDERING = "RENDERING", "Napaka pri renderiranju videa"
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="videos"
@@ -90,6 +96,18 @@ class GenVideo(models.Model):
     )
     status = models.CharField(
         max_length=30, choices=Statuses.choices, default=Statuses.CREATED
+    )
+    error_type = models.CharField(
+        max_length=50,
+        choices=ErrorTypes.choices,
+        blank=True,
+        null=True,
+        help_text="Type/stage of error"
+    )
+    error_details = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Error details if task failed"
     )
     result_url = models.URLField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
