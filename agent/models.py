@@ -110,8 +110,9 @@ Za vsak segment mi določi še start in endtime Vrni mi samo python seznam slova
 [{{"start": "0.00", "end": "5.00", "text": "besedilo", "keywords": ["keyword_eng_1", "keyword_eng_2"]}}, ...]
 """,
         default="""
-Spodaj imaš scenarij videa in transkript scenarija.
-Vsebino mi razbij v 3-4 segmente in določi keyworde v angleščini, ki najbolje opisujejo vsebino, po katerih lahko nato iščem videe.
+Spodaj imaš transkript scenarija za video in podnapise.
+Tekst scenarija razbij v krajše, vsebinsko smiselne segmente in določi kratke ključne besede v angleščini, ki najbolje opisujejo vsebino posameznega segmenta.
+Pri določanju ključnih besed upoštevaj tudi kontekst vsebine celotnega scenarija, ne samo posameznih segmentov.
 """,
     )
 
