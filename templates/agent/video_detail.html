@@ -545,6 +545,8 @@
                     const container = this.closest('.card-body').querySelector('.select-video-container');
                     if (container.style.display === 'none') {
                         container.style.display = '';
+                        // nudge in to view if not visible
+                        container.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     } else {
                         container.style.display = 'none';
                     }

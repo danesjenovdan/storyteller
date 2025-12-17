@@ -247,7 +247,7 @@
           setTimeout(() => {
             // reload the page to reflect the new video
             window.location.reload();
-          }, 1500);
+          }, 1000);
         }
       } catch (error) {
         console.error('Napaka pri shranjevanju videa:', error);
@@ -256,5 +256,19 @@
     }
 
     searchButton.addEventListener('click', () => searchVideos(1));
+
+    // on visibility toggle, search videos if no results yet
+    const observer = new MutationObserver((mutationsList) => {
+      for (const mutation of mutationsList) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+          if (el.offsetParent !== null && !el.classList.contains('shown')) {
+            // element is now visible
+            el.classList.add('shown');
+            searchVideos(1);
+          }
+        }
+      }
+    });
+    observer.observe(document.body, { attributes: true, subtree: true });
   })();
 </script>
