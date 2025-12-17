@@ -44,8 +44,6 @@ services:
       - ELEVENLABS_API_KEY=
       - OPENAI_API_KEY=
       - PEXELS_API_KEY=
-
-
     depends_on:
       - valkey
 

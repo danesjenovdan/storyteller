@@ -14,5 +14,6 @@ COPY . /app
 # RUN python3 manage.py compilemessages
 
 EXPOSE 8000
+ENV PYTHONUNBUFFERED=1
 
 CMD exec python manage.py runserver 0.0.0.0:8000
