@@ -158,7 +158,7 @@ def search_pexels_videos(request, video_segment_id):
         headers = {"Authorization": django_settings.PEXELS_API_KEY}
 
         keywords = [
-            *query.split(","), # split query by commas
+            *query.split(","),  # split query by commas
             query,  # also add full query
         ]
         videos = []
