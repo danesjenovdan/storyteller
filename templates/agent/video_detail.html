@@ -116,7 +116,7 @@
                                     <span class="visually-hidden">Nalaganje...</span>
                                 </div>
                             {% endif %}
-                            <span class="badge status-badge 
+                            <span class="badge status-badge
                                 {% if video.status == 'COMPLETED' %}bg-success
                                 {% elif video.status == 'PROCESSING' %}bg-primary
                                 {% elif video.status == 'FAILED' %}bg-danger
@@ -125,7 +125,7 @@
                             </span>
                             <span class="ms-3 text-muted">Posodobljeno: {{ video.updated_at|date:"d.m.Y H:i" }}</span>
                         </div>
-                        
+
                         {% if video.status == 'FAILED' and video.error_details %}
                             <div class="alert alert-danger mb-3" role="alert">
                                 <h6 class="alert-heading">
@@ -137,14 +137,14 @@
                                 <p class="mb-0">{{ video.error_details }}</p>
                             </div>
                         {% endif %}
-                        
+
                         <h6>Napredek video klipov</h6>
                         <div class="progress mb-2">
-                            <div class="progress-bar {% if progress_percentage == 100 %}bg-success{% endif %}" 
-                                 role="progressbar" 
+                            <div class="progress-bar {% if progress_percentage == 100 %}bg-success{% endif %}"
+                                 role="progressbar"
                                  style="width: {{ progress_percentage }}%"
-                                 aria-valuenow="{{ progress_percentage }}" 
-                                 aria-valuemin="0" 
+                                 aria-valuenow="{{ progress_percentage }}"
+                                 aria-valuemin="0"
                                  aria-valuemax="100">
                                 {{ completed_segments }}/{{ total_segments }} ({{ progress_percentage|floatformat:0 }}%)
                             </div>
@@ -164,7 +164,7 @@
                     <div class="card-body">
                         <h5 class="card-title">Akcije</h5>
                         <div class="d-grid gap-2">
-                            
+
                             {% if video.scenario and not video.voice_file %}
                                 <form method="post" action="{% url 'generate_voice' video.id %}" style="margin: 0;">
                                     {% csrf_token %}
@@ -173,7 +173,7 @@
                                     </button>
                                 </form>
                             {% endif %}
-                            
+
                             {% if video.scenario %}
                                 <form method="post" action="{% url 'regenerate_segments' video.id %}" style="margin: 0;" onsubmit="return confirm('Ali si prepričan? Vsi obstoječi segmenti bodo izbrisani!');">
                                     {% csrf_token %}
@@ -182,7 +182,7 @@
                                     </button>
                                 </form>
                             {% endif %}
-                            
+
                             {% if completed_segments == total_segments and total_segments > 0 and video.voice_file %}
                                 {% if video.status == 'PROCESSING' %}
                                     <button class="btn btn-warning" disabled>
@@ -265,9 +265,9 @@
                             <a href="{{ video.srt_file.url }}" class="btn btn-sm btn-outline-primary mb-3" download>
                                 <i class="bi bi-download"></i> Prenesi
                             </a>
-                            
+
                             <h6 class="mt-3 mb-2">Prilagodi podnapise:</h6>
-                            
+
                             <div class="row g-3 mb-3">
                                 <div class="col-md-6">
                                     <label class="form-label">Font</label>
@@ -288,7 +288,7 @@
                                     </select>
                                 </div>
                             </div>
-                            
+
                             <div class="row g-3 mb-3">
                                 <div class="col-md-3">
                                     <label class="form-label">Velikost: <span id="fontSizeValue">{{ video.subtitle_font_size|default:12 }}</span>px</label>
@@ -307,13 +307,13 @@
                                     <input type="range" class="form-range" min="0" max="50" value="{{ video.subtitle_vertical_position|default:10 }}" id="verticalPosition" oninput="updateSubtitlePreview()">
                                 </div>
                             </div>
-                            
+
                             <div class="subtitle-preview-container mb-3">
                                 <div class="subtitle-preview">
                                     <span id="subtitlePreviewText">Primer Teksta je takšen, a bi mel drugačnega?</span>
                                 </div>
                             </div>
-                            
+
                             <button class="btn btn-primary" onclick="saveSubtitleSettings('{{ video.id }}')">
                                 <i class="bi bi-check-circle"></i> Shrani nastavitve
                             </button>
@@ -371,7 +371,7 @@
                         <div class="row">
                             <div class="col-md-8">
                                 <h5 class="card-title">
-                                    #{{ segment.order }} 
+                                    #{{ segment.order }}
                                     {% if segment.video_file %}
                                         <span class="badge bg-success">✓</span>
                                     {% else %}
@@ -380,16 +380,16 @@
                                 </h5>
                                 <p class="card-text">{{ segment.text }}</p>
                                 <p class="text-muted mb-1">
-                                    <i class="bi bi-clock"></i> 
-                                    {{ segment.start_time|floatformat:1 }}s - {{ segment.end_time|floatformat:1 }}s 
+                                    <i class="bi bi-clock"></i>
+                                    {{ segment.start_time|floatformat:1 }}s - {{ segment.end_time|floatformat:1 }}s
                                     (trajanje: {{ segment.duration|floatformat:1 }}s)
                                 </p>
                                 <p class="text-muted mb-1">
                                     <i class="bi bi-search"></i> Ključne besede: {{ segment.query }}
                                 </p>
-                                
+
                                 {% if not segment.video_file %}
-                                <a href="{% url 'video_segment_videos_selector' segment.id %}" class="btn btn-sm btn-primary mt-2">
+                                <a href="#" class="btn btn-sm btn-primary mt-2 toggle-select-video">
                                     <i class="bi bi-film"></i> Izberi video
                                 </a>
                                 {% endif %}
@@ -404,7 +404,7 @@
                                         <a href="{{ segment.video_file.url }}" class="btn btn-sm btn-outline-primary" download>
                                             <i class="bi bi-download"></i> Prenesi
                                         </a>
-                                        <a href="{% url 'video_segment_videos_selector' segment.id %}" class="btn btn-sm btn-outline-secondary">
+                                        <a href="#" class="btn btn-sm btn-outline-secondary toggle-select-video">
                                             <i class="bi bi-arrow-repeat"></i> Zamenjaj
                                         </a>
                                     </div>
@@ -414,6 +414,9 @@
                                         Video ni izbran
                                     </p>
                                 {% endif %}
+                            </div>
+                            <div class="col-md-12 select-video-container mt-3" style="display: none;">
+                                {% include "agent/includes/video_carousel.html" with segment=segment %}
                             </div>
                         </div>
                     </div>
@@ -437,7 +440,7 @@
         // Auto-reload page every 15 seconds if video is being processed
         const videoStatus = '{{ video.status }}';
         const processingStatuses = ['GENERATING_VOICE', 'GENERATING_SUBTITLES', 'GENERATING_SEGMENTS', 'RENDERING'];
-        
+
         // Function to update subtitle preview
         function updateSubtitlePreview() {
             const fontSize = document.getElementById('fontSize').value;
@@ -446,31 +449,31 @@
             const strokeWeight = document.getElementById('strokeWeight').value;
             const shadow = document.getElementById('shadow').value;
             const verticalPosition = document.getElementById('verticalPosition').value;
-            
+
             // Update display values
             document.getElementById('fontSizeValue').textContent = fontSize;
             document.getElementById('strokeValue').textContent = strokeWeight;
             document.getElementById('shadowValue').textContent = shadow;
             document.getElementById('verticalPositionValue').textContent = verticalPosition;
-            
+
             // Update preview
             const previewSpan = document.getElementById('subtitlePreviewText');
             const previewContainer = previewSpan.closest('.subtitle-preview');
-            
+
             previewSpan.style.fontFamily = fontFamily + ', sans-serif';
             previewSpan.style.fontSize = fontSize + 'px';
             previewSpan.style.fontWeight = fontWeight;
-            
+
             // Update vertical position (padding from bottom)
             // Convert percentage to pixels based on container height (~355px for 200px width)
             // At 50% slider, we want ~180px from bottom
             const paddingPx = (verticalPosition / 50) * 180; // Linear scale: 0-50% → 0-180px
             previewContainer.style.paddingBottom = paddingPx + 'px';
-            
+
             // Build text-shadow for stroke and shadow
             let textShadow = [];
             const stroke = parseInt(strokeWeight);
-            
+
             // Add stroke (black outline)
             if (stroke > 0) {
                 for (let x = -stroke; x <= stroke; x++) {
@@ -481,16 +484,16 @@
                     }
                 }
             }
-            
+
             // Add shadow
             if (shadow > 0) {
                 const shadowSize = parseInt(shadow) * 2;
                 textShadow.push(`-${shadowSize}px -${shadowSize}px ${shadowSize}px rgba(0,0,0,0.5)`);
             }
-            
+
             previewSpan.style.textShadow = textShadow.join(', ');
         }
-        
+
         // Function to save subtitle settings
         async function saveSubtitleSettings(videoId) {
             const fontSize = document.getElementById('fontSize').value;
@@ -499,7 +502,7 @@
             const strokeWeight = document.getElementById('strokeWeight').value;
             const shadow = document.getElementById('shadow').value;
             const verticalPosition = document.getElementById('verticalPosition').value;
-            
+
             try {
                 const response = await fetch(`/videos/${videoId}/set-subtitle-style/`, {
                     method: 'POST',
@@ -507,7 +510,7 @@
                         'Content-Type': 'application/json',
                         'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
                     },
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({
                         font_size: fontSize,
                         font_family: fontFamily,
                         font_weight: fontWeight,
@@ -520,7 +523,7 @@
                 if (!response.ok) {
                     throw new Error('Failed to save subtitle settings');
                 }
-                
+
                 const result = await response.json();
                 alert('Nastavitve podnapisov so shranjene!');
                 console.log('Subtitle settings saved:', result);
@@ -529,12 +532,26 @@
                 alert('Napaka pri shranjevanju nastavitev');
             }
         }
-        
+
         // Initialize preview on page load
         window.addEventListener('DOMContentLoaded', function() {
             updateSubtitlePreview();
+
+            // Toggle video selector
+            const toggleButtons = document.querySelectorAll('.toggle-select-video');
+            toggleButtons.forEach(button => {
+                button.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    const container = this.closest('.card-body').querySelector('.select-video-container');
+                    if (container.style.display === 'none') {
+                        container.style.display = '';
+                    } else {
+                        container.style.display = 'none';
+                    }
+                });
+            });
         });
-        
+
         if (processingStatuses.includes(videoStatus)) {
             setTimeout(function() {
                 location.reload();

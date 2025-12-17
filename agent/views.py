@@ -180,8 +180,10 @@ def search_pexels_videos(request, video_segment_id):
         url = "https://api.pexels.com/videos/search"
         headers = {"Authorization": django_settings.PEXELS_API_KEY}
 
-        keywords = query.split(",")
-        keywords.append(query)
+        keywords = [
+            *query.split(","), # split query by commas
+            query,  # also add full query
+        ]
         videos = []
         ids = []
         for keyword in keywords:
@@ -190,7 +192,7 @@ def search_pexels_videos(request, video_segment_id):
             params = {
                 "query": keyword,
                 "orientation": "portrait",
-                "per_page": 20,
+                "per_page": 10,
                 "page": page,
                 "size": "medium",
             }
@@ -204,13 +206,13 @@ def search_pexels_videos(request, video_segment_id):
             min_duration = duration
             max_duration = duration + 15
 
-            print(f"DEBUG: Total videos from Pexels: {len(data.get('videos', []))}")
+            # print(f"DEBUG: Total videos from Pexels: {len(data.get('videos', []))}")
 
             for video_item in data.get("videos", []):
                 video_duration = video_item.get("duration", 0)
-                print(
-                    f"DEBUG: Checking video {video_item.get('id')}: duration={video_duration}"
-                )
+                # print(
+                #     f"DEBUG: Checking video {video_item.get('id')}: duration={video_duration}"
+                # )
 
                 # if min_duration <= video_duration <= max_duration:
                 if min_duration <= video_duration:
@@ -221,13 +223,13 @@ def search_pexels_videos(request, video_segment_id):
                         height = file.get("height", 0)
                         if width < height:
                             video_file = file
-                            print(f"DEBUG: Found portrait file: {width}x{height}")
+                            # print(f"DEBUG: Found portrait file: {width}x{height}")
                             break
 
                     if video_file:
                         video_id = video_item.get("id")
                         if video_id in ids:
-                            print(f"DEBUG: Skipping duplicate video {video_id}")
+                            # print(f"DEBUG: Skipping duplicate video {video_id}")
                             continue
                         ids.append(video_item.get("id"))
                         videos.append(
@@ -244,9 +246,9 @@ def search_pexels_videos(request, video_segment_id):
                                 "url": video_item.get("url"),
                             }
                         )
-                        print(f"DEBUG: Added video {video_item.get('id')}")
+                        # print(f"DEBUG: Added video {video_item.get('id')}")
 
-        print(f"DEBUG: Returning {len(videos)} filtered videos")
+        # print(f"DEBUG: Returning {len(videos)} filtered videos")
 
         return JsonResponse({"videos": videos, "query": query, "total": len(videos)})
 
