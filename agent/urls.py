@@ -29,11 +29,6 @@ urlpatterns = [
         name="set_subtitle_style",
     ),
     path(
-        "video-segments/<int:video_segment_id>/videos-selector/",
-        views.video_segment_videos_selector,
-        name="video_segment_videos_selector",
-    ),
-    path(
         "video-segments/<int:video_segment_id>/search-videos/",
         views.search_pexels_videos,
         name="search_pexels_videos",

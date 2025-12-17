@@ -134,29 +134,6 @@ def video_create(request):
 
 
 @login_required(login_url="/admin/login/")
-def video_segment_videos_selector(request, video_segment_id):
-    """
-    Query Pexels API for partial video selection.
-    """
-    video_segment = get_object_or_404(
-        VideoSegment, id=video_segment_id, video__user=request.user
-    )
-
-    # Get query from GET parameter or use default
-    query = request.GET.get("query", video_segment.query)
-
-    return render(
-        request,
-        "agent/partial_videos_selector.html",
-        {
-            "video_segment": video_segment,
-            "query": query,
-            "duration": video_segment.end_time - video_segment.start_time,
-        },
-    )
-
-
-@login_required(login_url="/admin/login/")
 def search_pexels_videos(request, video_segment_id):
     """
     AJAX endpoint to search Pexels videos with custom query.
@@ -331,41 +308,13 @@ def save_selected_video(request, video_segment_id):
             gen_video.status = GenVideo.Statuses.VIDEOS_SELECTED
             gen_video.save()
 
-        # Find next VideoSegment for the same video
-        next_segment = (
-            VideoSegment.objects.filter(
-                video=video_segment.video, order__gt=video_segment.order
-            )
-            .order_by("order")
-            .first()
-        )
-
-        # Determine redirect URL
-        if next_segment:
-            from django.urls import reverse
-
-            redirect_url = reverse(
-                "video_segment_videos_selector",
-                kwargs={"video_segment_id": next_segment.id},
-            )
-            message = f"Video uspešno shranjen. Preusmerjam na naslednji segment ({next_segment.order}/{video_segment.video.segments.count()})..."
-        else:
-            from django.urls import reverse
-
-            redirect_url = reverse(
-                "video_detail", kwargs={"video_id": video_segment.video.id}
-            )
-            message = "Video uspešno shranjen. Vsi segmenti so obdelani!"
-
         return JsonResponse(
             {
                 "success": True,
-                "message": message,
+                "message": "Video uspešno shranjen.",
                 "video_file_url": (
                     video_segment.video_file.url if video_segment.video_file else None
                 ),
-                "redirect_url": redirect_url,
-                "has_next": next_segment is not None,
             }
         )
 
