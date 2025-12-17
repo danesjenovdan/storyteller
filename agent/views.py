@@ -134,29 +134,6 @@ def video_create(request):
 
 
 @login_required(login_url="/admin/login/")
-def video_segment_videos_selector(request, video_segment_id):
-    """
-    Query Pexels API for partial video selection.
-    """
-    video_segment = get_object_or_404(
-        VideoSegment, id=video_segment_id, video__user=request.user
-    )
-
-    # Get query from GET parameter or use default
-    query = request.GET.get("query", video_segment.query)
-
-    return render(
-        request,
-        "agent/partial_videos_selector.html",
-        {
-            "video_segment": video_segment,
-            "query": query,
-            "duration": video_segment.end_time - video_segment.start_time,
-        },
-    )
-
-
-@login_required(login_url="/admin/login/")
 def search_pexels_videos(request, video_segment_id):
     """
     AJAX endpoint to search Pexels videos with custom query.
@@ -180,8 +157,10 @@ def search_pexels_videos(request, video_segment_id):
         url = "https://api.pexels.com/videos/search"
         headers = {"Authorization": django_settings.PEXELS_API_KEY}
 
-        keywords = query.split(",")
-        keywords.append(query)
+        keywords = [
+            *query.split(","),  # split query by commas
+            query,  # also add full query
+        ]
         videos = []
         ids = []
         for keyword in keywords:
@@ -190,7 +169,7 @@ def search_pexels_videos(request, video_segment_id):
             params = {
                 "query": keyword,
                 "orientation": "portrait",
-                "per_page": 20,
+                "per_page": 10,
                 "page": page,
                 "size": "medium",
             }
@@ -204,13 +183,13 @@ def search_pexels_videos(request, video_segment_id):
             min_duration = duration
             max_duration = duration + 15
 
-            print(f"DEBUG: Total videos from Pexels: {len(data.get('videos', []))}")
+            # print(f"DEBUG: Total videos from Pexels: {len(data.get('videos', []))}")
 
             for video_item in data.get("videos", []):
                 video_duration = video_item.get("duration", 0)
-                print(
-                    f"DEBUG: Checking video {video_item.get('id')}: duration={video_duration}"
-                )
+                # print(
+                #     f"DEBUG: Checking video {video_item.get('id')}: duration={video_duration}"
+                # )
 
                 # if min_duration <= video_duration <= max_duration:
                 if min_duration <= video_duration:
@@ -221,13 +200,13 @@ def search_pexels_videos(request, video_segment_id):
                         height = file.get("height", 0)
                         if width < height:
                             video_file = file
-                            print(f"DEBUG: Found portrait file: {width}x{height}")
+                            # print(f"DEBUG: Found portrait file: {width}x{height}")
                             break
 
                     if video_file:
                         video_id = video_item.get("id")
                         if video_id in ids:
-                            print(f"DEBUG: Skipping duplicate video {video_id}")
+                            # print(f"DEBUG: Skipping duplicate video {video_id}")
                             continue
                         ids.append(video_item.get("id"))
                         videos.append(
@@ -244,9 +223,9 @@ def search_pexels_videos(request, video_segment_id):
                                 "url": video_item.get("url"),
                             }
                         )
-                        print(f"DEBUG: Added video {video_item.get('id')}")
+                        # print(f"DEBUG: Added video {video_item.get('id')}")
 
-        print(f"DEBUG: Returning {len(videos)} filtered videos")
+        # print(f"DEBUG: Returning {len(videos)} filtered videos")
 
         return JsonResponse({"videos": videos, "query": query, "total": len(videos)})
 
@@ -329,41 +308,13 @@ def save_selected_video(request, video_segment_id):
             gen_video.status = GenVideo.Statuses.VIDEOS_SELECTED
             gen_video.save()
 
-        # Find next VideoSegment for the same video
-        next_segment = (
-            VideoSegment.objects.filter(
-                video=video_segment.video, order__gt=video_segment.order
-            )
-            .order_by("order")
-            .first()
-        )
-
-        # Determine redirect URL
-        if next_segment:
-            from django.urls import reverse
-
-            redirect_url = reverse(
-                "video_segment_videos_selector",
-                kwargs={"video_segment_id": next_segment.id},
-            )
-            message = f"Video uspešno shranjen. Preusmerjam na naslednji segment ({next_segment.order}/{video_segment.video.segments.count()})..."
-        else:
-            from django.urls import reverse
-
-            redirect_url = reverse(
-                "video_detail", kwargs={"video_id": video_segment.video.id}
-            )
-            message = "Video uspešno shranjen. Vsi segmenti so obdelani!"
-
         return JsonResponse(
             {
                 "success": True,
-                "message": message,
+                "message": "Video uspešno shranjen.",
                 "video_file_url": (
                     video_segment.video_file.url if video_segment.video_file else None
                 ),
-                "redirect_url": redirect_url,
-                "has_next": next_segment is not None,
             }
         )
 

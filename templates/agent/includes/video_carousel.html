@@ -1,0 +1,274 @@
+<style>
+  .video-carousel .video-preview {
+    width: 150px;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+  .video-carousel .horizontal-scroll {
+    overflow: hidden;
+    overflow-x: auto;
+  }
+</style>
+<div class="video-carousel card" data-segment-id="{{ segment.id }}">
+  <div class="card-body">
+    <div class="row query-row">
+      <div class="col-12 mb-3">
+        <div class="small">Ključne besede:</div>
+        <div class="input-group">
+          <input name="query" id="query-{{ segment.id }}" class="form-control" value="{{ segment.query }}">
+          <button class="btn btn-outline-primary" type="button">Išči videe</button>
+        </div>
+      </div>
+      <div class="col-12 mb-3">
+        <div class="small">Viri:</div>
+        <div class="d-flex flex-wrap gap-2">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" value="pexels" id="source-pexels-{{ segment.id }}" checked disabled>
+            <label class="form-check-label" for="source-pexels-{{ segment.id }}">Pexels</label>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="row results-row">
+      <div class="col-12">
+        <div class="small">Rezultati:</div>
+        <div class="alert alert-info" role="alert">
+          <i class="bi bi-info-circle-fill"></i>
+          <span>Uporabi zgornji obrazec za iskanje videov</span>
+        </div>
+        <div class="results-container">
+          <div class="horizontal-scroll">
+            <div class="d-flex gap-3 results pb-3">
+              <template class="video-preview-template">
+                <div class="video-preview border rounded position-relative overflow-hidden">
+                  <div class="top-metadata text-truncate position-absolute top-0 start-0 z-1 bg-dark bg-opacity-75 text-white px-2 py-1 rounded">
+                    <small><span class="duration"></span></small>
+                  </div>
+                  <div class="ratio" style="--bs-aspect-ratio: 177.7778%;">
+                    <video src="" muted loop playsinline disablepictureinpicture disableremoteplayback x-webkit-airplay="deny" preload="none" class="object-fit-cover"></video>
+                    <div class="preview-image">
+                      <div class="icon position-absolute top-50 start-50 translate-middle text-white fs-1 lh-1">
+                        <i class="bi bi-play-circle-fill" style="text-shadow: 0 0 0.25rem #000;"></i>
+                      </div>
+                      <img src="" alt="" class="w-100 h-100 object-fit-cover">
+                    </div>
+                    <div class="preview-loader" style="display: none;">
+                      <div class="position-absolute top-50 start-50 translate-middle">
+                        <div class="spinner-border text-white" role="status" style="filter: drop-shadow(0 0 0.25rem #000);">
+                          <span class="visually-hidden">Loading...</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div></div>
+                  </div>
+                  <div class="bottom-metadata text-truncate position-absolute bottom-0 start-0 end-0 z-1 bg-dark bg-opacity-75 text-white px-2 pb-1 rounded">
+                    <small><a href="" target="_blank" class="source text-white">Pexels / <span class="user">user</span></a></small>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    'use strict';
+
+    const el = document.currentScript.previousElementSibling;
+    const segmentId = el.getAttribute('data-segment-id');
+    const searchInput = el.querySelector(`#query-${segmentId}`);
+    const searchButton = searchInput.parentElement.querySelector('button');
+    const resultsRow = el.querySelector('.results-row');
+    const alertBox = resultsRow.querySelector('.alert');
+    const resultsContainer = resultsRow.querySelector('.results-container');
+    const resultsDiv = resultsContainer.querySelector('.results');
+    const videoPreviewTemplate = resultsDiv.querySelector('.video-preview-template');
+    const searchUrl = "{% url 'search_pexels_videos' segment.id %}";
+    const saveUrl = "{% url 'save_selected_video' segment.id %}";
+    const csrfToken = "{{ csrf_token }}";
+
+    function showAlert(message, type='info') {
+      if (message == null) {
+        alertBox.style.display = 'none';
+        return;
+      }
+      alertBox.className = `alert alert-${type}`;
+      alertBox.querySelector('span').textContent = message;
+      if (type === 'loading') {
+        alertBox.className = 'alert alert-warning';
+        alertBox.querySelector('i').className = 'bi bi-hourglass-split';
+      } else if (type === 'info') {
+        alertBox.querySelector('i').className = 'bi bi-info-circle-fill';
+      } else if (type === 'danger') {
+        alertBox.querySelector('i').className = 'bi bi-exclamation-triangle-fill';
+      } else if (type === 'success') {
+        alertBox.querySelector('i').className = 'bi bi-check-circle-fill';
+      } else {
+        alertBox.querySelector('i').className = '';
+      }
+      alertBox.style.display = 'block';
+    }
+
+    function onVideoPreviewLoaded(previewEl) {
+      const loaderEl = previewEl.querySelector('.preview-loader');
+      loaderEl.style.display = 'none';
+    }
+
+    function onVideoPreviewHover(previewEl) {
+      const videoEl = previewEl.querySelector('video');
+      const previewImageEl = previewEl.querySelector('.preview-image');
+      const loaderEl = previewEl.querySelector('.preview-loader');
+      if (videoEl.readyState < 2) {
+        loaderEl.style.display = 'block';
+      }
+      videoEl.currentTime = 0;
+      videoEl.play();
+      previewImageEl.style.opacity = '0';
+    }
+
+    function onVideoPreviewLeave(previewEl) {
+      const videoEl = previewEl.querySelector('video');
+      const previewImageEl = previewEl.querySelector('.preview-image');
+      videoEl.pause();
+      videoEl.currentTime = 0;
+      previewImageEl.style.opacity = '';
+    }
+
+    function createVideoPreview(video) {
+      const previewFragment = videoPreviewTemplate.content.cloneNode(true);
+      const videoEl = previewFragment.querySelector('video');
+      const imgEl = previewFragment.querySelector('img');
+      imgEl.src = video.image;
+      videoEl.src = video.video_url;
+
+      const durationEl = previewFragment.querySelector('.duration');
+      const minutes = Math.floor(video.duration / 60);
+      const seconds = Math.floor(video.duration % 60);
+      durationEl.textContent = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+
+      const sourceLinkEl = previewFragment.querySelector('.source');
+      sourceLinkEl.href = video.url;
+      sourceLinkEl.querySelector('.user').textContent = video.user;
+
+      const previewEl = previewFragment.querySelector('.video-preview');
+      previewEl.addEventListener('click', (e) => {
+        const closestLink = e.target.closest('a');
+        if (closestLink) {
+          return;
+        }
+        e.preventDefault();
+        selectVideo(video);
+      });
+      previewEl.addEventListener('mouseenter', () => onVideoPreviewHover(previewEl));
+      previewEl.addEventListener('mouseleave', () => onVideoPreviewLeave(previewEl));
+      videoEl.addEventListener('loadeddata', () => onVideoPreviewLoaded(previewEl));
+
+      return previewFragment;
+    }
+
+    function createLoadMoreButton(page) {
+      const existingButton = resultsDiv.querySelector('.load-more-button');
+      if (existingButton) {
+        existingButton.remove();
+      }
+      const loadMoreButton = document.createElement('button');
+      loadMoreButton.textContent = 'Naloži več';
+      loadMoreButton.className = 'btn btn-outline-primary video-preview load-more-button';
+      loadMoreButton.addEventListener('click', () => searchVideos(page));
+      return loadMoreButton;
+    }
+
+    async function searchVideos(page = 1) {
+      try {
+        showAlert('Iščem...', 'loading');
+
+        const response = await fetch(`${searchUrl}?query=${encodeURIComponent(searchInput.value)}&page=${page}`);
+        const data = await response.json();
+
+        if (data.error) {
+          showAlert(data.error, 'danger');
+        } else if (!data?.videos?.length) {
+          showAlert('Ni najdenih videov. Poskusi z drugimi ključnimi besedami.', 'info');
+        } else {
+          // showAlert(`Najdenih ${data.total} video(v)`, 'success');
+
+          data.videos.forEach(video => {
+            const previewFragment = createVideoPreview(video);
+            resultsDiv.appendChild(previewFragment);
+          });
+
+          const loadMoreButton = createLoadMoreButton(page + 1);
+          resultsDiv.appendChild(loadMoreButton);
+
+          showAlert(null);
+        }
+      } catch (error) {
+        console.error('Napaka pri iskanju:', error);
+        showAlert('Napaka pri iskanju: ' + error.message, 'danger');
+      }
+    }
+
+    async function selectVideo(video) {
+      if (!confirm(`Izberi ta video?\n\nVideo bo prenešen in shranjen.`)) {
+        return;
+      }
+
+      try {
+        showAlert('Shranjujem izbrani video...', 'loading');
+
+        const response = await fetch(saveUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+          },
+          body: JSON.stringify({
+            video_url: video.video_url,
+            metadata: {
+              id: video.id,
+              url: video.url,
+              user: video.user,
+              duration: video.duration,
+              width: video.width,
+              height: video.height,
+            },
+          }),
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+          showAlert(data.error, 'danger');
+        } else {
+          showAlert('Video uspešno shranjen!', 'success');
+          setTimeout(() => {
+            // reload the page to reflect the new video
+            window.location.reload();
+          }, 1000);
+        }
+      } catch (error) {
+        console.error('Napaka pri shranjevanju videa:', error);
+        showAlert('Napaka pri shranjevanju videa: ' + error.message, 'danger');
+      }
+    }
+
+    searchButton.addEventListener('click', () => searchVideos(1));
+
+    // on visibility toggle, search videos if no results yet
+    const observer = new MutationObserver((mutationsList) => {
+      for (const mutation of mutationsList) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+          if (el.offsetParent !== null && !el.classList.contains('shown')) {
+            // element is now visible
+            el.classList.add('shown');
+            searchVideos(1);
+          }
+        }
+      }
+    });
+    observer.observe(document.body, { attributes: true, subtree: true });
+  })();
+</script>
