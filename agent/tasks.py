@@ -352,12 +352,19 @@ def get_video_segments(video_instance: GenVideo) -> None:
         model_response = model.invoke(video_instance.video_segments_keywords_prompt)
         data = model_response.content
         logger.info(data)
-        data = json.loads(data.strip("`").strip("python"))
+        data = json.loads(data.strip().strip("`").strip().strip("json").strip("python"))
+        logger.info(data)
         for i, segment_data in enumerate(data):
             start = float(segment_data["start"].strip())
             end = float(segment_data["end"].strip())
             logger.info(segment_data["start"])
             logger.info(segment_data["end"])
+
+            if start >= end:
+                video_instance.status = GenVideo.Statuses.FAILED
+                video_instance.error_type = GenVideo.ErrorTypes.SEGMENTS_GENERATION
+                video_instance.error_details = f"Invalid segment times for segment {i+1}: start {start} >= end {end}"
+                video_instance.save()
 
             # If this is the last segment and we have voice_duration, use it
             if i == len(data) - 1 and video_instance.voice_duration:
