@@ -132,9 +132,12 @@ Pri določanju ključnih besed upoštevaj tudi kontekst vsebine celotnega scenar
         return f"""
 {self.video_segments_prompt}
 Časovna enota je sekunda in naj bo vedno tipa float. Start time-i prvega segmenta je "0.00".  Za segmente uporabljaj referenco podnapise, torej naj imajo smisel z besedilom in časom podnapisov.
-End time zadnjega segmenta je enak dolžini videa, torej je enak koncu zadnjega podnapisa.
+End time zadnjega segmenta je enak dolžini videa, torej je enak koncu zadnjega podnapisa. Segmenti naj bodo zaporedni in se ne bodo prekrivali. V podnapisih so časovni žigi v formatu HH:MM:SS,MMM. 
+Primer za časovno kodo v SRT formatu:
 00:00:38,200 --> 00:00:41,610 pomeni start: "38.20", end: "41.61"
-Za vsak segment mi določi starttime in endtime Vrni mi samo python seznam slovarjev v obliki 
+Za vsak segment mi določi starttime in endtime Vrni mi samo python seznam slovarjev v obliki, kjer so časovni žigi v sekundah.
+Odgovor naj vsebuje samo seznam slovarjev, brez dodatnega besedila ali pojasnil ali kode ki nastavi vsebino v spremenljivko!
+Spodaj je primer kako naj bo format odgovora:
 [{{"start": "0.00", "end": "2.37", "text": "besedilo", "keywords": ["keyword_eng_1", "keyword_eng_2"]}}, {{"start": "2.38", "end": "66.45", "text": "besedilo", "keywords": ["keyword_eng_1", "keyword_eng_2"]}}]
 --------
 Scenarij:
