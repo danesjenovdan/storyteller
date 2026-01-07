@@ -24,6 +24,11 @@ urlpatterns = [
         name="regenerate_segments",
     ),
     path(
+        "videos/<int:video_id>/regenerate-srt/",
+        views.regenerate_srt,
+        name="regenerate_srt",
+    ),
+    path(
         "videos/<int:video_id>/set-subtitle-style/",
         views.set_subtitle_style,
         name="set_subtitle_style",
