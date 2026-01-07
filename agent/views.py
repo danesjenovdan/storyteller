@@ -468,6 +468,40 @@ def regenerate_segments(request, video_id):
     # Trigger segment generation task
     get_video_segments(video)
 
+    messages.success(request, "Segmenti se ponovno generirajo...")
+    return redirect("video_detail", video_id=video_id)
+
+
+def regenerate_srt(request, video_id):
+    """
+    Regenerate SRT subtitle file from voice file.
+    Deletes existing SRT and creates new one.
+    """
+    from django.contrib import messages
+    from django.shortcuts import redirect
+
+    from agent.tasks import generate_srt_file
+
+    if request.method != "POST":
+        return redirect("video_detail", video_id=video_id)
+
+    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+
+    if not video.voice_file:
+        messages.error(
+            request, "Ne moreš generirati podnapisov - manjka zvočna datoteka"
+        )
+        return redirect("video_detail", video_id=video_id)
+
+    # Delete existing SRT file
+    if video.srt_file:
+        video.srt_file.delete()
+    video.srt_content = ""
+    video.save()
+
+    # Trigger SRT generation task
+    generate_srt_file(video)
+
     messages.success(
         request, "Generiranje segmentov se je začelo! Segmenti bodo kmalu na voljo."
     )

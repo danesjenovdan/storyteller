@@ -27,6 +27,100 @@ logging.basicConfig(
 )
 
 
+def validate_srt_content(srt_content: str) -> tuple[bool, str]:
+    """
+    Validate SRT subtitle content before saving.
+    
+    Checks:
+    - Content is not empty
+    - Contains valid subtitle blocks (number, timecode, text)
+    - Timecodes are in correct format
+    - No missing or empty subtitle entries
+    
+    Args:
+        srt_content: The SRT file content string
+    
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    if not srt_content or not srt_content.strip():
+        return False, "SRT content is empty"
+    
+    lines = srt_content.strip().split('\n')
+    
+    # Basic structure check - should have at least 3 lines (number, timecode, text)
+    if len(lines) < 3:
+        return False, "SRT content too short - missing subtitle blocks"
+    
+    # Track subtitle blocks
+    subtitle_count = 0
+    i = 0
+    
+    while i < len(lines):
+        line = lines[i].strip()
+        
+        # Skip empty lines
+        if not line:
+            i += 1
+            continue
+        
+        # Check if line is a subtitle number
+        if not line.isdigit():
+            return False, f"Expected subtitle number at line {i+1}, got: {line}"
+        
+        subtitle_num = int(line)
+        if subtitle_num != subtitle_count + 1:
+            return False, f"Subtitle numbering error: expected {subtitle_count + 1}, got {subtitle_num}"
+        
+        i += 1
+        if i >= len(lines):
+            return False, f"Subtitle {subtitle_num}: Missing timecode"
+        
+        # Check timecode format (00:00:00,000 --> 00:00:00,000)
+        timecode_line = lines[i].strip()
+        if '-->' not in timecode_line:
+            return False, f"Subtitle {subtitle_num}: Invalid timecode format - missing '-->' separator"
+        
+        # Validate timecode structure
+        parts = timecode_line.split('-->')
+        if len(parts) != 2:
+            return False, f"Subtitle {subtitle_num}: Invalid timecode format"
+        
+        start_time = parts[0].strip()
+        end_time = parts[1].strip()
+        
+        # Check timecode pattern (HH:MM:SS,mmm)
+        import re
+        timecode_pattern = r'^\d{2}:\d{2}:\d{2}[,\.]\d{1,3}$'
+        if not re.match(timecode_pattern, start_time):
+            return False, f"Subtitle {subtitle_num}: Invalid start time format: {start_time}"
+        if not re.match(timecode_pattern, end_time):
+            return False, f"Subtitle {subtitle_num}: Invalid end time format: {end_time}"
+        
+        i += 1
+        if i >= len(lines):
+            return False, f"Subtitle {subtitle_num}: Missing text content"
+        
+        # Check for subtitle text (at least one non-empty line)
+        has_text = False
+        while i < len(lines) and lines[i].strip():
+            if lines[i].strip():
+                has_text = True
+            i += 1
+        
+        if not has_text:
+            return False, f"Subtitle {subtitle_num}: Empty text content"
+        
+        subtitle_count += 1
+    
+    # Final check - should have at least one subtitle
+    if subtitle_count == 0:
+        return False, "No valid subtitles found in SRT content"
+    
+    logger.info(f"✓ SRT validation passed: {subtitle_count} subtitles validated")
+    return True, f"Valid SRT with {subtitle_count} subtitles"
+
+
 @db_task()
 def generate_voice_file_eleven_labs(video: int) -> None:
     """
@@ -435,7 +529,10 @@ def generate_srt_file(video: GenVideo) -> None:
                     ),
                     Part.from_text(
                         text="""
-Zgeneriraj podnapise in mi vrni vsebino za SRT datoteko. Vsebuje naj tudi časovne kode. Spodaj je primer za enkratno referenco:
+Vrni miiii samo vsebino SRT datoteke za podnapise iz priloženega zvočnega posnetka, brez dodatnih pojasnil ali besedila.
+Zgeneriraj podnapise in mi vrni vsebino za SRT datoteko.
+Vsebuje naj tudi časovne kode, ki naj bodo vse v formatu HH:MM:SS,mmm --> HH:MM:SS,mmm.
+Spodaj je primer za enkratno referenco:
 1
 00:02:16,612 --> 00:02:19,376
 Senator, we're making
@@ -446,11 +543,19 @@ our final approach into Coruscant.
             )
         ]
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-3-flash-preview",
             contents=contents,
         )
         filename = f"srt_{video.id}.srt"
         srt_content = response.text.strip("`").strip("srt")
+        logger.info(f"SRT content generated for video {video.id}:\n{srt_content}")
+        # Validate SRT content before saving
+        is_valid, validation_message = validate_srt_content(srt_content)
+        if not is_valid:
+            raise ValueError(f"Invalid SRT content: {validation_message}")
+        
+        logger.info(f"SRT validation result: {validation_message}")
+        
         video.srt_content = srt_content
         video.srt_file.save(filename, ContentFile(srt_content), save=False)
         video.status = GenVideo.Statuses.SUBTITLES_READY
@@ -458,8 +563,9 @@ our final approach into Coruscant.
 
         logger.info(f"✓ SRT file generated for video {video.id}: {filename}")
 
-        # Automatically generate video segments
-        get_video_segments(video)
+        # Automatically generate video segments if video has none
+        if not video.segments.exists():
+            get_video_segments(video)
 
     except Exception as e:
         logger.error(f"✗ Error generating SRT file for video {video.id}: {str(e)}")
