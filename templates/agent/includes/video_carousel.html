@@ -270,5 +270,12 @@
       }
     });
     observer.observe(document.body, { attributes: true, subtree: true });
+
+    // initial check if visible on load
+    if (el.offsetParent !== null && !el.classList.contains('shown')) {
+      // element is now visible
+      el.classList.add('shown');
+      searchVideos(1);
+    }
   })();
 </script>

@@ -424,7 +424,7 @@
                                     </p>
                                 {% endif %}
                             </div>
-                            <div class="col-md-12 select-video-container mt-3" style="display: none;">
+                            <div class="col-md-12 select-video-container mt-3" style="{% if segment.video_file %}display: none;{% endif %}">
                                 {% include "agent/includes/video_carousel.html" with segment=segment %}
                             </div>
                         </div>
