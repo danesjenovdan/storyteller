@@ -324,7 +324,8 @@ def video_detail(request, video_id):
     # Calculate progress - count segments with selected videos (either downloaded or URL saved)
     total_segments = segments.count()
     completed_segments = sum(
-        1 for seg in segments 
+        1
+        for seg in segments
         if seg.video_proposals and seg.video_proposals[0].get("selected")
     )
     progress_percentage = (
@@ -356,9 +357,10 @@ def render_video(request, video_id):
     # Validate that all segments have video URLs selected
     segments = video.segments.all()
     total_segments = segments.count()
-    
+
     segments_with_urls = [
-        seg for seg in segments 
+        seg
+        for seg in segments
         if seg.video_proposals and seg.video_proposals[0].get("selected")
     ]
 

@@ -625,9 +625,9 @@ def render_final_video(video: GenVideo) -> None:
         video.save()
 
         # Get all segments with video URLs
-        segments = video.segments.filter(
-            video_proposals__0__selected=True
-        ).order_by("order")
+        segments = video.segments.filter(video_proposals__0__selected=True).order_by(
+            "order"
+        )
 
         if not segments.exists():
             raise ValueError(f"Video {video} has no segments with selected videos")
@@ -647,7 +647,7 @@ def render_final_video(video: GenVideo) -> None:
                 video_url = segment.video_proposals[0].get("video_url")
                 if not video_url:
                     raise ValueError(f"Segment {segment.id} has no video URL")
-                
+
                 with get_temporary_file_from_url(video_url) as input_file:
                     duration = segment.duration()
                     output_file = temp_path / f"clip_{i:03d}.mp4"

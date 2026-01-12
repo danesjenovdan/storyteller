@@ -53,10 +53,10 @@ def get_temporary_file_path(file_field: File) -> Generator[str, None, None]:
 def get_temporary_file_from_url(file_url: str) -> Generator[str, None, None]:
     """
     Download file from URL and create a temporary file.
-    
+
     Args:
         file_url: URL of the file to download
-        
+
     Yields:
         Path to temporary file
     """

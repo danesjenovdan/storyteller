@@ -1,4 +1,5 @@
 import json
+
 from django.contrib import admin
 from django.utils.html import format_html
 
@@ -18,14 +19,14 @@ class VideoSegmentsInline(admin.TabularInline):
                 return format_html(
                     '<video controls style="max-width: 200px; max-height: 300px;">'
                     '<source src="{}" type="video/mp4">'
-                    'Your browser does not support video.'
-                    '</video>',
-                    video_url
+                    "Your browser does not support video."
+                    "</video>",
+                    video_url,
                 )
             return "No URL"
         else:
             return "No video selected"
-    
+
     video_preview.short_description = "Video"
 
 
