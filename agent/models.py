@@ -167,12 +167,6 @@ class VideoSegment(models.Model):
     video_proposals = models.JSONField(
         help_text="List of video proposals with metadata", default=list, blank=True
     )
-    video_file = models.FileField(
-        upload_to="video_segments/",
-        null=True,
-        blank=True,
-        help_text="Video file for this segment",
-    )
 
     def __str__(self):
         return f"segment {self.id} for Video {self.video.id}"

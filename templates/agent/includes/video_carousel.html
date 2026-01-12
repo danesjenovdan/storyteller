@@ -211,11 +211,100 @@
       }
     }
 
-    async function selectVideo(video) {
-      if (!confirm(`Izberi ta video?\n\nVideo bo prenešen in shranjen.`)) {
-        return;
+    function updateSegmentUI(video) {
+      // Find the segment card
+      const segmentCard = el.closest('.segment-card');
+      const cardBody = segmentCard.querySelector('.card-body > .row');
+      
+      // Update badge
+      const badge = segmentCard.querySelector('.badge');
+      badge.className = 'badge bg-success';
+      badge.textContent = '✓';
+      
+      // Update card border
+      segmentCard.classList.remove('missing');
+      segmentCard.classList.add('completed');
+      
+      // Update right column with video preview
+      const rightCol = cardBody.querySelector('.col-md-4');
+      rightCol.innerHTML = `
+        <video controls class="video-preview">
+          <source src="${video.video_url}" type="video/mp4">
+          Vaš brskalnik ne podpira predvajanja videa.
+        </video>
+        <div class="mt-2">
+          ${video.url ? `<a href="${video.url}" class="btn btn-sm btn-outline-info" target="_blank">
+            <i class="bi bi-box-arrow-up-right"></i> Pexels
+          </a>` : ''}
+          <a href="#" class="btn btn-sm btn-outline-secondary toggle-select-video">
+            <i class="bi bi-arrow-repeat"></i> Zamenjaj
+          </a>
+        </div>
+      `;
+      
+      // Re-attach toggle button event
+      const newToggleBtn = rightCol.querySelector('.toggle-select-video');
+      newToggleBtn.addEventListener('click', function(event) {
+        event.preventDefault();
+        const container = segmentCard.querySelector('.select-video-container');
+        if (container.style.display === 'none') {
+          container.style.display = '';
+          container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          container.style.display = 'none';
+        }
+      });
+      
+      // Hide video selector
+      el.closest('.select-video-container').style.display = 'none';
+      
+      // Update progress bar if it exists
+      const progressBar = document.querySelector('.progress-bar');
+      if (progressBar) {
+        const currentCompleted = parseInt(progressBar.textContent.match(/\d+/)[0]);
+        const totalSegments = parseInt(progressBar.textContent.match(/\/(\d+)/)[1]);
+        const newCompleted = currentCompleted + 1;
+        const newPercentage = (newCompleted / totalSegments) * 100;
+        
+        progressBar.style.width = newPercentage + '%';
+        progressBar.setAttribute('aria-valuenow', newPercentage);
+        progressBar.textContent = `${newCompleted}/${totalSegments} (${Math.round(newPercentage)}%)`;
+        
+        if (newCompleted === totalSegments) {
+          progressBar.classList.add('bg-success');
+          
+          // Show render button if all segments are selected
+          const actionsCard = document.querySelector('.card-body .d-grid');
+          if (actionsCard) {
+            // Check if render button already exists
+            const existingRenderBtn = actionsCard.querySelector('form[action*="render_video"]');
+            if (!existingRenderBtn) {
+              // Create render button
+              const renderForm = document.createElement('form');
+              renderForm.method = 'post';
+              renderForm.action = window.location.pathname.replace('/videos/', '/videos/') + 'render/';
+              renderForm.style.margin = '0';
+              
+              const csrfInput = document.createElement('input');
+              csrfInput.type = 'hidden';
+              csrfInput.name = 'csrfmiddlewaretoken';
+              csrfInput.value = '{{ csrf_token }}';
+              renderForm.appendChild(csrfInput);
+              
+              const renderBtn = document.createElement('button');
+              renderBtn.type = 'submit';
+              renderBtn.className = 'btn btn-success w-100';
+              renderBtn.innerHTML = '<i class="bi bi-film"></i> Renderiraj končni video';
+              renderForm.appendChild(renderBtn);
+              
+              actionsCard.appendChild(renderForm);
+            }
+          }
+        }
       }
+    }
 
+    async function selectVideo(video) {
       try {
         showAlert('Shranjujem izbrani video...', 'loading');
 
@@ -243,11 +332,9 @@
         if (data.error) {
           showAlert(data.error, 'danger');
         } else {
-          showAlert('Video uspešno shranjen!', 'success');
-          setTimeout(() => {
-            // reload the page to reflect the new video
-            window.location.reload();
-          }, 1000);
+          showAlert('Video URL uspešno shranjen!', 'success');
+          // Update the UI to show selected video
+          updateSegmentUI(video);
         }
       } catch (error) {
         console.error('Napaka pri shranjevanju videa:', error);

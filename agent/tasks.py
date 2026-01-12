@@ -452,15 +452,24 @@ def get_video_segments(video_instance: GenVideo) -> None:
         video_instance.save()
 
         # prompt the model for the minutes
-        model = init_chat_model("gemini-2.5-flash", model_provider="google_genai")
+        model = init_chat_model("gemini-3-flash-preview", model_provider="google_genai")
         logger.info(
             f"Video segments prompt for video {video_instance.id}: {video_instance.video_segments_keywords_prompt}"
         )
         model_response = model.invoke(video_instance.video_segments_keywords_prompt)
         data = model_response.content
         logger.info(data)
-        data = json.loads(data.strip().strip("`").strip().strip("json").strip("python"))
-        logger.info(data)
+        if isinstance(data, str):
+            data = data.strip().strip("`").strip().strip("json").strip("python")
+            data = json.loads(data)
+        elif isinstance(data, dict) and "text" in data:
+            data = json.loads(data["text"])
+        elif isinstance(data, list):
+            logger.info(len(data))
+            data = json.loads(data[0]["text"])
+        else:
+            raise ValueError("Unexpected model response format for video segments")
+
         for i, segment_data in enumerate(data):
             start = float(segment_data["start"].strip())
             end = float(segment_data["end"].strip())
@@ -595,32 +604,33 @@ def render_final_video(video: GenVideo) -> None:
     Combine all VideoSegment clips with ffmpeg, add audio and subtitles.
 
     Process:
-    1. Cut each VideoSegment.video_file according to start_time/end_time
-    2. Concatenate all clips in order
-    3. Add voice_file as audio track
-    4. Burn-in subtitles from srt_file
-    5. Save to GenVideo.final_file
+    1. Download each video from URL stored in video_proposals
+    2. Cut each video according to segment start_time/end_time
+    3. Concatenate all clips in order
+    4. Add voice_file as audio track
+    5. Burn-in subtitles from srt_file
+    6. Save to GenVideo.final_file
 
     Args:
-        video_id: ID of the GenVideo instance
+        video: GenVideo instance
     """
     import subprocess
     import tempfile
     from pathlib import Path
 
+    from agent.utils import get_temporary_file_from_url, get_temporary_file_path
+
     try:
         video.status = GenVideo.Statuses.RENDERING
         video.save()
 
-        # Get all segments with video files
-        segments = (
-            video.segments.filter(video_file__isnull=False)
-            .exclude(video_file="")
-            .order_by("order")
+        # Get all segments with video URLs
+        segments = video.segments.filter(video_proposals__0__selected=True).order_by(
+            "order"
         )
 
         if not segments.exists():
-            raise ValueError(f"Video {video} has no segment video files")
+            raise ValueError(f"Video {video} has no segments with selected videos")
 
         if not video.voice_file:
             raise ValueError(f"Video {video} has no voice file")
@@ -634,12 +644,16 @@ def render_final_video(video: GenVideo) -> None:
             # Step 1: Cut and prepare each clip
             clip_files = []
             for i, segment in enumerate(segments):
-                with get_temporary_file_path(segment.video_file) as input_file:
+                video_url = segment.video_proposals[0].get("video_url")
+                if not video_url:
+                    raise ValueError(f"Segment {segment.id} has no video URL")
+
+                with get_temporary_file_from_url(video_url) as input_file:
                     duration = segment.duration()
                     output_file = temp_path / f"clip_{i:03d}.mp4"
 
                     logger.info(
-                        f"Processing clip {i+1}/{segments.count()}: {duration:.2f}s from {segment.video_file.name}"
+                        f"Processing clip {i+1}/{segments.count()}: {duration:.2f}s from URL"
                     )
 
                     # Cut video to exact duration (no audio, we'll add it later)
