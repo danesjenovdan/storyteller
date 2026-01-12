@@ -3,6 +3,7 @@ import tempfile
 from contextlib import contextmanager
 from typing import Generator
 
+import requests
 from django.conf import settings
 from django.core.files.base import File
 
@@ -41,6 +42,44 @@ def get_temporary_file_path(file_field: File) -> Generator[str, None, None]:
             except OSError:
                 pass
 
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass
+
+
+@contextmanager
+def get_temporary_file_from_url(file_url: str) -> Generator[str, None, None]:
+    """
+    Download file from URL and create a temporary file.
+    
+    Args:
+        file_url: URL of the file to download
+        
+    Yields:
+        Path to temporary file
+    """
+    temp_path = None
+
+    try:
+        # Create a temporary file
+        temp_fd, temp_path = tempfile.mkstemp(suffix=".mp4")
+
+        # Download file from URL
+        response = requests.get(file_url, stream=True)
+        response.raise_for_status()
+
+        # Write content to temporary file
+        with os.fdopen(temp_fd, "wb") as temp_file:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    temp_file.write(chunk)
+
+        yield temp_path
+
+    finally:
+        # Cleanup
         if temp_path and os.path.exists(temp_path):
             try:
                 os.unlink(temp_path)

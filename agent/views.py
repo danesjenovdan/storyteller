@@ -238,13 +238,11 @@ def search_pexels_videos(request, video_segment_id):
 @login_required(login_url="/admin/login/")
 def save_selected_video(request, video_segment_id):
     """
-    Save selected video to VideoSegment.
-    Downloads video from Pexels and saves to video_file field.
+    Save selected video URL to VideoSegment.
+    Video will be downloaded later during rendering.
     """
     import json
 
-    import requests
-    from django.core.files.base import ContentFile
     from django.http import JsonResponse
 
     if request.method != "POST":
@@ -262,24 +260,12 @@ def save_selected_video(request, video_segment_id):
         if not video_url:
             return JsonResponse({"error": "video_url is required"}, status=400)
 
-        # Download video from Pexels
-        print(f"Downloading video from: {video_url}")
-        response = requests.get(video_url, stream=True)
-        response.raise_for_status()
-
-        # Save video to model
-        filename = (
-            f"segment_{video_segment.id}_pexels_{video_metadata.get('id', 'video')}.mp4"
-        )
-        video_segment.video_file.save(
-            filename, ContentFile(response.content), save=False
-        )
-
-        # Save metadata to video_proposals
+        # Save URL and metadata to video_proposals
         video_segment.video_proposals = [
             {
                 "pexels_id": video_metadata.get("id"),
                 "pexels_url": video_metadata.get("url"),
+                "video_url": video_url,
                 "user": video_metadata.get("user"),
                 "duration": video_metadata.get("duration"),
                 "width": video_metadata.get("width"),
@@ -293,11 +279,9 @@ def save_selected_video(request, video_segment_id):
         # Update video status
         gen_video = video_segment.video
         total_segments = gen_video.segments.count()
-        completed_segments = (
-            gen_video.segments.filter(video_file__isnull=False)
-            .exclude(video_file="")
-            .count()
-        )
+        completed_segments = gen_video.segments.filter(
+            video_proposals__0__selected=True
+        ).count()
 
         if completed_segments == 1:
             # First video selected, update status
@@ -311,15 +295,11 @@ def save_selected_video(request, video_segment_id):
         return JsonResponse(
             {
                 "success": True,
-                "message": "Video uspešno shranjen.",
-                "video_file_url": (
-                    video_segment.video_file.url if video_segment.video_file else None
-                ),
+                "message": "Video URL uspešno shranjen.",
+                "video_url": video_url,
             }
         )
 
-    except requests.exceptions.RequestException as e:
-        return JsonResponse({"error": f"Error downloading video: {str(e)}"}, status=500)
     except Exception as e:
         return JsonResponse({"error": f"Error saving video: {str(e)}"}, status=500)
 
@@ -341,10 +321,11 @@ def video_detail(request, video_id):
     # Get all video segments ordered by order
     segments = video.segments.all().order_by("order")
 
-    # Calculate progress
+    # Calculate progress - count segments with selected videos (either downloaded or URL saved)
     total_segments = segments.count()
-    completed_segments = (
-        segments.filter(video_file__isnull=False).exclude(video_file="").count()
+    completed_segments = sum(
+        1 for seg in segments 
+        if seg.video_proposals and seg.video_proposals[0].get("selected")
     )
     progress_percentage = (
         (completed_segments / total_segments * 100) if total_segments > 0 else 0
@@ -364,23 +345,27 @@ def video_detail(request, video_id):
 @login_required(login_url="/admin/login/")
 def render_video(request, video_id):
     """
-    Trigger rendering of final video from all VideoSentence clips.
+    Trigger rendering of final video from all VideoSegment clips.
+    Videos will be downloaded during rendering from stored URLs.
     """
-
     if request.method != "POST":
         return redirect("video_detail", video_id=video_id)
 
     video = get_object_or_404(GenVideo, id=video_id, user=request.user)
 
-    # Validate that all segments have video files
-    segments = video.segments.filter(video_file__isnull=False).exclude(video_file="")
+    # Validate that all segments have video URLs selected
+    segments = video.segments.all()
+    total_segments = segments.count()
+    
+    segments_with_urls = [
+        seg for seg in segments 
+        if seg.video_proposals and seg.video_proposals[0].get("selected")
+    ]
 
-    total_segments = video.segments.count()
-
-    if segments.count() != total_segments:
+    if len(segments_with_urls) != total_segments:
         messages.error(
             request,
-            f"Ne moreš renderirati videa - manjkajo video klipi ({segments.count()}/{total_segments})",
+            f"Ne moreš renderirati videa - manjkajo izbrani video klipi ({len(segments_with_urls)}/{total_segments})",
         )
         return redirect("video_detail", video_id=video_id)
 

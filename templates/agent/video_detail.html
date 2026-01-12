@@ -375,13 +375,17 @@
         {% for segment in segments %}
         <div class="row mb-3">
             <div class="col-md-12">
-                <div class="card segment-card {% if segment.video_file %}completed{% else %}missing{% endif %}">
+                {% if segment.video_proposals and segment.video_proposals.0.selected %}
+                    <div class="card segment-card completed">
+                {% else %}
+                    <div class="card segment-card missing">
+                {% endif %}
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-8">
                                 <h5 class="card-title">
                                     #{{ segment.order }}
-                                    {% if segment.video_file %}
+                                    {% if segment.video_proposals and segment.video_proposals.0.selected %}
                                         <span class="badge bg-success">✓</span>
                                     {% else %}
                                         <span class="badge bg-danger">✗</span>
@@ -397,22 +401,24 @@
                                     <i class="bi bi-search"></i> Ključne besede: {{ segment.query }}
                                 </p>
 
-                                {% if not segment.video_file %}
+                                {% if not segment.video_proposals or not segment.video_proposals.0.selected %}
                                 <a href="#" class="btn btn-sm btn-primary mt-2 toggle-select-video">
                                     <i class="bi bi-film"></i> Izberi video
                                 </a>
                                 {% endif %}
                             </div>
                             <div class="col-md-4">
-                                {% if segment.video_file %}
+                                {% if segment.video_proposals and segment.video_proposals.0.selected %}
                                     <video controls class="video-preview">
-                                        <source src="{{ segment.video_file.url }}" type="video/mp4">
+                                        <source src="{{ segment.video_proposals.0.video_url }}" type="video/mp4">
                                         Vaš brskalnik ne podpira predvajanja videa.
                                     </video>
                                     <div class="mt-2">
-                                        <a href="{{ segment.video_file.url }}" class="btn btn-sm btn-outline-primary" download>
-                                            <i class="bi bi-download"></i> Prenesi
+                                        {% if segment.video_proposals.0.pexels_url %}
+                                        <a href="{{ segment.video_proposals.0.pexels_url }}" class="btn btn-sm btn-outline-info" target="_blank">
+                                            <i class="bi bi-box-arrow-up-right"></i> Pexels
                                         </a>
+                                        {% endif %}
                                         <a href="#" class="btn btn-sm btn-outline-secondary toggle-select-video">
                                             <i class="bi bi-arrow-repeat"></i> Zamenjaj
                                         </a>
@@ -424,7 +430,7 @@
                                     </p>
                                 {% endif %}
                             </div>
-                            <div class="col-md-12 select-video-container mt-3" style="{% if segment.video_file %}display: none;{% endif %}">
+                            <div class="col-md-12 select-video-container mt-3" style="{% if segment.video_proposals and segment.video_proposals.0.selected %}display: none;{% endif %}">
                                 {% include "agent/includes/video_carousel.html" with segment=segment %}
                             </div>
                         </div>
