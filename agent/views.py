@@ -386,15 +386,19 @@ def upload_segment_image(request, video_segment_id):
             # For S3 storage, we need to download the file temporarily
             import tempfile
 
-            if hasattr(default_storage, "path"):
-                # Local storage
-                full_path = default_storage.path(file_path)
-            else:
-                # S3 or other remote storage - download to temp file
+            temp_file_created = False
+            
+            # Check if we're using local storage or S3
+            if django_settings.ENABLE_S3:
+                # S3 storage - use uploaded file directly, save to temp
                 with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp_file:
-                    uploaded_file.seek(0)
+                    uploaded_file.seek(0)  # Reset file pointer
                     tmp_file.write(uploaded_file.read())
                     full_path = tmp_file.name
+                    temp_file_created = True
+            else:
+                # Local storage
+                full_path = os.path.join(django_settings.MEDIA_ROOT, file_path)
 
             try:
                 cmd = [
@@ -442,7 +446,7 @@ def upload_segment_image(request, video_segment_id):
                 )
             finally:
                 # Clean up temp file if we created one
-                if not hasattr(default_storage, "path") and os.path.exists(full_path):
+                if temp_file_created and os.path.exists(full_path):
                     os.unlink(full_path)
 
     except Exception as e:
