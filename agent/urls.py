@@ -39,8 +39,18 @@ urlpatterns = [
         name="search_pexels_videos",
     ),
     path(
+        "video-segments/<int:video_segment_id>/search-images/",
+        views.search_pexels_images,
+        name="search_pexels_images",
+    ),
+    path(
         "video-segments/<int:video_segment_id>/save-video/",
         views.save_selected_video,
         name="save_selected_video",
+    ),
+    path(
+        "video-segments/<int:video_segment_id>/upload-image/",
+        views.upload_segment_image,
+        name="upload_segment_image",
     ),
 ]
