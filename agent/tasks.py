@@ -457,10 +457,10 @@ def get_video_segments(video_instance: GenVideo) -> None:
             f"Video segments prompt for video {video_instance.id}: {video_instance.video_segments_keywords_prompt}"
         )
         model_response = model.invoke(video_instance.video_segments_keywords_prompt)
-        
+
         # Check for blocked content
-        if hasattr(model_response, 'response_metadata'):
-            block_reason = model_response.response_metadata.get('block_reason')
+        if hasattr(model_response, "response_metadata"):
+            block_reason = model_response.response_metadata.get("block_reason")
             if block_reason:
                 error_msg = f"Gemini blocked content: {block_reason}"
                 logger.error(error_msg)
@@ -469,19 +469,21 @@ def get_video_segments(video_instance: GenVideo) -> None:
                 video_instance.error_details = f"{error_msg}. Vsebina morda krši Gemini politiko. Poskusite preformulirati prompt ali scenarij."
                 video_instance.save()
                 raise ValueError(error_msg)
-        
+
         data = model_response.content
-        
+
         # Check for empty response
         if not data or (isinstance(data, str) and not data.strip()):
             error_msg = "Gemini returned empty response"
             logger.error(error_msg)
             video_instance.status = GenVideo.Statuses.FAILED
             video_instance.error_type = GenVideo.ErrorTypes.SEGMENTS_GENERATION
-            video_instance.error_details = "Gemini je vrnil prazen odgovor. Poskusite preformulirati prompt."
+            video_instance.error_details = (
+                "Gemini je vrnil prazen odgovor. Poskusite preformulirati prompt."
+            )
             video_instance.save()
             raise ValueError(error_msg)
-        
+
         logger.info(data)
         if isinstance(data, str):
             data = data.strip().strip("`").strip().strip("json").strip("python")
@@ -642,7 +644,11 @@ def render_final_video(video: GenVideo) -> None:
     import tempfile
     from pathlib import Path
 
-    from agent.utils import get_temporary_file_from_url, get_temporary_file_path, get_temporary_file
+    from agent.utils import (
+        get_temporary_file,
+        get_temporary_file_from_url,
+        get_temporary_file_path,
+    )
 
     try:
         video.status = GenVideo.Statuses.RENDERING
@@ -678,14 +684,18 @@ def render_final_video(video: GenVideo) -> None:
                 # Get video dimensions from proposals
                 width = segment.video_proposals[0].get("width")
                 height = segment.video_proposals[0].get("height")
-                
+
                 # Validate dimensions
                 if width is None or height is None:
-                    logger.warning(f"Segment {segment.id} missing dimensions (width={width}, height={height}), assuming vertical video")
+                    logger.warning(
+                        f"Segment {segment.id} missing dimensions (width={width}, height={height}), assuming vertical video"
+                    )
                     width = 1080
                     height = 1920
-                
-                horizontal_mode = segment.video_proposals[0].get("horizontal_mode", "crop")
+
+                horizontal_mode = segment.video_proposals[0].get(
+                    "horizontal_mode", "crop"
+                )
 
                 output_file = temp_path / f"clip_{i:03d}.mp4"
                 duration = segment.duration()
@@ -704,7 +714,7 @@ def render_final_video(video: GenVideo) -> None:
 
                         if is_horizontal:
                             target_aspect = 9 / 16  # width/height for vertical video
-                            
+
                             if horizontal_mode == "crop":
                                 # Mode 1: Pure crop - extract center portion
                                 crop_width = int(height * target_aspect)
@@ -714,57 +724,75 @@ def render_final_video(video: GenVideo) -> None:
                                 logger.info(
                                     f"Horizontal image - CROP mode: {width}x{height} -> {crop_width}x{crop_height}"
                                 )
-                                
+
                                 # Create video from image with crop
                                 cmd = [
                                     "ffmpeg",
-                                    "-loop", "1",
-                                    "-i", input_file,
-                                    "-t", str(duration),
+                                    "-loop",
+                                    "1",
+                                    "-i",
+                                    input_file,
+                                    "-t",
+                                    str(duration),
                                     "-vf",
                                     f"crop={crop_width}:{crop_height}:{crop_x}:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
-                                    "-c:v", "libx264",
-                                    "-preset", "medium",
-                                    "-crf", "23",
-                                    "-r", "30",
-                                    "-g", "30",
-                                    "-pix_fmt", "yuv420p",
+                                    "-c:v",
+                                    "libx264",
+                                    "-preset",
+                                    "medium",
+                                    "-crf",
+                                    "23",
+                                    "-r",
+                                    "30",
+                                    "-g",
+                                    "30",
+                                    "-pix_fmt",
+                                    "yuv420p",
                                     "-an",
                                     "-y",
                                     str(output_file),
                                 ]
-                            
+
                             elif horizontal_mode == "blur":
                                 # Mode 2: Blur background - scale image to fit width, blur and extend to fill height
                                 logger.info(
                                     f"Horizontal image - BLUR mode: {width}x{height}"
                                 )
-                                
+
                                 # Complex filter for blur
                                 video_filter = (
                                     "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
                                     "[0:v]scale=1080:-1:force_original_aspect_ratio=decrease[main];"
                                     "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
                                 )
-                                
+
                                 cmd = [
                                     "ffmpeg",
-                                    "-loop", "1",
-                                    "-i", input_file,
-                                    "-t", str(duration),
+                                    "-loop",
+                                    "1",
+                                    "-i",
+                                    input_file,
+                                    "-t",
+                                    str(duration),
                                     "-filter_complex",
                                     video_filter,
-                                    "-c:v", "libx264",
-                                    "-preset", "medium",
-                                    "-crf", "23",
-                                    "-r", "30",
-                                    "-g", "30",
-                                    "-pix_fmt", "yuv420p",
+                                    "-c:v",
+                                    "libx264",
+                                    "-preset",
+                                    "medium",
+                                    "-crf",
+                                    "23",
+                                    "-r",
+                                    "30",
+                                    "-g",
+                                    "30",
+                                    "-pix_fmt",
+                                    "yuv420p",
                                     "-an",
                                     "-y",
                                     str(output_file),
                                 ]
-                            
+
                             elif horizontal_mode == "blur_crop":
                                 # Mode 3: Blur & Crop - crop to square (width = height), then blur for top/bottom
                                 crop_width = height  # Make it square!
@@ -774,27 +802,36 @@ def render_final_video(video: GenVideo) -> None:
                                 logger.info(
                                     f"Horizontal image - BLUR&CROP mode: {width}x{height} -> crop {crop_width}x{crop_height} (square) + blur"
                                 )
-                                
+
                                 # Complex filter - use original image for blur background
                                 video_filter = (
                                     "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
                                     f"[0:v]crop={crop_width}:{crop_height}:{crop_x}:0,scale=1080:-1:force_original_aspect_ratio=decrease[main];"
                                     "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
                                 )
-                                
+
                                 cmd = [
                                     "ffmpeg",
-                                    "-loop", "1",
-                                    "-i", input_file,
-                                    "-t", str(duration),
+                                    "-loop",
+                                    "1",
+                                    "-i",
+                                    input_file,
+                                    "-t",
+                                    str(duration),
                                     "-filter_complex",
                                     video_filter,
-                                    "-c:v", "libx264",
-                                    "-preset", "medium",
-                                    "-crf", "23",
-                                    "-r", "30",
-                                    "-g", "30",
-                                    "-pix_fmt", "yuv420p",
+                                    "-c:v",
+                                    "libx264",
+                                    "-preset",
+                                    "medium",
+                                    "-crf",
+                                    "23",
+                                    "-r",
+                                    "30",
+                                    "-g",
+                                    "30",
+                                    "-pix_fmt",
+                                    "yuv420p",
                                     "-an",
                                     "-y",
                                     str(output_file),
@@ -804,41 +841,61 @@ def render_final_video(video: GenVideo) -> None:
                                 crop_width = int(height * target_aspect)
                                 crop_height = height
                                 crop_x = int((width - crop_width) / 2)
-                                
+
                                 cmd = [
                                     "ffmpeg",
-                                    "-loop", "1",
-                                    "-i", input_file,
-                                    "-t", str(duration),
+                                    "-loop",
+                                    "1",
+                                    "-i",
+                                    input_file,
+                                    "-t",
+                                    str(duration),
                                     "-vf",
                                     f"crop={crop_width}:{crop_height}:{crop_x}:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
-                                    "-c:v", "libx264",
-                                    "-preset", "medium",
-                                    "-crf", "23",
-                                    "-r", "30",
-                                    "-g", "30",
-                                    "-pix_fmt", "yuv420p",
+                                    "-c:v",
+                                    "libx264",
+                                    "-preset",
+                                    "medium",
+                                    "-crf",
+                                    "23",
+                                    "-r",
+                                    "30",
+                                    "-g",
+                                    "30",
+                                    "-pix_fmt",
+                                    "yuv420p",
                                     "-an",
                                     "-y",
                                     str(output_file),
                                 ]
                         else:
                             # For vertical image, use existing approach (scale and pad)
-                            logger.info(f"Vertical image - scaling with padding if needed")
-                            
+                            logger.info(
+                                f"Vertical image - scaling with padding if needed"
+                            )
+
                             cmd = [
                                 "ffmpeg",
-                                "-loop", "1",
-                                "-i", input_file,
-                                "-t", str(duration),
+                                "-loop",
+                                "1",
+                                "-i",
+                                input_file,
+                                "-t",
+                                str(duration),
                                 "-vf",
                                 "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
-                                "-c:v", "libx264",
-                                "-preset", "medium",
-                                "-crf", "23",
-                                "-r", "30",
-                                "-g", "30",
-                                "-pix_fmt", "yuv420p",
+                                "-c:v",
+                                "libx264",
+                                "-preset",
+                                "medium",
+                                "-crf",
+                                "23",
+                                "-r",
+                                "30",
+                                "-g",
+                                "30",
+                                "-pix_fmt",
+                                "yuv420p",
                                 "-an",
                                 "-y",
                                 str(output_file),
@@ -852,7 +909,9 @@ def render_final_video(video: GenVideo) -> None:
                                 f"FFmpeg image to video conversion failed for clip {i}: {result.stderr}"
                             )
 
-                        logger.info(f"Successfully created video from image {i}: {output_file}")
+                        logger.info(
+                            f"Successfully created video from image {i}: {output_file}"
+                        )
                         clip_files.append(output_file)
                 else:
                     # Handle video (existing code)
@@ -862,7 +921,7 @@ def render_final_video(video: GenVideo) -> None:
 
                         if is_horizontal:
                             target_aspect = 9 / 16  # width/height for vertical video
-                            
+
                             if horizontal_mode == "crop":
                                 # Mode 1: Pure crop - extract center portion
                                 crop_width = int(height * target_aspect)
@@ -872,7 +931,7 @@ def render_final_video(video: GenVideo) -> None:
                                 logger.info(
                                     f"Horizontal video - CROP mode: {width}x{height} -> {crop_width}x{crop_height}"
                                 )
-                                
+
                                 # Simple filter, can use -vf
                                 cmd = [
                                     "ffmpeg",
@@ -898,20 +957,20 @@ def render_final_video(video: GenVideo) -> None:
                                     "-y",
                                     str(output_file),
                                 ]
-                            
+
                             elif horizontal_mode == "blur":
                                 # Mode 2: Blur background - scale video to fit width, blur and extend to fill height
                                 logger.info(
                                     f"Horizontal video - BLUR mode: {width}x{height}"
                                 )
-                                
+
                                 # Complex filter, must use -filter_complex
                                 video_filter = (
                                     "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
                                     "[0:v]scale=1080:-1:force_original_aspect_ratio=decrease[main];"
                                     "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
                                 )
-                                
+
                                 cmd = [
                                     "ffmpeg",
                                     "-i",
@@ -936,7 +995,7 @@ def render_final_video(video: GenVideo) -> None:
                                     "-y",
                                     str(output_file),
                                 ]
-                            
+
                             elif horizontal_mode == "blur_crop":
                                 # Mode 3: Blur & Crop - crop to square (width = height), then blur for top/bottom
                                 crop_width = height  # Make it square!
@@ -946,7 +1005,7 @@ def render_final_video(video: GenVideo) -> None:
                                 logger.info(
                                     f"Horizontal video - BLUR&CROP mode: {width}x{height} -> crop {crop_width}x{crop_height} (square) + blur"
                                 )
-                                
+
                                 # Complex filter, must use -filter_complex
                                 # Use ORIGINAL video [0:v] for blur background, cropped square for main
                                 video_filter = (
@@ -954,7 +1013,7 @@ def render_final_video(video: GenVideo) -> None:
                                     f"[0:v]crop={crop_width}:{crop_height}:{crop_x}:0,scale=1080:-1:force_original_aspect_ratio=decrease[main];"
                                     "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
                                 )
-                                
+
                                 cmd = [
                                     "ffmpeg",
                                     "-i",
@@ -984,7 +1043,7 @@ def render_final_video(video: GenVideo) -> None:
                                 crop_width = int(height * target_aspect)
                                 crop_height = height
                                 crop_x = int((width - crop_width) / 2)
-                                
+
                                 cmd = [
                                     "ffmpeg",
                                     "-i",
@@ -1011,8 +1070,10 @@ def render_final_video(video: GenVideo) -> None:
                                 ]
                         else:
                             # For vertical video, use existing approach (scale and pad)
-                            logger.info(f"Vertical video - scaling with padding if needed")
-                            
+                            logger.info(
+                                f"Vertical video - scaling with padding if needed"
+                            )
+
                             cmd = [
                                 "ffmpeg",
                                 "-i",

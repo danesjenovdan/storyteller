@@ -99,32 +99,39 @@ def get_temporary_file(file_source: str) -> Generator[str, None, None]:
     Yields:
         Path to temporary file
     """
-    from django.core.files.storage import default_storage
     import logging
-    
+
+    from django.core.files.storage import default_storage
+
     logger = logging.getLogger(__name__)
-    
+
     # Check if it's a URL (starts with http:// or https://)
-    if file_source.startswith(('http://', 'https://')):
+    if file_source.startswith(("http://", "https://")):
         # Remote file - download it
         logger.info(f"Downloading remote file: {file_source}")
         with get_temporary_file_from_url(file_source) as temp_path:
             yield temp_path
         return
-    
+
     # Local file path
-    logger.info(f"Processing local file: {file_source}, S3 enabled: {settings.ENABLE_S3}")
-    
+    logger.info(
+        f"Processing local file: {file_source}, S3 enabled: {settings.ENABLE_S3}"
+    )
+
     # Check if using local storage vs S3
     if not settings.ENABLE_S3:
         # Local storage - file is already on disk
         # Convert /media/... to absolute path
-        if file_source.startswith('/media/'):
-            absolute_path = os.path.join(settings.MEDIA_ROOT, file_source[7:])  # Remove /media/
+        if file_source.startswith("/media/"):
+            absolute_path = os.path.join(
+                settings.MEDIA_ROOT, file_source[7:]
+            )  # Remove /media/
             logger.info(f"Local file resolved to: {absolute_path}")
             yield absolute_path
-        elif file_source.startswith('media/'):
-            absolute_path = os.path.join(settings.MEDIA_ROOT, file_source[6:])  # Remove media/
+        elif file_source.startswith("media/"):
+            absolute_path = os.path.join(
+                settings.MEDIA_ROOT, file_source[6:]
+            )  # Remove media/
             logger.info(f"Local file resolved to: {absolute_path}")
             yield absolute_path
         else:
@@ -137,21 +144,21 @@ def get_temporary_file(file_source: str) -> Generator[str, None, None]:
         temp_path = None
         try:
             # Get file from storage
-            file_name = file_source.lstrip('/')
-            if file_name.startswith('media/'):
+            file_name = file_source.lstrip("/")
+            if file_name.startswith("media/"):
                 file_name = file_name[6:]  # Remove media/ prefix
-            
-            file = default_storage.open(file_name, 'rb')
-            
+
+            file = default_storage.open(file_name, "rb")
+
             # Create temporary file
             file_extension = os.path.splitext(file_name)[1]
             temp_fd, temp_path = tempfile.mkstemp(suffix=file_extension)
-            
+
             # Write content to temporary file
-            with os.fdopen(temp_fd, 'wb') as temp_file:
+            with os.fdopen(temp_fd, "wb") as temp_file:
                 for chunk in file.chunks():
                     temp_file.write(chunk)
-            
+
             file.close()
             logger.info(f"S3 file downloaded to: {temp_path}")
             yield temp_path

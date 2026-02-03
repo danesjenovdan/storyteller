@@ -1,10 +1,11 @@
+from functools import wraps
+
 import requests
 from django.conf import settings as django_settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from functools import wraps
 
 from agent.tasks import (
     generate_voice_file_eleven_labs,
@@ -23,11 +24,13 @@ def ajax_login_required(view_func):
     """
     Decorator for AJAX views that returns JSON error instead of redirect when not authenticated.
     """
+
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
         if not request.user.is_authenticated:
             return JsonResponse({"error": "Authentication required"}, status=401)
         return view_func(request, *args, **kwargs)
+
     return wrapper
 
 
@@ -181,7 +184,7 @@ def search_pexels_videos(request, video_segment_id):
 
             params = {
                 "query": keyword,
-                #"orientation": "portrait",
+                # "orientation": "portrait",
                 "per_page": 10,
                 "page": page,
                 "size": "medium",
@@ -294,18 +297,20 @@ def search_pexels_images(request, video_segment_id):
             # Get the large portrait image
             src = photo.get("src", {})
             image_url = src.get("large") or src.get("large2x") or src.get("original")
-            
-            images.append({
-                "id": photo.get("id"),
-                "image": src.get("medium"),  # Preview image
-                "video_url": image_url,  # Full resolution for rendering
-                "width": photo.get("width"),
-                "height": photo.get("height"),
-                "user": photo.get("photographer", "Unknown"),
-                "url": photo.get("url"),
-                "is_image": True,
-                "duration": video_segment.duration(),  # Use segment duration for images
-            })
+
+            images.append(
+                {
+                    "id": photo.get("id"),
+                    "image": src.get("medium"),  # Preview image
+                    "video_url": image_url,  # Full resolution for rendering
+                    "width": photo.get("width"),
+                    "height": photo.get("height"),
+                    "user": photo.get("photographer", "Unknown"),
+                    "url": photo.get("url"),
+                    "is_image": True,
+                    "duration": video_segment.duration(),  # Use segment duration for images
+                }
+            )
 
         return JsonResponse({"images": images, "query": query, "total": len(images)})
 
@@ -321,12 +326,13 @@ def upload_segment_image(request, video_segment_id):
     Upload a video or image for a video segment.
     Media will be used during rendering.
     """
-    from PIL import Image
-    from django.core.files.storage import default_storage
+    import json
     import os
     import subprocess
-    import json
     import tempfile
+
+    from django.core.files.storage import default_storage
+    from PIL import Image
 
     if request.method != "POST":
         return JsonResponse({"error": "Method not allowed"}, status=405)
@@ -336,15 +342,15 @@ def upload_segment_image(request, video_segment_id):
     )
 
     try:
-        if 'image' not in request.FILES:
+        if "image" not in request.FILES:
             return JsonResponse({"error": "No file provided"}, status=400)
 
-        uploaded_file = request.FILES['image']
-        
+        uploaded_file = request.FILES["image"]
+
         # Check if it's video or image
-        is_video = uploaded_file.content_type.startswith('video/')
-        is_image = uploaded_file.content_type.startswith('image/')
-        
+        is_video = uploaded_file.content_type.startswith("video/")
+        is_image = uploaded_file.content_type.startswith("image/")
+
         if not is_video and not is_image:
             return JsonResponse({"error": "File must be a video or image"}, status=400)
 
@@ -354,31 +360,33 @@ def upload_segment_image(request, video_segment_id):
             filename = f"segment_videos/segment_{video_segment_id}_{uploaded_file.name}"
         else:
             filename = f"segment_images/segment_{video_segment_id}_{uploaded_file.name}"
-        
+
         # Save the file
         file_path = default_storage.save(filename, uploaded_file)
         file_url = default_storage.url(file_path)
-        
+
         if is_image:
             # Get image dimensions
             uploaded_file.seek(0)  # Reset file pointer
             img = Image.open(uploaded_file)
             width, height = img.size
-            
-            return JsonResponse({
-                "success": True,
-                "image_url": file_url,
-                "width": width,
-                "height": height,
-                "is_image": True,
-                "message": "Image uploaded successfully",
-            })
+
+            return JsonResponse(
+                {
+                    "success": True,
+                    "image_url": file_url,
+                    "width": width,
+                    "height": height,
+                    "is_image": True,
+                    "message": "Image uploaded successfully",
+                }
+            )
         else:
             # Get video dimensions and duration using ffprobe
             # For S3 storage, we need to download the file temporarily
             import tempfile
-            
-            if hasattr(default_storage, 'path'):
+
+            if hasattr(default_storage, "path"):
                 # Local storage
                 full_path = default_storage.path(file_path)
             else:
@@ -387,44 +395,54 @@ def upload_segment_image(request, video_segment_id):
                     uploaded_file.seek(0)
                     tmp_file.write(uploaded_file.read())
                     full_path = tmp_file.name
-            
+
             try:
                 cmd = [
                     "ffprobe",
-                    "-v", "quiet",
-                    "-print_format", "json",
+                    "-v",
+                    "quiet",
+                    "-print_format",
+                    "json",
                     "-show_format",
                     "-show_streams",
                     str(full_path),
                 ]
-                
+
                 result = subprocess.run(cmd, capture_output=True, text=True)
                 if result.returncode != 0:
-                    return JsonResponse({"error": f"Could not analyze video: {result.stderr}"}, status=500)
-                
+                    return JsonResponse(
+                        {"error": f"Could not analyze video: {result.stderr}"},
+                        status=500,
+                    )
+
                 data = json.loads(result.stdout)
-                
+
                 # Get video stream info
-                video_stream = next((s for s in data.get('streams', []) if s['codec_type'] == 'video'), None)
+                video_stream = next(
+                    (s for s in data.get("streams", []) if s["codec_type"] == "video"),
+                    None,
+                )
                 if not video_stream:
                     return JsonResponse({"error": "No video stream found"}, status=400)
-                
-                width = int(video_stream.get('width', 0))
-                height = int(video_stream.get('height', 0))
-                duration = float(data.get('format', {}).get('duration', 0))
-                
-                return JsonResponse({
-                    "success": True,
-                    "video_url": file_url,
-                    "width": width,
-                    "height": height,
-                    "duration": duration,
-                    "is_image": False,
-                    "message": "Video uploaded successfully",
-                })
+
+                width = int(video_stream.get("width", 0))
+                height = int(video_stream.get("height", 0))
+                duration = float(data.get("format", {}).get("duration", 0))
+
+                return JsonResponse(
+                    {
+                        "success": True,
+                        "video_url": file_url,
+                        "width": width,
+                        "height": height,
+                        "duration": duration,
+                        "is_image": False,
+                        "message": "Video uploaded successfully",
+                    }
+                )
             finally:
                 # Clean up temp file if we created one
-                if not hasattr(default_storage, 'path') and os.path.exists(full_path):
+                if not hasattr(default_storage, "path") and os.path.exists(full_path):
                     os.unlink(full_path)
 
     except Exception as e:
@@ -463,21 +481,38 @@ def save_selected_video(request, video_segment_id):
                 if proposal.get("video_url") == video_url or proposal.get("selected"):
                     existing_proposal = proposal
                     break
-        
+
         if existing_proposal:
             # Update existing proposal - preserve all existing data and update with new metadata
-            existing_proposal.update({
-                "pexels_id": video_metadata.get("id", existing_proposal.get("pexels_id")),
-                "pexels_url": video_metadata.get("url", existing_proposal.get("pexels_url")),
-                "video_url": video_url,
-                "user": video_metadata.get("user", existing_proposal.get("user")),
-                "duration": video_metadata.get("duration", existing_proposal.get("duration")),
-                "width": video_metadata.get("width", existing_proposal.get("width")),
-                "height": video_metadata.get("height", existing_proposal.get("height")),
-                "horizontal_mode": video_metadata.get("horizontal_mode", existing_proposal.get("horizontal_mode", "crop")),
-                "is_image": video_metadata.get("is_image", existing_proposal.get("is_image", False)),
-                "selected": True,
-            })
+            existing_proposal.update(
+                {
+                    "pexels_id": video_metadata.get(
+                        "id", existing_proposal.get("pexels_id")
+                    ),
+                    "pexels_url": video_metadata.get(
+                        "url", existing_proposal.get("pexels_url")
+                    ),
+                    "video_url": video_url,
+                    "user": video_metadata.get("user", existing_proposal.get("user")),
+                    "duration": video_metadata.get(
+                        "duration", existing_proposal.get("duration")
+                    ),
+                    "width": video_metadata.get(
+                        "width", existing_proposal.get("width")
+                    ),
+                    "height": video_metadata.get(
+                        "height", existing_proposal.get("height")
+                    ),
+                    "horizontal_mode": video_metadata.get(
+                        "horizontal_mode",
+                        existing_proposal.get("horizontal_mode", "crop"),
+                    ),
+                    "is_image": video_metadata.get(
+                        "is_image", existing_proposal.get("is_image", False)
+                    ),
+                    "selected": True,
+                }
+            )
             video_segment.video_proposals = [existing_proposal]
         else:
             # Save new video proposal
