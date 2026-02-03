@@ -32,6 +32,8 @@
             max-width: 100%;
             max-height: 300px;
             border-radius: 8px;
+            object-fit: contain;
+            background: #000;
         }
         .progress {
             height: 30px;
@@ -409,10 +411,14 @@
                             </div>
                             <div class="col-md-4">
                                 {% if segment.video_proposals and segment.video_proposals.0.selected %}
-                                    <video controls class="video-preview">
-                                        <source src="{{ segment.video_proposals.0.video_url }}" type="video/mp4">
-                                        Vaš brskalnik ne podpira predvajanja videa.
-                                    </video>
+                                    {% if segment.video_proposals.0.is_image %}
+                                        <img src="{{ segment.video_proposals.0.video_url }}" class="video-preview w-100" alt="Izbrana slika">
+                                    {% else %}
+                                        <video controls class="video-preview">
+                                            <source src="{{ segment.video_proposals.0.video_url }}" type="video/mp4">
+                                            Vaš brskalnik ne podpira predvajanja videa.
+                                        </video>
+                                    {% endif %}
                                     <div class="mt-2">
                                         {% if segment.video_proposals.0.pexels_url %}
                                         <a href="{{ segment.video_proposals.0.pexels_url }}" class="btn btn-sm btn-outline-info" target="_blank">
@@ -423,6 +429,19 @@
                                             <i class="bi bi-arrow-repeat"></i> Zamenjaj
                                         </a>
                                     </div>
+                                    {% if segment.video_proposals.0.width > segment.video_proposals.0.height %}
+                                    <div class="btn-group btn-group-sm mt-2 horizontal-mode-group" role="group" aria-label="Horizontal mode" data-segment-id="{{ segment.id }}">
+                                        <button type="button" class="btn {% if segment.video_proposals.0.horizontal_mode == 'crop' or not segment.video_proposals.0.horizontal_mode %}btn-primary{% else %}btn-outline-primary{% endif %} mode-btn" data-mode="crop" title="Crop">
+                                            <i class="bi bi-crop"></i> Crop
+                                        </button>
+                                        <button type="button" class="btn {% if segment.video_proposals.0.horizontal_mode == 'blur' %}btn-primary{% else %}btn-outline-primary{% endif %} mode-btn" data-mode="blur" title="Blur">
+                                            <i class="bi bi-images"></i> Blur
+                                        </button>
+                                        <button type="button" class="btn {% if segment.video_proposals.0.horizontal_mode == 'blur_crop' %}btn-primary{% else %}btn-outline-primary{% endif %} mode-btn" data-mode="blur_crop" title="Blur & Crop">
+                                            <i class="bi bi-circle-half"></i> Blur&Crop
+                                        </button>
+                                    </div>
+                                    {% endif %}
                                 {% else %}
                                     <p class="text-muted text-center">
                                         <i class="bi bi-exclamation-triangle" style="font-size: 3rem;"></i><br>
@@ -565,6 +584,99 @@
                     } else {
                         container.style.display = 'none';
                     }
+                });
+            });
+            
+            // Handle horizontal mode buttons for already selected videos
+            const horizontalModeGroups = document.querySelectorAll('.horizontal-mode-group');
+            horizontalModeGroups.forEach(group => {
+                const segmentId = group.getAttribute('data-segment-id');
+                const modeButtons = group.querySelectorAll('.mode-btn');
+                
+                modeButtons.forEach(btn => {
+                    btn.addEventListener('click', async function(e) {
+                        e.preventDefault();
+                        const newMode = this.getAttribute('data-mode');
+                        
+                        // Get current video data from the segment
+                        const cardBody = this.closest('.card-body');
+                        const videoElement = cardBody.querySelector('video source');
+                        const imageElement = cardBody.querySelector('img.video-preview');
+                        const videoUrl = videoElement ? videoElement.getAttribute('src') : 
+                                       imageElement ? imageElement.getAttribute('src') : null;
+                        
+                        if (!videoUrl) {
+                            alert('Napaka: Video/Slika URL ni najden');
+                            return;
+                        }
+                        
+                        // Get existing metadata from the segment (from Django template)
+                        const segmentCard = cardBody.closest('.segment-card');
+                        
+                        try {
+                            // Find the video carousel to show loading message
+                            const carousel = cardBody.querySelector('.video-carousel');
+                            let alertBox = null;
+                            if (carousel) {
+                                alertBox = carousel.querySelector('.alert');
+                                if (alertBox) {
+                                    alertBox.className = 'alert alert-warning';
+                                    alertBox.querySelector('i').className = 'bi bi-hourglass-split';
+                                    alertBox.querySelector('span').textContent = 'Shranjujem nastavitev...';
+                                    alertBox.style.display = 'block';
+                                }
+                            }
+                            
+                            const response = await fetch(`/video-segments/${segmentId}/save-video/`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                                },
+                                body: JSON.stringify({
+                                    video_url: videoUrl,
+                                    metadata: {
+                                        horizontal_mode: newMode
+                                    }
+                                })
+                            });
+                            
+                            const data = await response.json();
+                            
+                            if (data.error) {
+                                alert('Napaka: ' + data.error);
+                                if (alertBox) {
+                                    alertBox.className = 'alert alert-danger';
+                                    alertBox.querySelector('i').className = 'bi bi-exclamation-triangle-fill';
+                                    alertBox.querySelector('span').textContent = data.error;
+                                }
+                            } else {
+                                // Update button states
+                                modeButtons.forEach(b => {
+                                    const mode = b.getAttribute('data-mode');
+                                    if (mode === newMode) {
+                                        b.classList.remove('btn-outline-primary');
+                                        b.classList.add('btn-primary');
+                                    } else {
+                                        b.classList.remove('btn-primary');
+                                        b.classList.add('btn-outline-primary');
+                                    }
+                                });
+                                
+                                if (alertBox) {
+                                    alertBox.className = 'alert alert-success';
+                                    alertBox.querySelector('i').className = 'bi bi-check-circle-fill';
+                                    alertBox.querySelector('span').textContent = 'Način uspešno posodobljen!';
+                                    setTimeout(() => {
+                                        alertBox.style.display = 'none';
+                                    }, 2000);
+                                }
+                            }
+                        } catch (error) {
+                            console.error('Napaka pri shranjevanju načina:', error);
+                            alert('Napaka pri shranjevanju načina: ' + error.message);
+                        }
+                    });
                 });
             });
         });

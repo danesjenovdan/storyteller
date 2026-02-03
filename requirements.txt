@@ -32,3 +32,4 @@ requests==2.32.3
 elevenlabs
 openai
 langchain_google_genai
+pillow==12.1.0

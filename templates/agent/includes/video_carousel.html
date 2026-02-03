@@ -3,6 +3,8 @@
     width: 150px;
     flex-shrink: 0;
     cursor: pointer;
+    object-fit: contain;
+    background: #000;
   }
   .video-carousel .horizontal-scroll {
     overflow: hidden;
@@ -11,61 +13,126 @@
 </style>
 <div class="video-carousel card" data-segment-id="{{ segment.id }}">
   <div class="card-body">
-    <div class="row query-row">
-      <div class="col-12 mb-3">
-        <div class="small">Ključne besede:</div>
-        <div class="input-group">
-          <input name="query" id="query-{{ segment.id }}" class="form-control" value="{{ segment.query }}">
-          <button class="btn btn-outline-primary" type="button">Išči videe</button>
+    <ul class="nav nav-tabs mb-3" id="mediaTab-{{ segment.id }}" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="videos-tab-{{ segment.id }}" data-bs-toggle="tab" data-bs-target="#videos-{{ segment.id }}" type="button" role="tab">
+          <i class="bi bi-film"></i> Videi
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="images-tab-{{ segment.id }}" data-bs-toggle="tab" data-bs-target="#images-{{ segment.id }}" type="button" role="tab">
+          <i class="bi bi-image"></i> Slike
+        </button>
+      </li>
+    </ul>
+    
+    <div class="tab-content" id="mediaTabContent-{{ segment.id }}">
+      <!-- Videos Tab -->
+      <div class="tab-pane fade show active" id="videos-{{ segment.id }}" role="tabpanel">
+        <div class="row query-row">
+          <div class="col-12 mb-3">
+            <div class="small">Ključne besede:</div>
+            <div class="input-group">
+              <input name="query" id="query-videos-{{ segment.id }}" class="form-control" value="{{ segment.query }}">
+              <button class="btn btn-outline-primary search-videos-btn" type="button">Išči videe</button>
+            </div>
+          </div>
+          <div class="col-12 mb-3">
+            <div class="small">Viri:</div>
+            <div class="d-flex flex-wrap gap-2">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" value="pexels" id="source-pexels-videos-{{ segment.id }}" checked disabled>
+                <label class="form-check-label" for="source-pexels-videos-{{ segment.id }}">Pexels</label>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-      <div class="col-12 mb-3">
-        <div class="small">Viri:</div>
-        <div class="d-flex flex-wrap gap-2">
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" value="pexels" id="source-pexels-{{ segment.id }}" checked disabled>
-            <label class="form-check-label" for="source-pexels-{{ segment.id }}">Pexels</label>
+        <div class="row results-row">
+          <div class="col-12">
+            <div class="small">Rezultati:</div>
+            <div class="alert alert-info videos-alert" role="alert">
+              <i class="bi bi-info-circle-fill"></i>
+              <span>Uporabi zgornji obrazec za iskanje videov</span>
+            </div>
+            <div class="results-container">
+              <div class="horizontal-scroll">
+                <div class="d-flex gap-3 videos-results pb-3">
+                  <template class="video-preview-template">
+                    <div class="video-preview border rounded position-relative overflow-hidden">
+                      <div class="top-metadata text-truncate position-absolute top-0 start-0 z-1 bg-dark bg-opacity-75 text-white px-2 py-1 rounded">
+                        <small><span class="duration"></span></small>
+                      </div>
+                      <div class="ratio" style="--bs-aspect-ratio: 177.7778%;">
+                        <video src="" muted loop playsinline disablepictureinpicture disableremoteplayback x-webkit-airplay="deny" preload="none" class="object-fit-cover"></video>
+                        <div class="preview-image">
+                          <div class="icon position-absolute top-50 start-50 translate-middle text-white fs-1 lh-1">
+                            <i class="bi bi-play-circle-fill" style="text-shadow: 0 0 0.25rem #000;"></i>
+                          </div>
+                          <img src="" alt="" class="w-100 h-100 object-fit-cover">
+                        </div>
+                        <div class="preview-loader" style="display: none;">
+                          <div class="position-absolute top-50 start-50 translate-middle">
+                            <div class="spinner-border text-white" role="status" style="filter: drop-shadow(0 0 0.25rem #000);">
+                              <span class="visually-hidden">Loading...</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div></div>
+                      </div>
+                      <div class="bottom-metadata text-truncate position-absolute bottom-0 start-0 end-0 z-1 bg-dark bg-opacity-75 text-white px-2 pb-1 rounded">
+                        <small><a href="" target="_blank" class="source text-white">Pexels / <span class="user">user</span></a></small>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-    <div class="row results-row">
-      <div class="col-12">
-        <div class="small">Rezultati:</div>
-        <div class="alert alert-info" role="alert">
-          <i class="bi bi-info-circle-fill"></i>
-          <span>Uporabi zgornji obrazec za iskanje videov</span>
+      
+      <!-- Images Tab -->
+      <div class="tab-pane fade" id="images-{{ segment.id }}" role="tabpanel">
+        <div class="row query-row">
+          <div class="col-12 mb-3">
+            <div class="small">Ključne besede:</div>
+            <div class="input-group">
+              <input name="query" id="query-images-{{ segment.id }}" class="form-control" value="{{ segment.query }}">
+              <button class="btn btn-outline-primary search-images-btn" type="button">Išči slike</button>
+            </div>
+          </div>
+          <div class="col-12 mb-3">
+            <div class="small">Viri:</div>
+            <div class="d-flex flex-wrap gap-2">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" value="pexels" id="source-pexels-images-{{ segment.id }}" checked disabled>
+                <label class="form-check-label" for="source-pexels-images-{{ segment.id }}">Pexels</label>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="results-container">
-          <div class="horizontal-scroll">
-            <div class="d-flex gap-3 results pb-3">
-              <template class="video-preview-template">
-                <div class="video-preview border rounded position-relative overflow-hidden">
-                  <div class="top-metadata text-truncate position-absolute top-0 start-0 z-1 bg-dark bg-opacity-75 text-white px-2 py-1 rounded">
-                    <small><span class="duration"></span></small>
-                  </div>
-                  <div class="ratio" style="--bs-aspect-ratio: 177.7778%;">
-                    <video src="" muted loop playsinline disablepictureinpicture disableremoteplayback x-webkit-airplay="deny" preload="none" class="object-fit-cover"></video>
-                    <div class="preview-image">
-                      <div class="icon position-absolute top-50 start-50 translate-middle text-white fs-1 lh-1">
-                        <i class="bi bi-play-circle-fill" style="text-shadow: 0 0 0.25rem #000;"></i>
+        <div class="row results-row">
+          <div class="col-12">
+            <div class="small">Rezultati:</div>
+            <div class="alert alert-info images-alert" role="alert">
+              <i class="bi bi-info-circle-fill"></i>
+              <span>Uporabi zgornji obrazec za iskanje slik</span>
+            </div>
+            <div class="results-container">
+              <div class="horizontal-scroll">
+                <div class="d-flex gap-3 images-results pb-3">
+                  <template class="image-preview-template">
+                    <div class="video-preview border rounded position-relative overflow-hidden">
+                      <div class="ratio" style="--bs-aspect-ratio: 177.7778%;">
+                        <img src="" alt="" class="w-100 h-100 object-fit-cover">
                       </div>
-                      <img src="" alt="" class="w-100 h-100 object-fit-cover">
-                    </div>
-                    <div class="preview-loader" style="display: none;">
-                      <div class="position-absolute top-50 start-50 translate-middle">
-                        <div class="spinner-border text-white" role="status" style="filter: drop-shadow(0 0 0.25rem #000);">
-                          <span class="visually-hidden">Loading...</span>
-                        </div>
+                      <div class="bottom-metadata text-truncate position-absolute bottom-0 start-0 end-0 z-1 bg-dark bg-opacity-75 text-white px-2 pb-1 rounded">
+                        <small><a href="" target="_blank" class="source text-white">Pexels / <span class="user">user</span></a></small>
                       </div>
                     </div>
-                    <div></div>
-                  </div>
-                  <div class="bottom-metadata text-truncate position-absolute bottom-0 start-0 end-0 z-1 bg-dark bg-opacity-75 text-white px-2 pb-1 rounded">
-                    <small><a href="" target="_blank" class="source text-white">Pexels / <span class="user">user</span></a></small>
-                  </div>
+                  </template>
                 </div>
-              </template>
+              </div>
             </div>
           </div>
         </div>
@@ -79,18 +146,29 @@
 
     const el = document.currentScript.previousElementSibling;
     const segmentId = el.getAttribute('data-segment-id');
-    const searchInput = el.querySelector(`#query-${segmentId}`);
-    const searchButton = searchInput.parentElement.querySelector('button');
-    const resultsRow = el.querySelector('.results-row');
-    const alertBox = resultsRow.querySelector('.alert');
-    const resultsContainer = resultsRow.querySelector('.results-container');
-    const resultsDiv = resultsContainer.querySelector('.results');
-    const videoPreviewTemplate = resultsDiv.querySelector('.video-preview-template');
-    const searchUrl = "{% url 'search_pexels_videos' segment.id %}";
+    
+    // Videos tab elements
+    const searchVideosInput = el.querySelector(`#query-videos-${segmentId}`);
+    const searchVideosButton = el.querySelector('.search-videos-btn');
+    const videosAlertBox = el.querySelector('.videos-alert');
+    const videosResultsDiv = el.querySelector('.videos-results');
+    const videoPreviewTemplate = videosResultsDiv.querySelector('.video-preview-template');
+    
+    // Images tab elements
+    const searchImagesInput = el.querySelector(`#query-images-${segmentId}`);
+    const searchImagesButton = el.querySelector('.search-images-btn');
+    const imagesAlertBox = el.querySelector('.images-alert');
+    const imagesResultsDiv = el.querySelector('.images-results');
+    const imagePreviewTemplate = imagesResultsDiv.querySelector('.image-preview-template');
+    
+    const searchVideosUrl = "{% url 'search_pexels_videos' segment.id %}";
+    const searchImagesUrl = `/video-segments/${segmentId}/search-images/`;
     const saveUrl = "{% url 'save_selected_video' segment.id %}";
+    const uploadUrl = `/video-segments/${segmentId}/upload-image/`;
     const csrfToken = "{{ csrf_token }}";
 
-    function showAlert(message, type='info') {
+    function showAlert(message, type='info', isImages=false) {
+      const alertBox = isImages ? imagesAlertBox : videosAlertBox;
       if (message == null) {
         alertBox.style.display = 'none';
         return;
@@ -112,29 +190,120 @@
       alertBox.style.display = 'block';
     }
 
+    function createUploadCard(isVideo = true) {
+      const uploadCard = document.createElement('div');
+      uploadCard.className = 'video-preview border rounded position-relative overflow-hidden bg-light d-flex align-items-center justify-content-center';
+      uploadCard.style.cursor = 'pointer';
+      uploadCard.style.minHeight = '200px';
+      
+      uploadCard.innerHTML = `
+        <div class="text-center p-3">
+          <i class="bi bi-cloud-upload fs-1 text-primary"></i>
+          <div class="mt-2 fw-bold">${isVideo ? 'Naloži video' : 'Naloži sliko'}</div>
+          <small class="text-muted">Klikni za izbiro datoteke</small>
+        </div>
+        <input type="file" accept="${isVideo ? 'video/*' : 'image/*'}" style="display: none;" class="upload-input">
+      `;
+      
+      const fileInput = uploadCard.querySelector('.upload-input');
+      
+      uploadCard.addEventListener('click', () => {
+        fileInput.click();
+      });
+      
+      fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        await uploadFile(file, isVideo);
+        fileInput.value = ''; // Reset input
+      });
+      
+      return uploadCard;
+    }
+
+    async function uploadFile(file, isVideo = true) {
+      try {
+        // Validate file type
+        const expectedType = isVideo ? 'video/' : 'image/';
+        if (!file.type.startsWith(expectedType)) {
+          showAlert(`Prosim naloži samo ${isVideo ? 'videe' : 'slike'}!`, 'danger', !isVideo);
+          return;
+        }
+
+        showAlert(`Nalagam ${isVideo ? 'video' : 'sliko'}...`, 'loading', !isVideo);
+
+        const formData = new FormData();
+        formData.append('image', file);
+
+        const response = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': csrfToken,
+          },
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Upload failed:', response.status, errorText);
+          throw new Error(`Upload failed: ${response.status} - ${errorText.substring(0, 200)}`);
+        }
+
+        const data = await response.json();
+
+        if (data.error) {
+          showAlert(data.error, 'danger', !isVideo);
+        } else {
+          showAlert(`${isVideo ? 'Video' : 'Slika'} uspešno naložen${isVideo ? '' : 'a'}!`, 'success', !isVideo);
+          
+          // Create media object
+          const mediaObject = {
+            id: `uploaded_${segmentId}_${Date.now()}`,
+            video_url: data.video_url || data.image_url,
+            image: data.image_url || data.video_url,
+            url: '',
+            user: `Naložen${isVideo ? ' video' : 'a slika'}`,
+            duration: data.duration || 5,  // Use 5 seconds as default for images
+            width: data.width,
+            height: data.height,
+            is_image: data.is_image,
+          };
+          
+          // Automatically select the uploaded media
+          selectVideo(mediaObject);
+        }
+      } catch (error) {
+        console.error('Napaka pri nalaganju:', error);
+        showAlert('Napaka pri nalaganju: ' + error.message, 'danger', !isVideo);
+      }
+    }
+
     function onVideoPreviewLoaded(previewEl) {
       const loaderEl = previewEl.querySelector('.preview-loader');
-      loaderEl.style.display = 'none';
+      if (loaderEl) loaderEl.style.display = 'none';
     }
 
     function onVideoPreviewHover(previewEl) {
       const videoEl = previewEl.querySelector('video');
+      if (!videoEl) return;
       const previewImageEl = previewEl.querySelector('.preview-image');
       const loaderEl = previewEl.querySelector('.preview-loader');
-      if (videoEl.readyState < 2) {
+      if (videoEl.readyState < 2 && loaderEl) {
         loaderEl.style.display = 'block';
       }
       videoEl.currentTime = 0;
       videoEl.play();
-      previewImageEl.style.opacity = '0';
+      if (previewImageEl) previewImageEl.style.opacity = '0';
     }
 
     function onVideoPreviewLeave(previewEl) {
       const videoEl = previewEl.querySelector('video');
+      if (!videoEl) return;
       const previewImageEl = previewEl.querySelector('.preview-image');
       videoEl.pause();
       videoEl.currentTime = 0;
-      previewImageEl.style.opacity = '';
+      if (previewImageEl) previewImageEl.style.opacity = '';
     }
 
     function createVideoPreview(video) {
@@ -154,6 +323,13 @@
       sourceLinkEl.querySelector('.user').textContent = video.user;
 
       const previewEl = previewFragment.querySelector('.video-preview');
+      
+      // Set default horizontal mode for horizontal videos
+      const isHorizontal = video.width > video.height;
+      if (isHorizontal) {
+        video.horizontal_mode = video.horizontal_mode || 'crop';
+      }
+      
       previewEl.addEventListener('click', (e) => {
         const closestLink = e.target.closest('a');
         if (closestLink) {
@@ -169,7 +345,37 @@
       return previewFragment;
     }
 
-    function createLoadMoreButton(page) {
+    function createImagePreview(image) {
+      const previewFragment = imagePreviewTemplate.content.cloneNode(true);
+      const imgEl = previewFragment.querySelector('img');
+      imgEl.src = image.image;
+
+      const sourceLinkEl = previewFragment.querySelector('.source');
+      sourceLinkEl.href = image.url;
+      sourceLinkEl.querySelector('.user').textContent = image.user;
+
+      const previewEl = previewFragment.querySelector('.video-preview');
+      
+      // Set default horizontal mode for horizontal images
+      const isHorizontal = image.width > image.height;
+      if (isHorizontal) {
+        image.horizontal_mode = image.horizontal_mode || 'crop';
+      }
+      
+      previewEl.addEventListener('click', (e) => {
+        const closestLink = e.target.closest('a');
+        if (closestLink) {
+          return;
+        }
+        e.preventDefault();
+        selectVideo(image);
+      });
+
+      return previewFragment;
+    }
+
+    function createLoadMoreButton(page, isImages = false) {
+      const resultsDiv = isImages ? imagesResultsDiv : videosResultsDiv;
       const existingButton = resultsDiv.querySelector('.load-more-button');
       if (existingButton) {
         existingButton.remove();
@@ -177,37 +383,81 @@
       const loadMoreButton = document.createElement('button');
       loadMoreButton.textContent = 'Naloži več';
       loadMoreButton.className = 'btn btn-outline-primary video-preview load-more-button';
-      loadMoreButton.addEventListener('click', () => searchVideos(page));
+      loadMoreButton.addEventListener('click', () => {
+        if (isImages) {
+          searchImages(page);
+        } else {
+          searchVideos(page);
+        }
+      });
       return loadMoreButton;
     }
 
     async function searchVideos(page = 1) {
       try {
-        showAlert('Iščem...', 'loading');
+        showAlert('Iščem...', 'loading', false);
 
-        const response = await fetch(`${searchUrl}?query=${encodeURIComponent(searchInput.value)}&page=${page}`);
+        const response = await fetch(`${searchVideosUrl}?query=${encodeURIComponent(searchVideosInput.value)}&page=${page}`);
         const data = await response.json();
 
         if (data.error) {
-          showAlert(data.error, 'danger');
+          showAlert(data.error, 'danger', false);
         } else if (!data?.videos?.length) {
-          showAlert('Ni najdenih videov. Poskusi z drugimi ključnimi besedami.', 'info');
+          showAlert('Ni najdenih videov. Poskusi z drugimi ključnimi besedami.', 'info', false);
         } else {
-          // showAlert(`Najdenih ${data.total} video(v)`, 'success');
+          if (page === 1) {
+            // Clear results and add upload card first
+            videosResultsDiv.innerHTML = '';
+            videosResultsDiv.appendChild(createUploadCard(true));
+          }
 
           data.videos.forEach(video => {
             const previewFragment = createVideoPreview(video);
-            resultsDiv.appendChild(previewFragment);
+            videosResultsDiv.appendChild(previewFragment);
           });
 
-          const loadMoreButton = createLoadMoreButton(page + 1);
-          resultsDiv.appendChild(loadMoreButton);
+          const loadMoreButton = createLoadMoreButton(page + 1, false);
+          videosResultsDiv.appendChild(loadMoreButton);
 
-          showAlert(null);
+          showAlert(null, 'info', false);
         }
       } catch (error) {
         console.error('Napaka pri iskanju:', error);
-        showAlert('Napaka pri iskanju: ' + error.message, 'danger');
+        showAlert('Napaka pri iskanju: ' + error.message, 'danger', false);
+      }
+    }
+
+    async function searchImages(page = 1) {
+      try {
+        showAlert('Iščem...', 'loading', true);
+
+        const response = await fetch(`${searchImagesUrl}?query=${encodeURIComponent(searchImagesInput.value)}&page=${page}`);
+        const data = await response.json();
+
+        if (data.error) {
+          showAlert(data.error, 'danger', true);
+        } else if (!data?.images?.length) {
+          showAlert('Ni najdenih slik. Poskusi z drugimi ključnimi besedami.', 'info', true);
+        } else {
+          if (page === 1) {
+            // Clear results and add upload card first
+            imagesResultsDiv.innerHTML = '';
+            imagesResultsDiv.appendChild(createUploadCard(false));
+          }
+
+          data.images.forEach(image => {
+            const previewFragment = createImagePreview(image);
+            imagesResultsDiv.appendChild(previewFragment);
+          });
+
+          const loadMoreButton = createLoadMoreButton(page + 1, true);
+          imagesResultsDiv.appendChild(loadMoreButton);
+
+          showAlert(null, 'info', true);
+        }
+      } catch (error) {
+        console.error('Napaka pri iskanju:', error);
+        showAlert('Napaka pri iskanju: ' + error.message, 'danger', true);
       }
     }
 
@@ -225,13 +475,39 @@
       segmentCard.classList.remove('missing');
       segmentCard.classList.add('completed');
       
-      // Update right column with video preview
+      // Check if video is horizontal
+      const isHorizontal = video.width > video.height;
+      const currentMode = video.horizontal_mode || 'crop';
+      
+      // Build mode buttons HTML for horizontal videos/images
+      let modeButtonsHTML = '';
+      if (isHorizontal) {
+        modeButtonsHTML = `
+          <div class="btn-group btn-group-sm mt-2" role="group" aria-label="Horizontal mode">
+            <button type="button" class="btn ${currentMode === 'crop' ? 'btn-primary' : 'btn-outline-primary'} mode-btn" data-mode="crop" title="Crop">
+              <i class="bi bi-crop"></i> Crop
+            </button>
+            <button type="button" class="btn ${currentMode === 'blur' ? 'btn-primary' : 'btn-outline-primary'} mode-btn" data-mode="blur" title="Blur">
+              <i class="bi bi-images"></i> Blur
+            </button>
+            <button type="button" class="btn ${currentMode === 'blur_crop' ? 'btn-primary' : 'btn-outline-primary'} mode-btn" data-mode="blur_crop" title="Blur & Crop">
+              <i class="bi bi-circle-half"></i> Blur&Crop
+            </button>
+          </div>
+        `;
+      }
+      
+      // Update right column with preview
       const rightCol = cardBody.querySelector('.col-md-4');
-      rightCol.innerHTML = `
-        <video controls class="video-preview">
+      const mediaTag = video.is_image ? 
+        `<img src="${video.video_url}" class="video-preview w-100" alt="Izbrana slika">` :
+        `<video controls class="video-preview">
           <source src="${video.video_url}" type="video/mp4">
           Vaš brskalnik ne podpira predvajanja videa.
-        </video>
+        </video>`;
+      
+      rightCol.innerHTML = `
+        ${mediaTag}
         <div class="mt-2">
           ${video.url ? `<a href="${video.url}" class="btn btn-sm btn-outline-info" target="_blank">
             <i class="bi bi-box-arrow-up-right"></i> Pexels
@@ -240,6 +516,7 @@
             <i class="bi bi-arrow-repeat"></i> Zamenjaj
           </a>
         </div>
+        ${modeButtonsHTML}
       `;
       
       // Re-attach toggle button event
@@ -254,6 +531,69 @@
           container.style.display = 'none';
         }
       });
+      
+      // Attach mode button events for horizontal videos/images
+      if (isHorizontal) {
+        const modeButtons = rightCol.querySelectorAll('.mode-btn');
+        modeButtons.forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const newMode = btn.getAttribute('data-mode');
+            
+            // Update video object
+            video.horizontal_mode = newMode;
+            
+            // Save the new mode
+            try {
+              showAlert('Shranjujem nastavitev...', 'loading', video.is_image);
+              
+              const response = await fetch(saveUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify({
+                  video_url: video.video_url,
+                  metadata: {
+                    id: video.id,
+                    url: video.url,
+                    user: video.user,
+                    duration: video.duration,
+                    width: video.width,
+                    height: video.height,
+                    horizontal_mode: newMode,
+                    is_image: video.is_image,
+                  },
+                }),
+              });
+              
+              const data = await response.json();
+              
+              if (data.error) {
+                showAlert(data.error, 'danger', video.is_image);
+              } else {
+                showAlert('Način uspešno posodobljen!', 'success', video.is_image);
+                
+                // Update button states
+                modeButtons.forEach(b => {
+                  const mode = b.getAttribute('data-mode');
+                  if (mode === newMode) {
+                    b.classList.remove('btn-outline-primary');
+                    b.classList.add('btn-primary');
+                  } else {
+                    b.classList.remove('btn-primary');
+                    b.classList.add('btn-outline-primary');
+                  }
+                });
+              }
+            } catch (error) {
+              console.error('Napaka pri shranjevanju načina:', error);
+              showAlert('Napaka pri shranjevanju načina: ' + error.message, 'danger', video.is_image);
+            }
+          });
+        });
+      }
       
       // Hide video selector
       el.closest('.select-video-container').style.display = 'none';
@@ -306,7 +646,7 @@
 
     async function selectVideo(video) {
       try {
-        showAlert('Shranjujem izbrani video...', 'loading');
+        showAlert('Shranjujem izbrano vsebino...', 'loading', video.is_image || false);
 
         const response = await fetch(saveUrl, {
           method: 'POST',
@@ -323,6 +663,8 @@
               duration: video.duration,
               width: video.width,
               height: video.height,
+              horizontal_mode: video.horizontal_mode || 'crop',
+              is_image: video.is_image || false,
             },
           }),
         });
@@ -330,19 +672,37 @@
         const data = await response.json();
 
         if (data.error) {
-          showAlert(data.error, 'danger');
+          showAlert(data.error, 'danger', video.is_image || false);
         } else {
-          showAlert('Video URL uspešno shranjen!', 'success');
-          // Update the UI to show selected video
+          showAlert('Vsebina uspešno shranjena!', 'success', video.is_image || false);
+          // Update the UI to show selected video/image
           updateSegmentUI(video);
         }
       } catch (error) {
-        console.error('Napaka pri shranjevanju videa:', error);
-        showAlert('Napaka pri shranjevanju videa: ' + error.message, 'danger');
+        console.error('Napaka pri shranjevanju:', error);
+        showAlert('Napaka pri shranjevanju: ' + error.message, 'danger', video.is_image || false);
       }
     }
 
-    searchButton.addEventListener('click', () => searchVideos(1));
+    searchVideosButton.addEventListener('click', () => searchVideos(1));
+    searchImagesButton.addEventListener('click', () => searchImages(1));
+
+    // Add upload card to images tab by default
+    imagesResultsDiv.innerHTML = '';
+    imagesResultsDiv.appendChild(createUploadCard(false));
+
+    // Listen for tab changes to ensure upload card is visible
+    const imagesTab = document.getElementById('images-tab-' + segmentId);
+    if (imagesTab) {
+      imagesTab.addEventListener('shown.bs.tab', function () {
+        // Check if upload card exists, if not add it
+        const existingUploadCard = imagesResultsDiv.querySelector('.upload-input');
+        if (!existingUploadCard) {
+          imagesResultsDiv.innerHTML = '';
+          imagesResultsDiv.appendChild(createUploadCard(false));
+        }
+      });
+    }
 
     // on visibility toggle, search videos if no results yet
     const observer = new MutationObserver((mutationsList) => {
