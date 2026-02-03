@@ -717,15 +717,12 @@ def render_final_video(video: GenVideo) -> None:
 
                             if horizontal_mode == "crop":
                                 # Mode 1: Pure crop - extract center portion
-                                crop_width = int(height * target_aspect)
-                                crop_height = height
-                                crop_x = int((width - crop_width) / 2)
-
                                 logger.info(
-                                    f"Horizontal image - CROP mode: {width}x{height} -> {crop_width}x{crop_height}"
+                                    f"Horizontal image - CROP mode: {width}x{height} -> 9:16 crop"
                                 )
 
-                                # Create video from image with crop
+                                # Create video from image with crop using ffmpeg variables
+                                # crop=ih*9/16:ih:(iw-ih*9/16)/2:0 creates 9:16 aspect ratio centered
                                 cmd = [
                                     "ffmpeg",
                                     "-loop",
@@ -735,7 +732,7 @@ def render_final_video(video: GenVideo) -> None:
                                     "-t",
                                     str(duration),
                                     "-vf",
-                                    f"crop={crop_width}:{crop_height}:{crop_x}:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                    "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
                                     "-c:v",
                                     "libx264",
                                     "-preset",
@@ -795,18 +792,16 @@ def render_final_video(video: GenVideo) -> None:
 
                             elif horizontal_mode == "blur_crop":
                                 # Mode 3: Blur & Crop - crop to square (width = height), then blur for top/bottom
-                                crop_width = height  # Make it square!
-                                crop_height = height
-                                crop_x = int((width - crop_width) / 2)
-
                                 logger.info(
-                                    f"Horizontal image - BLUR&CROP mode: {width}x{height} -> crop {crop_width}x{crop_height} (square) + blur"
+                                    f"Horizontal image - BLUR&CROP mode: {width}x{height} -> square crop + blur"
                                 )
 
-                                # Complex filter - use original image for blur background
+                                # Complex filter - use ffmpeg variables (iw/ih) for dynamic dimensions
+                                # ih = input height, iw = input width
+                                # crop=ih:ih:(iw-ih)/2:0 makes square crop centered horizontally
                                 video_filter = (
                                     "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
-                                    f"[0:v]crop={crop_width}:{crop_height}:{crop_x}:0,scale=1080:-1:force_original_aspect_ratio=decrease[main];"
+                                    "[0:v]crop=ih:ih:(iw-ih)/2:0,scale=1080:-1:force_original_aspect_ratio=decrease[main];"
                                     "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
                                 )
 
@@ -838,9 +833,9 @@ def render_final_video(video: GenVideo) -> None:
                                 ]
                             else:
                                 # Default to crop if unknown mode
-                                crop_width = int(height * target_aspect)
-                                crop_height = height
-                                crop_x = int((width - crop_width) / 2)
+                                logger.info(
+                                    f"Horizontal image - DEFAULT CROP mode: {width}x{height}"
+                                )
 
                                 cmd = [
                                     "ffmpeg",
@@ -851,7 +846,7 @@ def render_final_video(video: GenVideo) -> None:
                                     "-t",
                                     str(duration),
                                     "-vf",
-                                    f"crop={crop_width}:{crop_height}:{crop_x}:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                    "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
                                     "-c:v",
                                     "libx264",
                                     "-preset",
@@ -924,15 +919,12 @@ def render_final_video(video: GenVideo) -> None:
 
                             if horizontal_mode == "crop":
                                 # Mode 1: Pure crop - extract center portion
-                                crop_width = int(height * target_aspect)
-                                crop_height = height
-                                crop_x = int((width - crop_width) / 2)
-
                                 logger.info(
-                                    f"Horizontal video - CROP mode: {width}x{height} -> {crop_width}x{crop_height}"
+                                    f"Horizontal video - CROP mode: {width}x{height} -> 9:16 crop"
                                 )
 
-                                # Simple filter, can use -vf
+                                # Simple filter with ffmpeg variables
+                                # crop=ih*9/16:ih:(iw-ih*9/16)/2:0 creates 9:16 aspect ratio centered
                                 cmd = [
                                     "ffmpeg",
                                     "-i",
@@ -940,7 +932,7 @@ def render_final_video(video: GenVideo) -> None:
                                     "-t",
                                     str(duration),
                                     "-vf",
-                                    f"crop={crop_width}:{crop_height}:{crop_x}:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                    "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
                                     "-c:v",
                                     "libx264",
                                     "-preset",
@@ -998,19 +990,15 @@ def render_final_video(video: GenVideo) -> None:
 
                             elif horizontal_mode == "blur_crop":
                                 # Mode 3: Blur & Crop - crop to square (width = height), then blur for top/bottom
-                                crop_width = height  # Make it square!
-                                crop_height = height
-                                crop_x = int((width - crop_width) / 2)
-
                                 logger.info(
-                                    f"Horizontal video - BLUR&CROP mode: {width}x{height} -> crop {crop_width}x{crop_height} (square) + blur"
+                                    f"Horizontal video - BLUR&CROP mode: {width}x{height} -> square crop + blur"
                                 )
 
-                                # Complex filter, must use -filter_complex
-                                # Use ORIGINAL video [0:v] for blur background, cropped square for main
+                                # Complex filter with ffmpeg variables (iw/ih)
+                                # crop=ih:ih:(iw-ih)/2:0 makes square crop centered horizontally
                                 video_filter = (
                                     "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
-                                    f"[0:v]crop={crop_width}:{crop_height}:{crop_x}:0,scale=1080:-1:force_original_aspect_ratio=decrease[main];"
+                                    "[0:v]crop=ih:ih:(iw-ih)/2:0,scale=1080:-1:force_original_aspect_ratio=decrease[main];"
                                     "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
                                 )
 
@@ -1040,9 +1028,9 @@ def render_final_video(video: GenVideo) -> None:
                                 ]
                             else:
                                 # Default to crop if unknown mode
-                                crop_width = int(height * target_aspect)
-                                crop_height = height
-                                crop_x = int((width - crop_width) / 2)
+                                logger.info(
+                                    f"Horizontal video - DEFAULT CROP mode: {width}x{height}"
+                                )
 
                                 cmd = [
                                     "ffmpeg",
@@ -1051,7 +1039,7 @@ def render_final_video(video: GenVideo) -> None:
                                     "-t",
                                     str(duration),
                                     "-vf",
-                                    f"crop={crop_width}:{crop_height}:{crop_x}:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                    "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
                                     "-c:v",
                                     "libx264",
                                     "-preset",
