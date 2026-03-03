@@ -143,6 +143,7 @@ def generate_voice_file_eleven_labs(video: int) -> None:
         video.id: ID of the GenVideo instance
     """
     try:
+        logger.info(f"ELEVENLABS TTS")
         video.status = GenVideo.Statuses.GENERATING_VOICE
         video.save()
 
@@ -172,7 +173,8 @@ def generate_voice_file_eleven_labs(video: int) -> None:
         audio_generator = client.text_to_speech.convert(
             voice_id=voice_id,
             text=video.scenario,
-            model_id="eleven_multilingual_v2",
+            model_id="eleven_v3",
+            language_code="sl",
         )
 
         # Collect audio chunks into bytes
@@ -182,6 +184,14 @@ def generate_voice_file_eleven_labs(video: int) -> None:
         filename = f"voice_{video.id}.mp3"
         video.voice_file.save(filename, ContentFile(audio_bytes), save=False)
 
+        try:
+            with get_temporary_file_path(video.voice_file) as temp_audio_path:
+                duration = get_audio_duration(temp_audio_path)
+                video.voice_duration = duration
+                logger.info(f"Voice file duration: {duration:.2f} seconds")
+        except Exception as e:
+            logger.warning(f"Could not get audio duration: {e}")
+
         # Update video status
         video.status = GenVideo.Statuses.VOICE_READY
         video.save()
@@ -189,6 +199,8 @@ def generate_voice_file_eleven_labs(video: int) -> None:
         logger.info(
             f"✓ Voice file generated successfully for video {video.id} [ElevenLabs]"
         )
+
+        generate_srt_file(video)
 
     except GenVideo.DoesNotExist:
         logger.error(f"Video with id {video.id} does not exist")
@@ -213,6 +225,7 @@ def generate_voice_file_openai(video: int) -> None:
         video.id: ID of the GenVideo instance
     """
     try:
+        logger.info(f"OPENAI TTS")
         video.status = GenVideo.Statuses.GENERATING_VOICE
         video.save()
 
@@ -308,6 +321,7 @@ def get_audio_duration(audio_file_path):
     return duration
 
 
+@db_task()
 def generate_voice_file_gemini(video: int) -> None:
     """
     Generate voice file from scenario using Google Gemini Audio Generation via LangChain.
@@ -319,6 +333,7 @@ def generate_voice_file_gemini(video: int) -> None:
     """
     try:
         from langchain_google_genai import ChatGoogleGenerativeAI
+        logger.info(f"GEMINI TTS")
 
         video.status = GenVideo.Statuses.GENERATING_VOICE
         video.save()
