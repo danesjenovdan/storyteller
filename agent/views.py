@@ -136,7 +136,12 @@ def video_create(request):
                 )
                 video.status = GenVideo.Statuses.GENERATING_VOICE
                 video.save()
-                generate_voice_file_gemini(video)
+                if tts_provider == "elevenlabs":
+                    generate_voice_file_eleven_labs(video)
+                elif tts_provider == "openai":
+                    generate_voice_file_openai(video)
+                elif tts_provider == "gemini":
+                    generate_voice_file_gemini(video)
                 return redirect("video_detail", video_id=video.id)
             else:
                 messages.success(request, "Video mora vsebovati scenario!")
