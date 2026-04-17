@@ -44,7 +44,7 @@
             border-radius: 8px;
             position: relative;
             width: 100%;
-            max-width: 200px;
+            max-width: 300px;
             margin: 0 auto;
         }
         .subtitle-preview-container::before {
@@ -102,33 +102,25 @@
                     </ol>
                 </nav>
                 <h1>{{ video.title }}</h1>
-                <p class="text-muted">Ustvarjeno: {{ video.created_at|date:"d.m.Y H:i" }}</p>
-            </div>
-        </div>
-
-        <!-- Status and Progress -->
-        <div class="row mb-4">
-            <div class="col-md-8">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">Status</h5>
-                        <div class="d-flex align-items-center mb-3">
-                            {% if video.status == 'GENERATING_VOICE' or video.status == 'GENERATING_SUBTITLES' or video.status == 'GENERATING_SEGMENTS' or video.status == 'RENDERING' %}
-                                <div class="spinner-border text-primary me-2" role="status" style="width: 1.5rem; height: 1.5rem;">
-                                    <span class="visually-hidden">Nalaganje...</span>
-                                </div>
-                            {% endif %}
-                            <span class="badge status-badge
-                                {% if video.status == 'COMPLETED' %}bg-success
-                                {% elif video.status == 'PROCESSING' %}bg-primary
-                                {% elif video.status == 'FAILED' %}bg-danger
-                                {% else %}bg-secondary{% endif %}">
-                                {{ video.get_status_display }}
-                            </span>
-                            <span class="ms-3 text-muted">Posodobljeno: {{ video.updated_at|date:"d.m.Y H:i" }}</span>
-                        </div>
-
-                        {% if video.status == 'FAILED' and video.error_details %}
+                <div class="row">
+                    <div class="col-md-6">
+                        <p class="text-muted mb-0">
+                            Ustvarjeno: {{ video.created_at|date:"d.m.Y H:i" }}<br>
+                            Posodobljeno: {{ video.updated_at|date:"d.m.Y H:i" }}
+                        </p>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        {% if video.status == 'GENERATING_VOICE' or video.status == 'GENERATING_SUBTITLES' or video.status == 'GENERATING_SEGMENTS' or video.status == 'RENDERING' or video.status == 'PROCESSING' %}
+                            <div class="text-muted">Generiranje ...</div>
+                            <div class="spinner-border text-primary me-2" role="status" style="width: 1.5rem; height: 1.5rem;"></div>
+                        {% elif completed_segments == total_segments and total_segments > 0 and video.voice_file %}
+                            <form method="post" action="{% url 'render_video' video.id %}" style="margin: 0;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-lg btn-success">
+                                    <i class="bi bi-film"></i> Generiraj video
+                                </button>
+                            </form>
+                        {% elif video.status == 'FAILED' and video.error_details %}
                             <div class="alert alert-danger mb-3" role="alert">
                                 <h6 class="alert-heading">
                                     <i class="bi bi-exclamation-triangle-fill"></i> Napaka
@@ -138,229 +130,199 @@
                                 </h6>
                                 <p class="mb-0">{{ video.error_details }}</p>
                             </div>
-                        {% endif %}
-
-                        <h6>Napredek video klipov</h6>
-                        <div class="progress mb-2">
-                            <div class="progress-bar {% if progress_percentage == 100 %}bg-success{% endif %}"
-                                 role="progressbar"
-                                 style="width: {{ progress_percentage }}%"
-                                 aria-valuenow="{{ progress_percentage }}"
-                                 aria-valuemin="0"
-                                 aria-valuemax="100">
-                                {{ completed_segments }}/{{ total_segments }} ({{ progress_percentage|floatformat:0 }}%)
+                        {% else %}
+                            <div class="
+                                {% if video.status == 'COMPLETED' %}text-success
+                                {% elif video.status == 'PROCESSING' %}text-primary
+                                {% elif video.status == 'FAILED' %}text-danger
+                                {% else %}text-secondary{% endif %}
+                            ">{{ video.get_status_display }}</div>
+                            <div>
+                                <span class="lead fw-bold text-danger" id="completedSegments">{{ completed_segments }}</span>
+                                /
+                                <span class="lead fw-bold" id="totalSegments">{{ total_segments }}</span>
+                                segmentov ima izbran video klip
                             </div>
-                        </div>
-                        <small class="text-muted">
-                            {% if completed_segments == total_segments %}
-                                ✓ Vsi video klipi so izbrani
-                            {% else %}
-                                {{ total_segments|add:"-"|add:completed_segments }} segmentov še potrebuje video klip
-                            {% endif %}
-                        </small>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">Akcije</h5>
-                        <div class="d-grid gap-2">
-
-                            {% if video.scenario and not video.voice_file %}
-                                <form method="post" action="{% url 'generate_voice' video.id %}" style="margin: 0;">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-outline-primary w-100">
-                                        <i class="bi bi-mic"></i> Generiraj zvočni posnetek
-                                    </button>
-                                </form>
-                            {% endif %}
-
-                            {% if video.voice_file %}
-                                <form method="post" action="{% url 'regenerate_srt' video.id %}" style="margin: 0;" onsubmit="return confirm('Ali si prepričan? Obstoječi podnapisi bodo izbrisani!');">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-outline-info w-100">
-                                        <i class="bi bi-arrow-clockwise"></i> Ponovno generiraj podnapise
-                                    </button>
-                                </form>
-                            {% endif %}
-
-                            {% if video.scenario %}
-                                <form method="post" action="{% url 'regenerate_segments' video.id %}" style="margin: 0;" onsubmit="return confirm('Ali si prepričan? Vsi obstoječi segmenti bodo izbrisani!');">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-outline-warning w-100">
-                                        <i class="bi bi-arrow-clockwise"></i> Ponovno generiraj segmente
-                                    </button>
-                                </form>
-                            {% endif %}
-
-                            {% if completed_segments == total_segments and total_segments > 0 and video.voice_file %}
-                                {% if video.status == 'PROCESSING' %}
-                                    <button class="btn btn-warning" disabled>
-                                        <span class="spinner-border spinner-border-sm me-2"></span>
-                                        Renderiranje...
-                                    </button>
-                                {% else %}
-                                    <form method="post" action="{% url 'render_video' video.id %}" style="margin: 0;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="btn btn-success w-100">
-                                            <i class="bi bi-film"></i> Renderiraj končni video
-                                        </button>
-                                    </form>
-                                {% endif %}
-                            {% endif %}
-                            {% if video.final_file %}
-                            <a href="{{ video.final_file.url }}" class="btn btn-success" target="_blank">
-                                <i class="bi bi-play-circle"></i> Predvajaj končni video
-                            </a>
-                            {% endif %}
-                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
         </div>
+
+        <hr class="mt-0 mb-4">
+
+        <!-- Final Video -->
+        {% if video.final_file %}
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <h5 class="d-flex align-items-center mb-3">
+                    <div>
+                        <i class="bi bi-camera-video-fill"></i> Končni video
+                    </div>
+                </h5>
+                <div class="card">
+                    <div class="card-body">
+                        <p class="text-success"><i class="bi bi-check-circle-fill"></i> Pripravljen</p>
+                        <video controls class="w-100 mb-2" style="max-height: 200px;">
+                            <source src="{{ video.final_file.url }}" type="video/mp4">
+                            Vaš brskalnik ne podpira predvajanja videa.
+                        </video>
+                        <a href="{{ video.final_file.url }}" class="btn btn-sm btn-success" target="_blank">
+                            <i class="bi bi-play-circle"></i> Predvajaj
+                        </a>
+                        <a href="{{ video.final_file.url }}" class="btn btn-sm btn-outline-primary" download>
+                            <i class="bi bi-download"></i> Prenesi
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
 
         <!-- Scenario and Script -->
         <div class="row mb-4">
             <div class="col-md-6">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">Scenarij</h5>
-                        <p class="card-text">{{ video.scenario }}</p>
+                <div class="d-flex flex-column h-100">
+                    <h5 class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <i class="bi bi-journal-text"></i> Scenarij
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-arrow-clockwise"></i>
+                            <form method="post" action="{% url 'regenerate_segments' video.id %}" style="margin: 0;" onsubmit="return confirm('Ali si prepričan? Vsi obstoječi segmenti bodo izbrisani!');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-link" {% if not video.scenario %}disabled{% endif %}>
+                                    Generiraj ponovno
+                                </button>
+                            </form>
+                        </div>
+                    </h5>
+                    <div class="card flex-grow-1">
+                        <div class="card-body">
+                            <p class="card-text" style="white-space: pre-wrap;">{{ video.scenario }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Voice File -->
+            <div class="col-md-6">
+                <div class="d-flex flex-column h-100">
+                    <h5 class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <i class="bi bi-mic-fill"></i> Zvočna datoteka
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-arrow-clockwise"></i>
+                            <form method="post" action="{% url 'generate_voice' video.id %}" style="margin: 0;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-link" {% if not video.scenario %}disabled{% endif %}>
+                                    Generiraj ponovno
+                                </button>
+                            </form>
+                        </div>
+                    </h5>
+                    <div class="card flex-grow-1">
+                        <div class="card-body">
+                            {% if video.voice_file %}
+                                <p class="text-success"><i class="bi bi-check-circle-fill"></i> Naložena</p>
+                                <p class="text-muted">Model: {{ video.voice_model }}</p>
+                                <audio controls class="w-100 mb-2">
+                                    <source src="{{ video.voice_file.url }}" type="audio/mpeg">
+                                    Vaš brskalnik ne podpira predvajanja zvoka.
+                                </audio>
+                                <a href="{{ video.voice_file.url }}" class="btn btn-sm btn-outline-primary" download>
+                                    <i class="bi bi-download"></i> Prenesi
+                                </a>
+                            {% else %}
+                                <p class="text-muted">Ni na voljo</p>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Files Section -->
+        <!-- SRT File -->
         <div class="row mb-4">
             <div class="col-md-12">
-                <h3>Datoteke</h3>
-            </div>
-        </div>
-
-        <div class="row mb-4">
-            <!-- Voice File -->
-            <div class="col-md-4 mb-3">
-                <div class="card file-card h-100">
-                    <div class="card-body">
-                        <h5 class="card-title">
-                            <i class="bi bi-mic-fill"></i> Zvočna datoteka
-                        </h5>
-                        {% if video.voice_file %}
-                            <p class="text-success"><i class="bi bi-check-circle-fill"></i> Naložena</p>
-                            <p class="text-muted">Model: {{ video.voice_model }}</p>
-                            <audio controls class="w-100 mb-2">
-                                <source src="{{ video.voice_file.url }}" type="audio/mpeg">
-                                Vaš brskalnik ne podpira predvajanja zvoka.
-                            </audio>
-                            <a href="{{ video.voice_file.url }}" class="btn btn-sm btn-outline-primary" download>
-                                <i class="bi bi-download"></i> Prenesi
-                            </a>
-                        {% else %}
-                            <p class="text-muted">Ni na voljo</p>
-                        {% endif %}
+                <h5 class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <i class="bi bi-file-text-fill"></i> Podnapisi (SRT)
                     </div>
-                </div>
-            </div>
-
-            <!-- SRT File -->
-            <div class="col-md-8 mb-3">
-                <div class="card file-card h-100">
-                    <div class="card-body">
-                        <h5 class="card-title">
-                            <i class="bi bi-file-text-fill"></i> Podnapisi (SRT)
-                        </h5>
-                        {% if video.srt_file %}
-                            <p class="text-success"><i class="bi bi-check-circle-fill"></i> Naloženi</p>
-                            <a href="{{ video.srt_file.url }}" class="btn btn-sm btn-outline-primary mb-3" download>
-                                <i class="bi bi-download"></i> Prenesi
-                            </a>
-
-                            <h6 class="mt-3 mb-2">Prilagodi podnapise:</h6>
-
-                            <div class="row g-3 mb-3">
-                                <div class="col-md-6">
-                                    <label class="form-label">Font</label>
-                                    <select class="form-select" id="fontFamily" onchange="updateSubtitlePreview()">
-                                        <option value="Montserrat" {% if video.subtitle_font_family == 'Montserrat' or not video.subtitle_font_family %}selected{% endif %}>Montserrat</option>
-                                        <option value="Impact" {% if video.subtitle_font_family == 'Impact' %}selected{% endif %}>Impact</option>
-                                        <option value="Arial" {% if video.subtitle_font_family == 'Arial' %}selected{% endif %}>Arial</option>
-                                        <option value="Bebas Neue" {% if video.subtitle_font_family == 'Bebas Neue' %}selected{% endif %}>Bebas Neue</option>
-                                        <option value="Roboto" {% if video.subtitle_font_family == 'Roboto' %}selected{% endif %}>Roboto</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Font Weight</label>
-                                    <select class="form-select" id="fontWeight" onchange="updateSubtitlePreview()">
-                                        <option value="400" {% if video.subtitle_font_weight == '400' %}selected{% endif %}>Normal (400)</option>
-                                        <option value="700" {% if video.subtitle_font_weight == '700' %}selected{% endif %}>Bold (700)</option>
-                                        <option value="900" {% if video.subtitle_font_weight == '900' or not video.subtitle_font_weight %}selected{% endif %}>Heavy (900)</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div class="row g-3 mb-3">
-                                <div class="col-md-3">
-                                    <label class="form-label">Velikost: <span id="fontSizeValue">{{ video.subtitle_font_size|default:12 }}</span>px</label>
-                                    <input type="range" class="form-range" min="10" max="20" value="{{ video.subtitle_font_size|default:12 }}" id="fontSize" oninput="updateSubtitlePreview()">
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">Stroke: <span id="strokeValue">{{ video.subtitle_stroke_weight|default:3 }}</span>px</label>
-                                    <input type="range" class="form-range" min="0" max="6" value="{{ video.subtitle_stroke_weight|default:3 }}" id="strokeWeight" oninput="updateSubtitlePreview()">
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">Shadow: <span id="shadowValue">{{ video.subtitle_shadow|default:1 }}</span></label>
-                                    <input type="range" class="form-range" min="0" max="3" value="{{ video.subtitle_shadow|default:1 }}" id="shadow" oninput="updateSubtitlePreview()">
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">Višina: <span id="verticalPositionValue">{{ video.subtitle_vertical_position|default:10 }}</span>%</label>
-                                    <input type="range" class="form-range" min="0" max="50" value="{{ video.subtitle_vertical_position|default:10 }}" id="verticalPosition" oninput="updateSubtitlePreview()">
-                                </div>
-                            </div>
-
-                            <div class="subtitle-preview-container mb-3">
-                                <div class="subtitle-preview">
-                                    <span id="subtitlePreviewText">Primer Teksta je takšen, a bi mel drugačnega?</span>
-                                </div>
-                            </div>
-
-                            <button class="btn btn-primary" onclick="saveSubtitleSettings('{{ video.id }}')">
-                                <i class="bi bi-check-circle"></i> Shrani nastavitve
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-arrow-clockwise"></i>
+                        <form method="post" action="{% url 'regenerate_srt' video.id %}" style="margin: 0;" onsubmit="return confirm('Ali si prepričan? Obstoječi podnapisi bodo izbrisani!');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-link" {% if not video.voice_file %}disabled{% endif %}>
+                                Generiraj ponovno
                             </button>
+                        </form>
+                    </div>
+                </h5>
+                <div class="card">
+                    <div class="card-body">
+                        {% if video.srt_file %}
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p class="text-success"><i class="bi bi-check-circle-fill"></i> Naloženi</p>
+                                <a href="{{ video.srt_file.url }}" class="btn btn-sm btn-outline-primary mb-3" download>
+                                    <i class="bi bi-download"></i> Prenesi
+                                </a>
+
+                                <h6 class="mt-3 mb-2">Prilagodi podnapise:</h6>
+
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-12">
+                                        <label class="form-label">Font</label>
+                                        <select class="form-select" id="fontFamily" onchange="updateSubtitlePreview()">
+                                            <option value="Montserrat" {% if video.subtitle_font_family == 'Montserrat' or not video.subtitle_font_family %}selected{% endif %}>Montserrat</option>
+                                            <option value="Impact" {% if video.subtitle_font_family == 'Impact' %}selected{% endif %}>Impact</option>
+                                            <option value="Arial" {% if video.subtitle_font_family == 'Arial' %}selected{% endif %}>Arial</option>
+                                            <option value="Bebas Neue" {% if video.subtitle_font_family == 'Bebas Neue' %}selected{% endif %}>Bebas Neue</option>
+                                            <option value="Roboto" {% if video.subtitle_font_family == 'Roboto' %}selected{% endif %}>Roboto</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Velikost: <span id="fontSizeValue">{{ video.subtitle_font_size|default:12 }}</span>px</label>
+                                        <input type="range" class="form-range" min="10" max="20" value="{{ video.subtitle_font_size|default:12 }}" id="fontSize" oninput="updateSubtitlePreview()">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Stroke: <span id="strokeValue">{{ video.subtitle_stroke_weight|default:3 }}</span>px</label>
+                                        <input type="range" class="form-range" min="0" max="6" value="{{ video.subtitle_stroke_weight|default:3 }}" id="strokeWeight" oninput="updateSubtitlePreview()">
+                                    </div>
+                                    <div class="col-md-12">
+                                        <label class="form-label">Font Weight</label>
+                                        <select class="form-select" id="fontWeight" onchange="updateSubtitlePreview()">
+                                            <option value="400" {% if video.subtitle_font_weight == '400' %}selected{% endif %}>Normal (400)</option>
+                                            <option value="700" {% if video.subtitle_font_weight == '700' %}selected{% endif %}>Bold (700)</option>
+                                            <option value="900" {% if video.subtitle_font_weight == '900' or not video.subtitle_font_weight %}selected{% endif %}>Heavy (900)</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Shadow: <span id="shadowValue">{{ video.subtitle_shadow|default:1 }}</span></label>
+                                        <input type="range" class="form-range" min="0" max="3" value="{{ video.subtitle_shadow|default:1 }}" id="shadow" oninput="updateSubtitlePreview()">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Višina: <span id="verticalPositionValue">{{ video.subtitle_vertical_position|default:10 }}</span>%</label>
+                                        <input type="range" class="form-range" min="0" max="50" value="{{ video.subtitle_vertical_position|default:10 }}" id="verticalPosition" oninput="updateSubtitlePreview()">
+                                    </div>
+                                    <div class="col-md-12">
+                                        <button class="btn btn-primary" onclick="saveSubtitleSettings('{{ video.id }}')">
+                                            <i class="bi bi-check-circle"></i> Shrani nastavitve
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="subtitle-preview-container">
+                                    <div class="subtitle-preview">
+                                        <span id="subtitlePreviewText">Primer Teksta je takšen, a bi mel drugačnega?</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         {% else %}
                             <p class="text-muted">Ni na voljo</p>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-
-            <!-- Final Video -->
-            <div class="col-md-4 mb-3">
-                <div class="card file-card h-100">
-                    <div class="card-body">
-                        <h5 class="card-title">
-                            <i class="bi bi-camera-video-fill"></i> Končni video
-                        </h5>
-                        {% if video.final_file %}
-                            <p class="text-success"><i class="bi bi-check-circle-fill"></i> Pripravljen</p>
-                            <video controls class="w-100 mb-2" style="max-height: 200px;">
-                                <source src="{{ video.final_file.url }}" type="video/mp4">
-                                Vaš brskalnik ne podpira predvajanja videa.
-                            </video>
-                            <a href="{{ video.final_file.url }}" class="btn btn-sm btn-success" target="_blank">
-                                <i class="bi bi-play-circle"></i> Predvajaj
-                            </a>
-                            <a href="{{ video.final_file.url }}" class="btn btn-sm btn-outline-primary" download>
-                                <i class="bi bi-download"></i> Prenesi
-                            </a>
-                        {% else %}
-                            <p class="text-muted">Še ni renderiran</p>
-                            {% if completed_segments == total_segments and total_segments > 0 and video.voice_file %}
-                                <small class="text-info">
-                                    <i class="bi bi-info-circle"></i> Vsi klipi so pripravljeni, lahko renderiraš video!
-                                </small>
-                            {% endif %}
                         {% endif %}
                     </div>
                 </div>
@@ -467,6 +429,16 @@
         </div>
         {% endfor %}
 
+        <div class="row my-5">
+            <div class="col-md-12 text-center">
+                <form method="post" action="{% url 'render_video' video.id %}" style="margin: 0;">
+                    {% csrf_token %}
+                    <button type="submit" id="generateVideoBottomBtn" class="btn btn-lg btn-success" {% if completed_segments == total_segments and total_segments > 0 and video.voice_file %}{% else %}disabled{% endif %}>
+                        <i class="bi bi-film"></i> Generiraj video
+                    </button>
+                </form>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -586,33 +558,33 @@
                     }
                 });
             });
-            
+
             // Handle horizontal mode buttons for already selected videos
             const horizontalModeGroups = document.querySelectorAll('.horizontal-mode-group');
             horizontalModeGroups.forEach(group => {
                 const segmentId = group.getAttribute('data-segment-id');
                 const modeButtons = group.querySelectorAll('.mode-btn');
-                
+
                 modeButtons.forEach(btn => {
                     btn.addEventListener('click', async function(e) {
                         e.preventDefault();
                         const newMode = this.getAttribute('data-mode');
-                        
+
                         // Get current video data from the segment
                         const cardBody = this.closest('.card-body');
                         const videoElement = cardBody.querySelector('video source');
                         const imageElement = cardBody.querySelector('img.video-preview');
-                        const videoUrl = videoElement ? videoElement.getAttribute('src') : 
+                        const videoUrl = videoElement ? videoElement.getAttribute('src') :
                                        imageElement ? imageElement.getAttribute('src') : null;
-                        
+
                         if (!videoUrl) {
                             alert('Napaka: Video/Slika URL ni najden');
                             return;
                         }
-                        
+
                         // Get existing metadata from the segment (from Django template)
                         const segmentCard = cardBody.closest('.segment-card');
-                        
+
                         try {
                             // Find the video carousel to show loading message
                             const carousel = cardBody.querySelector('.video-carousel');
@@ -626,7 +598,7 @@
                                     alertBox.style.display = 'block';
                                 }
                             }
-                            
+
                             const response = await fetch(`/video-segments/${segmentId}/save-video/`, {
                                 method: 'POST',
                                 headers: {
@@ -640,9 +612,9 @@
                                     }
                                 })
                             });
-                            
+
                             const data = await response.json();
-                            
+
                             if (data.error) {
                                 alert('Napaka: ' + data.error);
                                 if (alertBox) {
@@ -662,7 +634,7 @@
                                         b.classList.add('btn-outline-primary');
                                     }
                                 });
-                                
+
                                 if (alertBox) {
                                     alertBox.className = 'alert alert-success';
                                     alertBox.querySelector('i').className = 'bi bi-check-circle-fill';

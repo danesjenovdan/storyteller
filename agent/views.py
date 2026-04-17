@@ -392,7 +392,7 @@ def upload_segment_image(request, video_segment_id):
             import tempfile
 
             temp_file_created = False
-            
+
             # Check if we're using local storage or S3
             if django_settings.ENABLE_S3:
                 # S3 storage - use uploaded file directly, save to temp
