@@ -205,6 +205,9 @@ ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1/text-to-speech"
 # Pexels API Settings
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY", "")
 
+# Pixabay API Settings
+PIXABAY_API_KEY = os.getenv("PIXABAY_API_KEY", "")
+
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 
 # OpenAI API Settings

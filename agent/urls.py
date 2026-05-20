@@ -35,13 +35,13 @@ urlpatterns = [
     ),
     path(
         "video-segments/<int:video_segment_id>/search-videos/",
-        views.search_pexels_videos,
-        name="search_pexels_videos",
+        views.search_videos,
+        name="search_videos",
     ),
     path(
         "video-segments/<int:video_segment_id>/search-images/",
-        views.search_pexels_images,
-        name="search_pexels_images",
+        views.search_images,
+        name="search_images",
     ),
     path(
         "video-segments/<int:video_segment_id>/save-video/",

@@ -1,18 +1,30 @@
+import json
+import os
+import subprocess
+import tempfile
 from functools import wraps
 
-import requests
 from django.conf import settings as django_settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from PIL import Image
 
+from agent.content_apis import (
+    resolve_sources,
+    search_images_by_sources,
+    search_videos_by_sources,
+)
 from agent.tasks import (
+    generate_srt_file,
     generate_voice_file_eleven_labs,
     generate_voice_file_gemini,
     generate_voice_file_openai,
+    get_audio_duration,
     render_final_video,
 )
+from agent.utils import get_temporary_file_path
 
 from .forms import VideoCreateForm
 from .models import GenVideo, VideoSegment
@@ -123,12 +135,11 @@ def video_create(request):
             ("shimmer", "Shimmer - Female, soft and warm"),
         ]
     if request.method == "POST":
-        form = VideoCreateForm(request.POST, voice_models=VOICE_MODELS)
+        form = VideoCreateForm(request.POST, request.FILES, voice_models=VOICE_MODELS)
         if form.is_valid():
             video = form.save(commit=False)
             video.user = request.user
             video.save()
-
             if video.scenario:
                 # If only scenario is provided, directly simplify to scenario
                 messages.success(
@@ -143,6 +154,13 @@ def video_create(request):
                 elif tts_provider == "gemini":
                     generate_voice_file_gemini(video)
                 return redirect("video_detail", video_id=video.id)
+            elif video.voice_file:
+                with get_temporary_file_path(video.voice_file) as temp_audio_path:
+                    duration = get_audio_duration(temp_audio_path)
+                    video.voice_duration = duration
+                    video.save()
+                generate_srt_file(video)
+                return redirect("video_detail", video_id=video.id)
             else:
                 messages.success(request, "Video mora vsebovati scenario!")
                 return render(request, "agent/video_create.html", {"form": form})
@@ -155,9 +173,9 @@ def video_create(request):
 
 
 @ajax_login_required
-def search_pexels_videos(request, video_segment_id):
+def search_videos(request, video_segment_id):
     """
-    AJAX endpoint to search Pexels videos with custom query.
+    AJAX endpoint to search videos from selected content sources.
     """
 
     video_segment = get_object_or_404(
@@ -165,100 +183,49 @@ def search_pexels_videos(request, video_segment_id):
     )
 
     query = request.GET.get("query", video_segment.query)
-    page = request.GET.get("page", 1)
-
-    if not django_settings.PEXELS_API_KEY:
-        return JsonResponse({"error": "PEXELS_API_KEY is not configured"}, status=500)
+    page = int(request.GET.get("page", 1))
+    sources = resolve_sources(request.GET.getlist("sources"))
 
     try:
-        # Calculate segment duration
         duration = video_segment.end_time - video_segment.start_time
 
-        # Pexels API endpoint for video search
-        url = "https://api.pexels.com/videos/search"
-        headers = {"Authorization": django_settings.PEXELS_API_KEY}
+        videos, warnings = search_videos_by_sources(
+            sources=sources,
+            query=query,
+            page=page,
+            min_duration=duration,
+        )
 
-        keywords = [
-            *query.split(","),  # split query by commas
-            query,  # also add full query
-        ]
-        videos = []
-        ids = []
-        for keyword in keywords:
-            keyword = keyword.strip()
+        deduped_videos = []
+        seen_urls = set()
+        for video in videos:
+            video_url = video.get("video_url")
+            if not video_url or video_url in seen_urls:
+                continue
+            seen_urls.add(video_url)
+            deduped_videos.append(video)
 
-            params = {
-                "query": keyword,
-                # "orientation": "portrait",
-                "per_page": 10,
-                "page": page,
-                "size": "medium",
-            }
+        if not deduped_videos and warnings:
+            return JsonResponse({"error": "; ".join(warnings)}, status=500)
 
-            response = requests.get(url, headers=headers, params=params)
-            response.raise_for_status()
+        response = {
+            "videos": deduped_videos,
+            "query": query,
+            "total": len(deduped_videos),
+        }
+        if warnings:
+            response["warnings"] = warnings
 
-            data = response.json()
+        return JsonResponse(response)
 
-            # Filter videos by duration
-            min_duration = duration
-            max_duration = duration + 15
-
-            # print(f"DEBUG: Total videos from Pexels: {len(data.get('videos', []))}")
-
-            for video_item in data.get("videos", []):
-                video_duration = video_item.get("duration", 0)
-                # print(
-                #     f"DEBUG: Checking video {video_item.get('id')}: duration={video_duration}"
-                # )
-
-                # if min_duration <= video_duration <= max_duration:
-                if min_duration <= video_duration:
-                    # Get portrait video file
-                    video_file = None
-                    for file in video_item.get("video_files", []):
-                        width = file.get("width", 0)
-                        height = file.get("height", 0)
-                        video_file = file
-                        if width < height:
-                            break
-
-                    if video_file:
-                        video_id = video_item.get("id")
-                        if video_id in ids:
-                            # print(f"DEBUG: Skipping duplicate video {video_id}")
-                            continue
-                        ids.append(video_item.get("id"))
-                        videos.append(
-                            {
-                                "id": video_item.get("id"),
-                                "image": video_item.get("image"),
-                                "duration": video_duration,
-                                "video_url": video_file.get("link"),
-                                "width": video_file.get("width"),
-                                "height": video_file.get("height"),
-                                "user": video_item.get("user", {}).get(
-                                    "name", "Unknown"
-                                ),
-                                "url": video_item.get("url"),
-                            }
-                        )
-                        # print(f"DEBUG: Added video {video_item.get('id')}")
-
-        # print(f"DEBUG: Returning {len(videos)} filtered videos")
-
-        return JsonResponse({"videos": videos, "query": query, "total": len(videos)})
-
-    except requests.exceptions.RequestException as e:
-        return JsonResponse({"error": f"Error fetching videos: {str(e)}"}, status=500)
     except Exception as e:
         return JsonResponse({"error": f"Unexpected error: {str(e)}"}, status=500)
 
 
 @ajax_login_required
-def search_pexels_images(request, video_segment_id):
+def search_images(request, video_segment_id):
     """
-    Search for images on Pexels based on query string.
+    Search for images across selected content sources.
     Returns list of images with metadata.
     """
     video_segment = get_object_or_404(
@@ -267,60 +234,41 @@ def search_pexels_images(request, video_segment_id):
 
     query = request.GET.get("query", video_segment.query)
     page = int(request.GET.get("page", 1))
-    per_page = 20
+    sources = resolve_sources(request.GET.getlist("sources"))
 
     if not query:
         return JsonResponse({"error": "Query parameter is required"}, status=400)
 
-    if not django_settings.PEXELS_API_KEY:
-        return JsonResponse({"error": "Pexels API key not configured"}, status=500)
-
     try:
-        # Search Pexels for images
-        headers = {"Authorization": django_settings.PEXELS_API_KEY}
-        response = requests.get(
-            "https://api.pexels.com/v1/search",
-            headers=headers,
-            params={
-                "query": query,
-                "per_page": per_page,
-                "page": page,
-                "orientation": "portrait",  # Prefer vertical images
-            },
-            timeout=10,
+        images, warnings = search_images_by_sources(
+            sources=sources,
+            query=query,
+            page=page,
+            duration=video_segment.duration(),
         )
 
-        if response.status_code != 200:
-            return JsonResponse(
-                {"error": f"Pexels API error: {response.status_code}"}, status=500
-            )
+        deduped_images = []
+        seen_urls = set()
+        for image in images:
+            image_url = image.get("video_url")
+            if not image_url or image_url in seen_urls:
+                continue
+            seen_urls.add(image_url)
+            deduped_images.append(image)
 
-        data = response.json()
-        images = []
+        if not deduped_images and warnings:
+            return JsonResponse({"error": "; ".join(warnings)}, status=500)
 
-        for photo in data.get("photos", []):
-            # Get the large portrait image
-            src = photo.get("src", {})
-            image_url = src.get("large") or src.get("large2x") or src.get("original")
+        response = {
+            "images": deduped_images,
+            "query": query,
+            "total": len(deduped_images),
+        }
+        if warnings:
+            response["warnings"] = warnings
 
-            images.append(
-                {
-                    "id": photo.get("id"),
-                    "image": src.get("medium"),  # Preview image
-                    "video_url": image_url,  # Full resolution for rendering
-                    "width": photo.get("width"),
-                    "height": photo.get("height"),
-                    "user": photo.get("photographer", "Unknown"),
-                    "url": photo.get("url"),
-                    "is_image": True,
-                    "duration": video_segment.duration(),  # Use segment duration for images
-                }
-            )
+        return JsonResponse(response)
 
-        return JsonResponse({"images": images, "query": query, "total": len(images)})
-
-    except requests.exceptions.RequestException as e:
-        return JsonResponse({"error": f"Error fetching images: {str(e)}"}, status=500)
     except Exception as e:
         return JsonResponse({"error": f"Unexpected error: {str(e)}"}, status=500)
 
@@ -331,13 +279,6 @@ def upload_segment_image(request, video_segment_id):
     Upload a video or image for a video segment.
     Media will be used during rendering.
     """
-    import json
-    import os
-    import subprocess
-    import tempfile
-
-    from django.core.files.storage import default_storage
-    from PIL import Image
 
     if request.method != "POST":
         return JsonResponse({"error": "Method not allowed"}, status=405)
@@ -389,8 +330,6 @@ def upload_segment_image(request, video_segment_id):
         else:
             # Get video dimensions and duration using ffprobe
             # For S3 storage, we need to download the file temporarily
-            import tempfile
-
             temp_file_created = False
 
             # Check if we're using local storage or S3
@@ -495,6 +434,12 @@ def save_selected_video(request, video_segment_id):
             # Update existing proposal - preserve all existing data and update with new metadata
             existing_proposal.update(
                 {
+                    "source": video_metadata.get(
+                        "source", existing_proposal.get("source")
+                    ),
+                    "source_id": video_metadata.get(
+                        "id", existing_proposal.get("source_id")
+                    ),
                     "pexels_id": video_metadata.get(
                         "id", existing_proposal.get("pexels_id")
                     ),
@@ -527,6 +472,8 @@ def save_selected_video(request, video_segment_id):
             # Save new video proposal
             video_segment.video_proposals = [
                 {
+                    "source": video_metadata.get("source"),
+                    "source_id": video_metadata.get("id"),
                     "pexels_id": video_metadata.get("id"),
                     "pexels_url": video_metadata.get("url"),
                     "video_url": video_url,

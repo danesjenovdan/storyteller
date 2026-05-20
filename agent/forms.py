@@ -19,7 +19,7 @@ class VideoCreateForm(forms.ModelForm):
 
     class Meta:
         model = GenVideo
-        fields = ["title", "scenario", "modify_prompt", "voice_model"]
+        fields = ["title", "scenario", "modify_prompt", "voice_model", "voice_file"]
         widgets = {
             "title": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "Vnesite naslov videa"}
@@ -29,6 +29,7 @@ class VideoCreateForm(forms.ModelForm):
                     "class": "form-control",
                     "rows": 5,
                     "placeholder": "Opišite scenarij videa",
+                    "required": False,
                 }
             ),
             "modify_prompt": forms.Textarea(
@@ -44,6 +45,7 @@ class VideoCreateForm(forms.ModelForm):
             "scenario": "Scenarij",
             "modify_prompt": "Navodila za LLM",
             "voice_model": "Glasovni model",
+            "voice_file": "Naložite glasovno datoteko",
         }
 
     def __init__(self, *args, voice_models=None, **kwargs):
