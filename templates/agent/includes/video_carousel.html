@@ -25,7 +25,7 @@
         </button>
       </li>
     </ul>
-    
+
     <div class="tab-content" id="mediaTabContent-{{ segment.id }}">
       <!-- Videos Tab -->
       <div class="tab-pane fade show active" id="videos-{{ segment.id }}" role="tabpanel">
@@ -90,7 +90,7 @@
           </div>
         </div>
       </div>
-      
+
       <!-- Images Tab -->
       <div class="tab-pane fade" id="images-{{ segment.id }}" role="tabpanel">
         <div class="row query-row">
@@ -146,21 +146,21 @@
 
     const el = document.currentScript.previousElementSibling;
     const segmentId = el.getAttribute('data-segment-id');
-    
+
     // Videos tab elements
     const searchVideosInput = el.querySelector(`#query-videos-${segmentId}`);
     const searchVideosButton = el.querySelector('.search-videos-btn');
     const videosAlertBox = el.querySelector('.videos-alert');
     const videosResultsDiv = el.querySelector('.videos-results');
     const videoPreviewTemplate = videosResultsDiv.querySelector('.video-preview-template');
-    
+
     // Images tab elements
     const searchImagesInput = el.querySelector(`#query-images-${segmentId}`);
     const searchImagesButton = el.querySelector('.search-images-btn');
     const imagesAlertBox = el.querySelector('.images-alert');
     const imagesResultsDiv = el.querySelector('.images-results');
     const imagePreviewTemplate = imagesResultsDiv.querySelector('.image-preview-template');
-    
+
     const searchVideosUrl = "{% url 'search_pexels_videos' segment.id %}";
     const searchImagesUrl = `/video-segments/${segmentId}/search-images/`;
     const saveUrl = "{% url 'save_selected_video' segment.id %}";
@@ -195,7 +195,7 @@
       uploadCard.className = 'video-preview border rounded position-relative overflow-hidden bg-light d-flex align-items-center justify-content-center';
       uploadCard.style.cursor = 'pointer';
       uploadCard.style.minHeight = '200px';
-      
+
       uploadCard.innerHTML = `
         <div class="text-center p-3">
           <i class="bi bi-cloud-upload fs-1 text-primary"></i>
@@ -204,21 +204,21 @@
         </div>
         <input type="file" accept="${isVideo ? 'video/*' : 'image/*'}" style="display: none;" class="upload-input">
       `;
-      
+
       const fileInput = uploadCard.querySelector('.upload-input');
-      
+
       uploadCard.addEventListener('click', () => {
         fileInput.click();
       });
-      
+
       fileInput.addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        
+
         await uploadFile(file, isVideo);
         fileInput.value = ''; // Reset input
       });
-      
+
       return uploadCard;
     }
 
@@ -256,7 +256,7 @@
           showAlert(data.error, 'danger', !isVideo);
         } else {
           showAlert(`${isVideo ? 'Video' : 'Slika'} uspešno naložen${isVideo ? '' : 'a'}!`, 'success', !isVideo);
-          
+
           // Create media object
           const mediaObject = {
             id: `uploaded_${segmentId}_${Date.now()}`,
@@ -269,7 +269,7 @@
             height: data.height,
             is_image: data.is_image,
           };
-          
+
           // Automatically select the uploaded media
           selectVideo(mediaObject);
         }
@@ -323,13 +323,13 @@
       sourceLinkEl.querySelector('.user').textContent = video.user;
 
       const previewEl = previewFragment.querySelector('.video-preview');
-      
+
       // Set default horizontal mode for horizontal videos
       const isHorizontal = video.width > video.height;
       if (isHorizontal) {
         video.horizontal_mode = video.horizontal_mode || 'crop';
       }
-      
+
       previewEl.addEventListener('click', (e) => {
         const closestLink = e.target.closest('a');
         if (closestLink) {
@@ -355,13 +355,13 @@
       sourceLinkEl.querySelector('.user').textContent = image.user;
 
       const previewEl = previewFragment.querySelector('.video-preview');
-      
+
       // Set default horizontal mode for horizontal images
       const isHorizontal = image.width > image.height;
       if (isHorizontal) {
         image.horizontal_mode = image.horizontal_mode || 'crop';
       }
-      
+
       previewEl.addEventListener('click', (e) => {
         const closestLink = e.target.closest('a');
         if (closestLink) {
@@ -465,20 +465,20 @@
       // Find the segment card
       const segmentCard = el.closest('.segment-card');
       const cardBody = segmentCard.querySelector('.card-body > .row');
-      
+
       // Update badge
       const badge = segmentCard.querySelector('.badge');
       badge.className = 'badge bg-success';
       badge.textContent = '✓';
-      
+
       // Update card border
       segmentCard.classList.remove('missing');
       segmentCard.classList.add('completed');
-      
+
       // Check if video is horizontal
       const isHorizontal = video.width > video.height;
       const currentMode = video.horizontal_mode || 'crop';
-      
+
       // Build mode buttons HTML for horizontal videos/images
       let modeButtonsHTML = '';
       if (isHorizontal) {
@@ -496,16 +496,16 @@
           </div>
         `;
       }
-      
+
       // Update right column with preview
       const rightCol = cardBody.querySelector('.col-md-4');
-      const mediaTag = video.is_image ? 
+      const mediaTag = video.is_image ?
         `<img src="${video.video_url}" class="video-preview w-100" alt="Izbrana slika">` :
         `<video controls class="video-preview">
           <source src="${video.video_url}" type="video/mp4">
           Vaš brskalnik ne podpira predvajanja videa.
         </video>`;
-      
+
       rightCol.innerHTML = `
         ${mediaTag}
         <div class="mt-2">
@@ -518,7 +518,7 @@
         </div>
         ${modeButtonsHTML}
       `;
-      
+
       // Re-attach toggle button event
       const newToggleBtn = rightCol.querySelector('.toggle-select-video');
       newToggleBtn.addEventListener('click', function(event) {
@@ -531,7 +531,7 @@
           container.style.display = 'none';
         }
       });
-      
+
       // Attach mode button events for horizontal videos/images
       if (isHorizontal) {
         const modeButtons = rightCol.querySelectorAll('.mode-btn');
@@ -539,14 +539,14 @@
           btn.addEventListener('click', async (e) => {
             e.preventDefault();
             const newMode = btn.getAttribute('data-mode');
-            
+
             // Update video object
             video.horizontal_mode = newMode;
-            
+
             // Save the new mode
             try {
               showAlert('Shranjujem nastavitev...', 'loading', video.is_image);
-              
+
               const response = await fetch(saveUrl, {
                 method: 'POST',
                 headers: {
@@ -567,14 +567,14 @@
                   },
                 }),
               });
-              
+
               const data = await response.json();
-              
+
               if (data.error) {
                 showAlert(data.error, 'danger', video.is_image);
               } else {
                 showAlert('Način uspešno posodobljen!', 'success', video.is_image);
-                
+
                 // Update button states
                 modeButtons.forEach(b => {
                   const mode = b.getAttribute('data-mode');
@@ -594,51 +594,24 @@
           });
         });
       }
-      
+
       // Hide video selector
       el.closest('.select-video-container').style.display = 'none';
-      
-      // Update progress bar if it exists
-      const progressBar = document.querySelector('.progress-bar');
-      if (progressBar) {
-        const currentCompleted = parseInt(progressBar.textContent.match(/\d+/)[0]);
-        const totalSegments = parseInt(progressBar.textContent.match(/\/(\d+)/)[1]);
+
+      const completedSegmentsEl = document.getElementById('completedSegments');
+      const totalSegmentsEl = document.getElementById('totalSegments');
+      if (completedSegmentsEl && totalSegmentsEl) {
+        const currentCompleted = parseInt(completedSegmentsEl.textContent);
+        const totalSegments = parseInt(totalSegmentsEl.textContent);
         const newCompleted = currentCompleted + 1;
-        const newPercentage = (newCompleted / totalSegments) * 100;
-        
-        progressBar.style.width = newPercentage + '%';
-        progressBar.setAttribute('aria-valuenow', newPercentage);
-        progressBar.textContent = `${newCompleted}/${totalSegments} (${Math.round(newPercentage)}%)`;
-        
-        if (newCompleted === totalSegments) {
-          progressBar.classList.add('bg-success');
-          
-          // Show render button if all segments are selected
-          const actionsCard = document.querySelector('.card-body .d-grid');
-          if (actionsCard) {
-            // Check if render button already exists
-            const existingRenderBtn = actionsCard.querySelector('form[action*="render_video"]');
-            if (!existingRenderBtn) {
-              // Create render button
-              const renderForm = document.createElement('form');
-              renderForm.method = 'post';
-              renderForm.action = window.location.pathname.replace('/videos/', '/videos/') + 'render/';
-              renderForm.style.margin = '0';
-              
-              const csrfInput = document.createElement('input');
-              csrfInput.type = 'hidden';
-              csrfInput.name = 'csrfmiddlewaretoken';
-              csrfInput.value = '{{ csrf_token }}';
-              renderForm.appendChild(csrfInput);
-              
-              const renderBtn = document.createElement('button');
-              renderBtn.type = 'submit';
-              renderBtn.className = 'btn btn-success w-100';
-              renderBtn.innerHTML = '<i class="bi bi-film"></i> Renderiraj končni video';
-              renderForm.appendChild(renderBtn);
-              
-              actionsCard.appendChild(renderForm);
-            }
+        completedSegmentsEl.textContent = newCompleted;
+
+        const bottomButton = document.getElementById('generateVideoBottomBtn');
+        if (bottomButton) {
+          if (newCompleted === totalSegments) {
+            bottomButton.disabled = false;
+          } else {
+            bottomButton.disabled = true;
           }
         }
       }

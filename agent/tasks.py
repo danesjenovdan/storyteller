@@ -333,6 +333,7 @@ def generate_voice_file_gemini(video: int) -> None:
     """
     try:
         from langchain_google_genai import ChatGoogleGenerativeAI
+
         logger.info(f"GEMINI TTS")
 
         video.status = GenVideo.Statuses.GENERATING_VOICE
@@ -590,8 +591,7 @@ def generate_srt_file(video: GenVideo) -> None:
                     Part.from_uri(
                         file_uri=gemini_file.uri, mime_type=gemini_file.mime_type
                     ),
-                    Part.from_text(
-                        text="""
+                    Part.from_text(text="""
 Vrni miiii samo vsebino SRT datoteke za podnapise iz priloženega zvočnega posnetka, brez dodatnih pojasnil ali besedila.
 Zgeneriraj podnapise in mi vrni vsebino za SRT datoteko.
 Vsebuje naj tudi časovne kode, ki naj bodo vse v formatu HH:MM:SS,mmm --> HH:MM:SS,mmm.
@@ -600,8 +600,7 @@ Spodaj je primer za enkratno referenco:
 00:02:16,612 --> 00:02:19,376
 Senator, we're making
 our final approach into Coruscant.
-"""
-                    ),
+"""),
                 ],
             )
         ]
