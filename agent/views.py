@@ -12,7 +12,10 @@ from agent.tasks import (
     generate_voice_file_gemini,
     generate_voice_file_openai,
     render_final_video,
+    generate_srt_file,
+    get_audio_duration,
 )
+from agent.utils import get_temporary_file_path
 
 from .forms import VideoCreateForm
 from .models import GenVideo, VideoSegment
@@ -123,12 +126,11 @@ def video_create(request):
             ("shimmer", "Shimmer - Female, soft and warm"),
         ]
     if request.method == "POST":
-        form = VideoCreateForm(request.POST, voice_models=VOICE_MODELS)
+        form = VideoCreateForm(request.POST, request.FILES, voice_models=VOICE_MODELS)
         if form.is_valid():
             video = form.save(commit=False)
             video.user = request.user
             video.save()
-
             if video.scenario:
                 # If only scenario is provided, directly simplify to scenario
                 messages.success(
@@ -142,6 +144,13 @@ def video_create(request):
                     generate_voice_file_openai(video)
                 elif tts_provider == "gemini":
                     generate_voice_file_gemini(video)
+                return redirect("video_detail", video_id=video.id)
+            elif video.voice_file:
+                with get_temporary_file_path(video.voice_file) as temp_audio_path:
+                    duration = get_audio_duration(temp_audio_path)
+                    video.voice_duration = duration
+                    video.save()
+                generate_srt_file(video)
                 return redirect("video_detail", video_id=video.id)
             else:
                 messages.success(request, "Video mora vsebovati scenario!")
@@ -392,7 +401,7 @@ def upload_segment_image(request, video_segment_id):
             import tempfile
 
             temp_file_created = False
-            
+
             # Check if we're using local storage or S3
             if django_settings.ENABLE_S3:
                 # S3 storage - use uploaded file directly, save to temp
