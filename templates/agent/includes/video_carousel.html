@@ -41,8 +41,12 @@
             <div class="small">Viri:</div>
             <div class="d-flex flex-wrap gap-2">
               <div class="form-check">
-                <input class="form-check-input" type="checkbox" value="pexels" id="source-pexels-videos-{{ segment.id }}" checked disabled>
+                <input class="form-check-input source-videos-checkbox" type="checkbox" value="pexels" id="source-pexels-videos-{{ segment.id }}" checked>
                 <label class="form-check-label" for="source-pexels-videos-{{ segment.id }}">Pexels</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input source-videos-checkbox" type="checkbox" value="pixabay" id="source-pixabay-videos-{{ segment.id }}" checked>
+                <label class="form-check-label" for="source-pixabay-videos-{{ segment.id }}">Pixabay</label>
               </div>
             </div>
           </div>
@@ -80,7 +84,7 @@
                         <div></div>
                       </div>
                       <div class="bottom-metadata text-truncate position-absolute bottom-0 start-0 end-0 z-1 bg-dark bg-opacity-75 text-white px-2 pb-1 rounded">
-                        <small><a href="" target="_blank" class="source text-white">Pexels / <span class="user">user</span></a></small>
+                        <small><a href="" target="_blank" class="source text-white"><span class="source-name">Pexels</span> / <span class="user">user</span></a></small>
                       </div>
                     </div>
                   </template>
@@ -105,8 +109,12 @@
             <div class="small">Viri:</div>
             <div class="d-flex flex-wrap gap-2">
               <div class="form-check">
-                <input class="form-check-input" type="checkbox" value="pexels" id="source-pexels-images-{{ segment.id }}" checked disabled>
+                <input class="form-check-input source-images-checkbox" type="checkbox" value="pexels" id="source-pexels-images-{{ segment.id }}" checked>
                 <label class="form-check-label" for="source-pexels-images-{{ segment.id }}">Pexels</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input source-images-checkbox" type="checkbox" value="pixabay" id="source-pixabay-images-{{ segment.id }}" checked>
+                <label class="form-check-label" for="source-pixabay-images-{{ segment.id }}">Pixabay</label>
               </div>
             </div>
           </div>
@@ -127,7 +135,7 @@
                         <img src="" alt="" class="w-100 h-100 object-fit-cover">
                       </div>
                       <div class="bottom-metadata text-truncate position-absolute bottom-0 start-0 end-0 z-1 bg-dark bg-opacity-75 text-white px-2 pb-1 rounded">
-                        <small><a href="" target="_blank" class="source text-white">Pexels / <span class="user">user</span></a></small>
+                        <small><a href="" target="_blank" class="source text-white"><span class="source-name">Pexels</span> / <span class="user">user</span></a></small>
                       </div>
                     </div>
                   </template>
@@ -160,8 +168,8 @@
     const imagesAlertBox = el.querySelector('.images-alert');
     const imagesResultsDiv = el.querySelector('.images-results');
     const imagePreviewTemplate = imagesResultsDiv.querySelector('.image-preview-template');
-
-    const searchVideosUrl = "{% url 'search_pexels_videos' segment.id %}";
+    
+    const searchVideosUrl = "{% url 'search_videos' segment.id %}";
     const searchImagesUrl = `/video-segments/${segmentId}/search-images/`;
     const saveUrl = "{% url 'save_selected_video' segment.id %}";
     const uploadUrl = `/video-segments/${segmentId}/upload-image/`;
@@ -188,6 +196,17 @@
         alertBox.querySelector('i').className = '';
       }
       alertBox.style.display = 'block';
+    }
+
+    function formatSourceName(source) {
+      if (!source) return 'Pexels';
+      return source.charAt(0).toUpperCase() + source.slice(1).toLowerCase();
+    }
+
+    function getSelectedSources(isImages = false) {
+      const selector = isImages ? '.source-images-checkbox:checked' : '.source-videos-checkbox:checked';
+      const selected = Array.from(el.querySelectorAll(selector)).map((checkbox) => checkbox.value);
+      return selected.length ? selected : ['pexels', 'pixabay'];
     }
 
     function createUploadCard(isVideo = true) {
@@ -263,6 +282,7 @@
             video_url: data.video_url || data.image_url,
             image: data.image_url || data.video_url,
             url: '',
+            source: 'upload',
             user: `Naložen${isVideo ? ' video' : 'a slika'}`,
             duration: data.duration || 5,  // Use 5 seconds as default for images
             width: data.width,
@@ -319,7 +339,8 @@
       durationEl.textContent = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
 
       const sourceLinkEl = previewFragment.querySelector('.source');
-      sourceLinkEl.href = video.url;
+      sourceLinkEl.href = video.url || '#';
+      sourceLinkEl.querySelector('.source-name').textContent = formatSourceName(video.source);
       sourceLinkEl.querySelector('.user').textContent = video.user;
 
       const previewEl = previewFragment.querySelector('.video-preview');
@@ -351,7 +372,8 @@
       imgEl.src = image.image;
 
       const sourceLinkEl = previewFragment.querySelector('.source');
-      sourceLinkEl.href = image.url;
+      sourceLinkEl.href = image.url || '#';
+      sourceLinkEl.querySelector('.source-name').textContent = formatSourceName(image.source);
       sourceLinkEl.querySelector('.user').textContent = image.user;
 
       const previewEl = previewFragment.querySelector('.video-preview');
@@ -396,8 +418,9 @@
     async function searchVideos(page = 1) {
       try {
         showAlert('Iščem...', 'loading', false);
+        const sources = getSelectedSources(false).join(',');
 
-        const response = await fetch(`${searchVideosUrl}?query=${encodeURIComponent(searchVideosInput.value)}&page=${page}`);
+        const response = await fetch(`${searchVideosUrl}?query=${encodeURIComponent(searchVideosInput.value)}&page=${page}&sources=${encodeURIComponent(sources)}`);
         const data = await response.json();
 
         if (data.error) {
@@ -430,8 +453,9 @@
     async function searchImages(page = 1) {
       try {
         showAlert('Iščem...', 'loading', true);
+        const sources = getSelectedSources(true).join(',');
 
-        const response = await fetch(`${searchImagesUrl}?query=${encodeURIComponent(searchImagesInput.value)}&page=${page}`);
+        const response = await fetch(`${searchImagesUrl}?query=${encodeURIComponent(searchImagesInput.value)}&page=${page}&sources=${encodeURIComponent(sources)}`);
         const data = await response.json();
 
         if (data.error) {
@@ -506,11 +530,13 @@
           Vaš brskalnik ne podpira predvajanja videa.
         </video>`;
 
+      const sourceLabel = formatSourceName(video.source || 'pexels');
+
       rightCol.innerHTML = `
         ${mediaTag}
         <div class="mt-2">
           ${video.url ? `<a href="${video.url}" class="btn btn-sm btn-outline-info" target="_blank">
-            <i class="bi bi-box-arrow-up-right"></i> Pexels
+            <i class="bi bi-box-arrow-up-right"></i> ${sourceLabel}
           </a>` : ''}
           <a href="#" class="btn btn-sm btn-outline-secondary toggle-select-video">
             <i class="bi bi-arrow-repeat"></i> Zamenjaj
@@ -559,6 +585,7 @@
                     id: video.id,
                     url: video.url,
                     user: video.user,
+                    source: video.source,
                     duration: video.duration,
                     width: video.width,
                     height: video.height,
@@ -633,6 +660,7 @@
               id: video.id,
               url: video.url,
               user: video.user,
+              source: video.source,
               duration: video.duration,
               width: video.width,
               height: video.height,
