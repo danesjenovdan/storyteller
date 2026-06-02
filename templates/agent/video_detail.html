@@ -83,10 +83,53 @@
             padding-bottom: 36px;
             transition: padding-bottom 0.3s ease;
             height: 100%;
+            z-index: 2;
         }
         .subtitle-preview span {
             color: white;
             transition: all 0.3s ease;
+        }
+        .preview-logo {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 15%;
+            height: auto;
+            object-fit: contain;
+            display: none;
+            z-index: 3;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+        }
+        .preview-logo.top-left {
+            left: 12px;
+            right: auto;
+        }
+        .preview-logo.top-right {
+            right: 12px;
+            left: auto;
+        }
+        .logo-option {
+            cursor: pointer;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            padding: 8px;
+            background: #f8f9fa;
+            transition: border-color 0.2s ease, transform 0.2s ease;
+        }
+        .logo-option.selected {
+            border-color: #198754;
+            background: #eef9f1;
+        }
+        .logo-option:hover {
+            border-color: #0d6efd;
+            transform: translateY(-2px);
+        }
+        .logo-option-thumb {
+            width: 100%;
+            max-height: 60px;
+            object-fit: contain;
+            background: #fff;
+            border-radius: 4px;
         }
     </style>
 </head>
@@ -262,8 +305,8 @@
                 <div class="card">
                     <div class="card-body">
                         {% if video.srt_file %}
-                        <div class="row">
-                            <div class="col-md-6">
+                        <div class="row g-3">
+                            <div class="col-lg-5">
                                 <p class="text-success"><i class="bi bi-check-circle-fill"></i> Naloženi</p>
                                 <a href="{{ video.srt_file.url }}" class="btn btn-sm btn-outline-primary mb-3" download>
                                     <i class="bi bi-download"></i> Prenesi
@@ -313,8 +356,60 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-lg-3">
+                                <h6 class="mt-1 mb-2">Logotip:</h6>
+                                <div class="border rounded p-2 mb-2" style="max-height: 260px; overflow-y: auto;">
+                                    <div id="logoOptionsContainer" class="d-grid gap-2">
+                                        <label class="logo-option {% if not video.logo_id %}selected{% endif %}" data-logo-card-id="none">
+                                            <input class="form-check-input me-2" type="radio" name="selectedLogo" value="" data-logo-url="" {% if not video.logo_id %}checked{% endif %}>
+                                            <span class="small">Brez logotipa</span>
+                                        </label>
+                                        {% for logo in user_logos %}
+                                        <label class="logo-option {% if video.logo_id == logo.id %}selected{% endif %}" data-logo-card-id="{{ logo.id }}">
+                                            <input class="form-check-input me-2" type="radio" name="selectedLogo" value="{{ logo.id }}" data-logo-url="{{ logo.logo_file.url }}" {% if video.logo_id == logo.id %}checked{% endif %}>
+                                            <img src="{{ logo.logo_file.url }}" class="logo-option-thumb mt-2" alt="Logo {{ logo.id }}">
+                                        </label>
+                                        {% empty %}
+                                        <div class="text-muted small" id="noLogosMessage">Ni še naloženih logotipov.</div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+
+                                <div class="mb-2">
+                                    <label class="form-label">Položaj logotipa</label>
+                                    <select class="form-select" id="logoPosition" onchange="updateLogoPreview()">
+                                        <option value="top_left" {% if video.logo_position == 'top_left' %}selected{% endif %}>Zgoraj levo</option>
+                                        <option value="top_right" {% if video.logo_position != 'top_left' %}selected{% endif %}>Zgoraj desno</option>
+                                    </select>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label">Velikost: <span id="logoSizeValue">{{ video.logo_size_percent|default:15 }}</span>%</label>
+                                    <input type="range" class="form-range" min="5" max="40" value="{{ video.logo_size_percent|default:15 }}" id="logoSizePercent" oninput="updateLogoPreview()">
+                                </div>
+                                <div class="d-grid mb-2">
+                                    <button class="btn btn-outline-primary btn-sm" onclick="saveLogoSettings('{{ video.id }}')">
+                                        <i class="bi bi-check-circle"></i> Shrani logo nastavitve
+                                    </button>
+                                </div>
+
+                                <form id="logoUploadForm" class="border rounded p-2" enctype="multipart/form-data">
+                                    <label class="form-label mb-1">Naloži nov logotip</label>
+                                    <input type="file" class="form-control form-control-sm mb-2" id="logoFileInput" name="logo" accept="image/*" required>
+                                    <div class="d-grid">
+                                        <button type="submit" class="btn btn-sm btn-success">
+                                            <i class="bi bi-upload"></i> Upload
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="col-lg-4">
                                 <div class="subtitle-preview-container">
+                                    <img
+                                        id="logoPreviewImage"
+                                        class="preview-logo {% if video.logo_position == 'top_left' %}top-left{% else %}top-right{% endif %}"
+                                        src="{% if video.logo %}{{ video.logo.logo_file.url }}{% endif %}"
+                                        alt="Logo preview"
+                                    >
                                     <div class="subtitle-preview">
                                         <span id="subtitlePreviewText">Primer Teksta je takšen, a bi mel drugačnega?</span>
                                     </div>
@@ -500,6 +595,133 @@
             previewSpan.style.textShadow = textShadow.join(', ');
         }
 
+        function getSelectedLogoInput() {
+            return document.querySelector('input[name="selectedLogo"]:checked');
+        }
+
+        function updateLogoSelectionStyles() {
+            document.querySelectorAll('[data-logo-card-id]').forEach(card => {
+                card.classList.remove('selected');
+            });
+            const selectedInput = getSelectedLogoInput();
+            if (!selectedInput) {
+                return;
+            }
+            const selectedCard = selectedInput.closest('[data-logo-card-id]');
+            if (selectedCard) {
+                selectedCard.classList.add('selected');
+            }
+        }
+
+        function updateLogoPreview() {
+            const logoImage = document.getElementById('logoPreviewImage');
+            const logoPosition = document.getElementById('logoPosition').value;
+            const logoSizePercent = document.getElementById('logoSizePercent').value;
+            const selectedLogoInput = getSelectedLogoInput();
+
+            document.getElementById('logoSizeValue').textContent = logoSizePercent;
+
+            if (!selectedLogoInput || !selectedLogoInput.dataset.logoUrl) {
+                logoImage.style.display = 'none';
+                updateLogoSelectionStyles();
+                return;
+            }
+
+            logoImage.src = selectedLogoInput.dataset.logoUrl;
+            logoImage.style.display = 'block';
+            logoImage.style.width = logoSizePercent + '%';
+            logoImage.classList.remove('top-left', 'top-right');
+            logoImage.classList.add(logoPosition === 'top_left' ? 'top-left' : 'top-right');
+            updateLogoSelectionStyles();
+        }
+
+        async function saveSelectedLogo(videoId) {
+            const selectedLogoInput = getSelectedLogoInput();
+            const logoId = selectedLogoInput ? selectedLogoInput.value : null;
+
+            try {
+                const response = await fetch(`/videos/${videoId}/set-logo/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify({
+                        logo_id: logoId
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to save selected logo');
+                }
+
+                updateLogoPreview();
+            } catch (error) {
+                console.error('Error saving selected logo:', error);
+                alert('Napaka pri shranjevanju izbranega logotipa');
+            }
+        }
+
+        async function saveLogoSettings(videoId) {
+            const logoPosition = document.getElementById('logoPosition').value;
+            const logoSizePercent = document.getElementById('logoSizePercent').value;
+
+            try {
+                const response = await fetch(`/videos/${videoId}/set-logo-settings/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify({
+                        logo_position: logoPosition,
+                        logo_size_percent: logoSizePercent
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to save logo settings');
+                }
+
+                updateLogoPreview();
+                alert('Logo nastavitve so shranjene!');
+            } catch (error) {
+                console.error('Error saving logo settings:', error);
+                alert('Napaka pri shranjevanju logo nastavitev');
+            }
+        }
+
+        async function uploadLogo(videoId) {
+            const fileInput = document.getElementById('logoFileInput');
+            if (!fileInput.files.length) {
+                alert('Najprej izberi datoteko logotipa');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('logo', fileInput.files[0]);
+
+            try {
+                const response = await fetch(`/videos/${videoId}/upload-logo/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: formData
+                });
+
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || 'Upload failed');
+                }
+
+                location.reload();
+            } catch (error) {
+                console.error('Error uploading logo:', error);
+                alert('Napaka pri uploadu logotipa: ' + error.message);
+            }
+        }
+
         // Function to save subtitle settings
         async function saveSubtitleSettings(videoId) {
             const fontSize = document.getElementById('fontSize').value;
@@ -542,6 +764,31 @@
         // Initialize preview on page load
         window.addEventListener('DOMContentLoaded', function() {
             updateSubtitlePreview();
+            updateLogoPreview();
+
+            const logoInputs = document.querySelectorAll('input[name="selectedLogo"]');
+            logoInputs.forEach(input => {
+                input.addEventListener('change', function() {
+                    saveSelectedLogo('{{ video.id }}');
+                });
+            });
+
+            const logoPosition = document.getElementById('logoPosition');
+            const logoSizePercent = document.getElementById('logoSizePercent');
+            if (logoPosition) {
+                logoPosition.addEventListener('change', updateLogoPreview);
+            }
+            if (logoSizePercent) {
+                logoSizePercent.addEventListener('input', updateLogoPreview);
+            }
+
+            const logoUploadForm = document.getElementById('logoUploadForm');
+            if (logoUploadForm) {
+                logoUploadForm.addEventListener('submit', function(event) {
+                    event.preventDefault();
+                    uploadLogo('{{ video.id }}');
+                });
+            }
 
             // Toggle video selector
             const toggleButtons = document.querySelectorAll('.toggle-select-video');

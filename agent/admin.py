@@ -3,7 +3,7 @@ import json
 from django.contrib import admin
 from django.utils.html import format_html
 
-from agent.models import GenVideo, VideoSegment
+from agent.models import GenVideo, UsersLogo, VideoSegment
 
 
 class VideoSegmentsInline(admin.TabularInline):
@@ -43,3 +43,10 @@ class VideoSegmentAdmin(admin.ModelAdmin):
     list_display = ("id", "video__title", "order", "text")
     search_fields = ("video__title", "text")
     list_filter = ("video",)
+
+
+@admin.register(UsersLogo)
+class UsersLogoAdmin(admin.ModelAdmin):
+    list_display = ("id", "user", "created_at")
+    search_fields = ("user__username", "logo_file")
+    list_filter = ("created_at",)

@@ -7,6 +7,7 @@ from functools import wraps
 from django.conf import settings as django_settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.files.storage import default_storage
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from PIL import Image
@@ -27,7 +28,7 @@ from agent.tasks import (
 from agent.utils import get_temporary_file_path
 
 from .forms import VideoCreateForm
-from .models import GenVideo, VideoSegment
+from .models import GenVideo, UsersLogo, VideoSegment
 
 # Create your views here.
 
@@ -548,6 +549,7 @@ def video_detail(request, video_id):
     context = {
         "video": video,
         "segments": segments,
+        "user_logos": request.user.logos.all().order_by("-created_at"),
         "total_segments": total_segments,
         "completed_segments": completed_segments,
         "progress_percentage": progress_percentage,
@@ -752,5 +754,120 @@ def set_subtitle_style(request, video_id):
             }
         )
 
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required(login_url="/admin/login/")
+def upload_logo(request, video_id):
+    """
+    Upload a new logo for the current user and optionally select it for this video.
+    """
+    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+
+    try:
+        if "logo" not in request.FILES:
+            return JsonResponse({"error": "No logo file provided"}, status=400)
+
+        uploaded_file = request.FILES["logo"]
+        if not uploaded_file.content_type.startswith("image/"):
+            return JsonResponse({"error": "Logo must be an image"}, status=400)
+
+        user_logo = UsersLogo.objects.create(user=request.user, logo_file=uploaded_file)
+
+        # Newly uploaded logo becomes selected for convenience.
+        video.logo = user_logo
+        video.save(update_fields=["logo", "updated_at"])
+
+        return JsonResponse(
+            {
+                "success": True,
+                "logo": {
+                    "id": user_logo.id,
+                    "url": user_logo.logo_file.url,
+                    "name": os.path.basename(user_logo.logo_file.name),
+                },
+            }
+        )
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required(login_url="/admin/login/")
+def set_video_logo(request, video_id):
+    """
+    Select which user logo should be used for a specific video.
+    """
+    import json
+
+    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        logo_id = data.get("logo_id")
+
+        if logo_id in (None, "", "null"):
+            video.logo = None
+            video.save(update_fields=["logo", "updated_at"])
+            return JsonResponse({"success": True, "logo_id": None})
+
+        selected_logo = get_object_or_404(UsersLogo, id=logo_id, user=request.user)
+        video.logo = selected_logo
+        video.save(update_fields=["logo", "updated_at"])
+
+        return JsonResponse(
+            {
+                "success": True,
+                "logo_id": selected_logo.id,
+                "logo_url": selected_logo.logo_file.url,
+            }
+        )
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required(login_url="/admin/login/")
+def set_logo_settings(request, video_id):
+    """
+    Save logo placement settings (corner and size) for a video.
+    """
+    import json
+
+    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+
+        logo_position = data.get("logo_position", GenVideo.LogoPositions.TOP_RIGHT)
+        logo_size_percent = int(data.get("logo_size_percent", 15))
+
+        if logo_position not in {
+            GenVideo.LogoPositions.TOP_LEFT,
+            GenVideo.LogoPositions.TOP_RIGHT,
+        }:
+            return JsonResponse({"error": "Invalid logo position"}, status=400)
+
+        logo_size_percent = max(5, min(40, logo_size_percent))
+
+        video.logo_position = logo_position
+        video.logo_size_percent = logo_size_percent
+        video.save(update_fields=["logo_position", "logo_size_percent", "updated_at"])
+
+        return JsonResponse(
+            {
+                "success": True,
+                "logo_position": logo_position,
+                "logo_size_percent": logo_size_percent,
+            }
+        )
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)

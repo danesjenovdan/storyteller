@@ -1130,8 +1130,21 @@ def render_final_video(video: GenVideo) -> None:
                 "0",  # Allow absolute file paths in concat.txt
                 "-i",
                 str(concat_file),  # Input: concat.txt with list of video files
-                "-c",
-                "copy",  # Copy video/audio streams without re-encoding (fast!)
+                "-fflags",
+                "+genpts",  # Regenerate continuous timestamps across clip boundaries
+                "-vsync",
+                "cfr",  # Normalize to constant frame rate to avoid 1-frame drops
+                "-r",
+                "30",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "medium",
+                "-crf",
+                "23",
+                "-pix_fmt",
+                "yuv420p",
+                "-an",
                 "-y",  # Overwrite output file without asking
                 str(concatenated_file),  # Output: single concatenated video
             ]
@@ -1143,7 +1156,37 @@ def render_final_video(video: GenVideo) -> None:
             # Step 4: Add audio and subtitles (if available)
             final_output = temp_path / "final.mp4"
             print("Adding audio and subtitles...")
-            with get_temporary_file_path(video.voice_file) as voice_file:
+            from contextlib import ExitStack
+
+            def _escape_ffmpeg_filter_path(path_value: str) -> str:
+                return (
+                    path_value.replace("\\", "\\\\")
+                    .replace(":", "\\:")
+                    .replace("'", "\\'")
+                )
+
+            with ExitStack() as stack:
+                voice_file = stack.enter_context(
+                    get_temporary_file_path(video.voice_file)
+                )
+
+                srt_file = None
+                if video.srt_file:
+                    srt_file = stack.enter_context(
+                        get_temporary_file_path(video.srt_file)
+                    )
+
+                logo_file = None
+                if video.logo and video.logo.logo_file:
+                    try:
+                        logo_file = stack.enter_context(
+                            get_temporary_file_path(video.logo.logo_file)
+                        )
+                    except Exception as logo_error:
+                        logger.warning(
+                            f"Could not load logo for video {video.id}, rendering without logo: {logo_error}"
+                        )
+
                 cmd = [
                     "ffmpeg",
                     "-i",
@@ -1152,87 +1195,127 @@ def render_final_video(video: GenVideo) -> None:
                     voice_file,  # Input 2: Voice audio file (narration)
                 ]
 
-                # Add subtitles if available
-                if video.srt_file:
-                    with get_temporary_file_path(video.srt_file) as srt_file:
-                        # Get subtitle parameters from video model
-                        font_size = video.subtitle_font_size or 12
-                        font_family = video.subtitle_font_family or "Montserrat"
-                        font_weight = video.subtitle_font_weight or "900"
-                        stroke_weight = video.subtitle_stroke_weight or 3
-                        shadow = video.subtitle_shadow or 1
-                        vertical_position = video.subtitle_vertical_position or 10
+                use_logo_overlay = bool(logo_file)
+                if use_logo_overlay:
+                    # Loop logo image so overlay is available for entire output timeline.
+                    cmd.extend(["-stream_loop", "-1", "-i", logo_file])  # Input 3
 
-                        # Determine if font should be bold based on weight
-                        bold = 1 if int(font_weight) >= 700 else 0
+                # Build subtitle style if subtitles are enabled
+                subtitle_filter = None
+                if srt_file:
+                    font_size = video.subtitle_font_size or 12
+                    font_family = video.subtitle_font_family or "Montserrat"
+                    font_weight = video.subtitle_font_weight or "900"
+                    stroke_weight = video.subtitle_stroke_weight or 3
+                    shadow = video.subtitle_shadow or 1
+                    vertical_position = video.subtitle_vertical_position or 10
 
-                        # Calculate MarginV (distance from bottom in pixels)
-                        # In ASS format, MarginV is the margin from the bottom edge
-                        # For 1080p video, convert percentage to pixels from bottom
-                        # Higher percentage = higher position = larger margin from bottom
-                        max_margin_v = 300
-                        margin_v = int((vertical_position / 100) * max_margin_v)
-                        print("Margin:", margin_v)
-                        # margin_v = 200
+                    bold = 1 if int(font_weight) >= 700 else 0
+                    max_margin_v = 300
+                    margin_v = int((vertical_position / 100) * max_margin_v)
+                    style = f"FontName={font_family},FontSize={font_size},Bold={bold},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline={stroke_weight},Shadow={shadow},MarginV={margin_v}"
+                    escaped_srt = _escape_ffmpeg_filter_path(srt_file)
+                    subtitle_filter = f"subtitles='{escaped_srt}':force_style='{style}'"
 
-                        # Build style string dynamically (ASS subtitle format)
-                        # FontName: Font family to use
-                        # FontSize: Size in pixels
-                        # Bold: 1=bold, 0=normal
-                        # PrimaryColour: Text color in &HAABBGGRR format (white = &H00FFFFFF)
-                        # OutlineColour: Stroke/outline color (black = &H00000000)
-                        # Outline: Stroke width in pixels
-                        # Shadow: Shadow offset/intensity
-                        # MarginV: Vertical margin from bottom edge in pixels
-                        style = f"FontName={font_family},FontSize={font_size},Bold={bold},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline={stroke_weight},Shadow={shadow},MarginV={margin_v}"
+                # Add logo overlay if logo is selected; otherwise preserve existing behavior
+                if subtitle_filter and use_logo_overlay:
+                    logo_position = getattr(video, "logo_position", "top_right")
+                    logo_size_percent = max(
+                        5, min(40, int(getattr(video, "logo_size_percent", 15) or 15))
+                    )
+                    logo_width = int(1080 * (logo_size_percent / 100.0))
+                    logo_x = (
+                        "24" if logo_position == "top_left" else "main_w-overlay_w-24"
+                    )
+                    logo_y = "24"
 
-                        # Burn-in subtitles with custom style
-                        # subtitles filter: Renders SRT file onto video permanently
-                        # force_style: Overrides all subtitle styling with our custom style
-                        subtitle_filter = f"subtitles={srt_file}:force_style='{style}'"
-                        cmd.extend(
-                            [
-                                "-vf",
-                                subtitle_filter,  # Apply subtitle video filter
-                                "-c:v",
-                                "libx264",  # Video codec: H.264 (must re-encode to burn-in subtitles)
-                                "-preset",
-                                "medium",  # Encoding speed preset
-                                "-crf",
-                                "23",  # Quality level (constant rate factor)
-                            ]
-                        )
-                        # Add audio settings
-                        cmd.extend(
-                            [
-                                "-c:a",
-                                "aac",  # Audio codec: AAC
-                                "-b:a",
-                                "192k",  # Audio bitrate: 192 kbps (good quality)
-                                "-shortest",  # End output when shortest input stream ends (video or audio)
-                                "-y",  # Overwrite output file without asking
-                                str(final_output),  # Output file path
-                            ]
-                        )
-                        result = subprocess.run(cmd, capture_output=True, text=True)
-                else:
-                    # No subtitles - just copy video stream (fast, no re-encoding)
-                    cmd.extend(["-c:v", "copy"])  # Copy video codec as-is
-
-                    # Add audio settings
-                    cmd.extend(
-                        [
-                            "-c:a",
-                            "aac",  # Audio codec: AAC
-                            "-b:a",
-                            "192k",  # Audio bitrate: 192 kbps
-                            "-shortest",  # End when shortest input stream ends
-                            "-y",  # Overwrite output file without asking
-                            str(final_output),  # Output file path
-                        ]
+                    filter_complex = (
+                        f"[0:v]{subtitle_filter}[vsub];"
+                        f"[2:v]scale={logo_width}:-1[logo];"
+                        f"[vsub][logo]overlay={logo_x}:{logo_y}:format=auto:eof_action=repeat:shortest=0[vout]"
                     )
 
-                    result = subprocess.run(cmd, capture_output=True, text=True)
+                    cmd.extend(
+                        [
+                            "-filter_complex",
+                            filter_complex,
+                            "-map",
+                            "[vout]",
+                            "-map",
+                            "1:a:0",
+                            "-c:v",
+                            "libx264",
+                            "-preset",
+                            "medium",
+                            "-crf",
+                            "23",
+                        ]
+                    )
+                elif subtitle_filter:
+                    cmd.extend(
+                        [
+                            "-vf",
+                            subtitle_filter,
+                            "-map",
+                            "0:v:0",
+                            "-map",
+                            "1:a:0",
+                            "-c:v",
+                            "libx264",
+                            "-preset",
+                            "medium",
+                            "-crf",
+                            "23",
+                        ]
+                    )
+                elif use_logo_overlay:
+                    logo_position = getattr(video, "logo_position", "top_right")
+                    logo_size_percent = max(
+                        5, min(40, int(getattr(video, "logo_size_percent", 15) or 15))
+                    )
+                    logo_width = int(1080 * (logo_size_percent / 100.0))
+                    logo_x = (
+                        "24" if logo_position == "top_left" else "main_w-overlay_w-24"
+                    )
+                    logo_y = "24"
+
+                    filter_complex = (
+                        f"[2:v]scale={logo_width}:-1[logo];"
+                        f"[0:v][logo]overlay={logo_x}:{logo_y}:format=auto:eof_action=repeat:shortest=0[vout]"
+                    )
+                    cmd.extend(
+                        [
+                            "-filter_complex",
+                            filter_complex,
+                            "-map",
+                            "[vout]",
+                            "-map",
+                            "1:a:0",
+                            "-c:v",
+                            "libx264",
+                            "-preset",
+                            "medium",
+                            "-crf",
+                            "23",
+                        ]
+                    )
+                else:
+                    # No subtitles/logo - keep original fast path.
+                    cmd.extend(["-c:v", "copy", "-map", "0:v:0", "-map", "1:a:0"])
+
+                cmd.extend(
+                    [
+                        "-c:a",
+                        "aac",
+                        "-b:a",
+                        "192k",
+                        "-shortest",
+                        "-y",
+                        str(final_output),
+                    ]
+                )
+
+                result = subprocess.run(cmd, capture_output=True, text=True)
                 if result.returncode != 0:
                     raise RuntimeError(f"FFmpeg final render failed: {result.stderr}")
 

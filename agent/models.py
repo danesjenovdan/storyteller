@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 # Create your models here.
@@ -28,6 +29,10 @@ class GenVideo(models.Model):
         SRT_GENERATION = "SRT_GENERATION", "Napaka pri generiranju podnapisov"
         SEGMENTS_GENERATION = "SEGMENTS_GENERATION", "Napaka pri generiranju segmentov"
         RENDERING = "RENDERING", "Napaka pri renderiranju videa"
+
+    class LogoPositions(models.TextChoices):
+        TOP_LEFT = "top_left", "Zgoraj levo"
+        TOP_RIGHT = "top_right", "Zgoraj desno"
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="videos"
@@ -96,6 +101,24 @@ class GenVideo(models.Model):
     )
     error_details = models.TextField(
         blank=True, null=True, help_text="Error details if task failed"
+    )
+    logo = models.ForeignKey(
+        "UsersLogo",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="Optional logo to include in the video",
+    )
+    logo_position = models.CharField(
+        max_length=20,
+        choices=LogoPositions.choices,
+        default=LogoPositions.TOP_RIGHT,
+        help_text="Selected corner for logo placement",
+    )
+    logo_size_percent = models.PositiveSmallIntegerField(
+        default=15,
+        validators=[MinValueValidator(5), MaxValueValidator(40)],
+        help_text="Logo width as percentage of final video width",
     )
     result_url = models.URLField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -173,3 +196,19 @@ class VideoSegment(models.Model):
 
     def duration(self):
         return self.end_time - self.start_time
+
+
+class UsersLogo(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="logos"
+    )
+    logo_file = models.FileField(
+        upload_to="user_logos/",
+        null=True,
+        blank=True,
+        help_text="User uploaded logo file",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Logo {self.id} for User {self.user.username}"

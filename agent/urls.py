@@ -34,6 +34,21 @@ urlpatterns = [
         name="set_subtitle_style",
     ),
     path(
+        "videos/<int:video_id>/upload-logo/",
+        views.upload_logo,
+        name="upload_logo",
+    ),
+    path(
+        "videos/<int:video_id>/set-logo/",
+        views.set_video_logo,
+        name="set_video_logo",
+    ),
+    path(
+        "videos/<int:video_id>/set-logo-settings/",
+        views.set_logo_settings,
+        name="set_logo_settings",
+    ),
+    path(
         "video-segments/<int:video_segment_id>/search-videos/",
         views.search_videos,
         name="search_videos",
