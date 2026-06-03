@@ -1,4 +1,5 @@
 from django import forms
+from django.utils.translation import gettext_lazy as _
 
 from .models import GenVideo
 
@@ -14,21 +15,31 @@ class VideoCreateForm(forms.ModelForm):
                 "class": "form-select",
             }
         ),
-        label="Glasovni model",
+        label=_("Glasovni model"),
     )
 
     class Meta:
         model = GenVideo
-        fields = ["title", "scenario", "modify_prompt", "voice_model", "voice_file"]
+        fields = [
+            "title",
+            "scenario",
+            "modify_prompt",
+            "voice_model",
+            "language",
+            "voice_file",
+        ]
         widgets = {
             "title": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Vnesite naslov videa"}
+                attrs={
+                    "class": "form-control",
+                    "placeholder": _("Vnesite naslov videa"),
+                }
             ),
             "scenario": forms.Textarea(
                 attrs={
                     "class": "form-control",
                     "rows": 5,
-                    "placeholder": "Opišite scenarij videa",
+                    "placeholder": _("Opišite scenarij videa"),
                     "required": False,
                 }
             ),
@@ -36,16 +47,22 @@ class VideoCreateForm(forms.ModelForm):
                 attrs={
                     "class": "form-control",
                     "rows": 8,
-                    "placeholder": "Vnesite prompt za LLM",
+                    "placeholder": _("Vnesite prompt za LLM"),
+                }
+            ),
+            "language": forms.Select(
+                attrs={
+                    "class": "form-select",
                 }
             ),
         }
         labels = {
-            "title": "Naslov",
-            "scenario": "Scenarij",
-            "modify_prompt": "Navodila za LLM",
-            "voice_model": "Glasovni model",
-            "voice_file": "Naložite glasovno datoteko",
+            "title": _("Naslov"),
+            "scenario": _("Scenarij"),
+            "modify_prompt": _("Navodila za LLM"),
+            "voice_model": _("Glasovni model"),
+            "language": _("Jezik"),
+            "voice_file": _("Naložite glasovno datoteko"),
         }
 
     def __init__(self, *args, voice_models=None, **kwargs):

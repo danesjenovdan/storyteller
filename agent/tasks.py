@@ -6,6 +6,7 @@ import time
 
 from django.conf import settings
 from django.core.files.base import ContentFile
+from django.utils.translation import gettext as _
 from elevenlabs.client import ElevenLabs
 from google import genai
 from google.genai.types import Content, Part
@@ -174,7 +175,7 @@ def generate_voice_file_eleven_labs(video: int) -> None:
             voice_id=voice_id,
             text=video.scenario,
             model_id="eleven_v3",
-            language_code="sl",
+            language_code=(video.language or "sl").split("-")[0],
         )
 
         # Collect audio chunks into bytes
@@ -210,7 +211,9 @@ def generate_voice_file_eleven_labs(video: int) -> None:
         video = GenVideo.objects.get(id=video.id)
         video.status = GenVideo.Statuses.FAILED
         video.error_type = GenVideo.ErrorTypes.VOICE_GENERATION
-        video.error_details = f"Error generating voice file (ElevenLabs): {str(e)}"
+        video.error_details = _(
+            "Napaka pri ustvarjanju zvočne datoteke (ElevenLabs): %(error)s"
+        ) % {"error": str(e)}
         video.save()
         raise
 
@@ -282,8 +285,9 @@ def generate_voice_file_openai(video: int) -> None:
         video = GenVideo.objects.get(id=video.id)
         video.status = GenVideo.Statuses.FAILED
         video.error_type = GenVideo.ErrorTypes.VOICE_GENERATION
-        video.error_details = f"Error generating voice file (Gemini): {str(e)}"
-        video.error_details = f"Error generating voice file (OpenAI): {str(e)}"
+        video.error_details = _(
+            "Napaka pri ustvarjanju zvočne datoteke (OpenAI): %(error)s"
+        ) % {"error": str(e)}
         video.save()
         raise
 
@@ -446,7 +450,7 @@ def generate_voice_file_gemini(video: int) -> None:
             generate_srt_file(video)
         else:
             logger.error(f"Response content: {response}")
-            raise ValueError("No audio data in response")
+            raise ValueError(_("V odgovoru ni zvočnih podatkov"))
 
     except GenVideo.DoesNotExist:
         logger.error(f"Video with id {video.id} does not exist")
@@ -482,7 +486,9 @@ def get_video_segments(video_instance: GenVideo) -> None:
                 logger.error(error_msg)
                 video_instance.status = GenVideo.Statuses.FAILED
                 video_instance.error_type = GenVideo.ErrorTypes.SEGMENTS_GENERATION
-                video_instance.error_details = f"{error_msg}. Vsebina morda krši Gemini politiko. Poskusite preformulirati prompt ali scenarij."
+                video_instance.error_details = _(
+                    "Gemini je blokiral vsebino. Vsebina morda krši Gemini politiko. Poskusite preformulirati prompt ali scenarij."
+                )
                 video_instance.save()
                 raise ValueError(error_msg)
 
@@ -494,7 +500,7 @@ def get_video_segments(video_instance: GenVideo) -> None:
             logger.error(error_msg)
             video_instance.status = GenVideo.Statuses.FAILED
             video_instance.error_type = GenVideo.ErrorTypes.SEGMENTS_GENERATION
-            video_instance.error_details = (
+            video_instance.error_details = _(
                 "Gemini je vrnil prazen odgovor. Poskusite preformulirati prompt."
             )
             video_instance.save()
@@ -510,7 +516,7 @@ def get_video_segments(video_instance: GenVideo) -> None:
             logger.info(len(data))
             data = json.loads(data[0]["text"])
         else:
-            raise ValueError("Unexpected model response format for video segments")
+            raise ValueError(_("Nepričakovan format odgovora modela za video segmente"))
 
         for i, segment_data in enumerate(data):
             start = float(segment_data["start"].strip())
@@ -521,7 +527,9 @@ def get_video_segments(video_instance: GenVideo) -> None:
             if start >= end:
                 video_instance.status = GenVideo.Statuses.FAILED
                 video_instance.error_type = GenVideo.ErrorTypes.SEGMENTS_GENERATION
-                video_instance.error_details = f"Invalid segment times for segment {i+1}: start {start} >= end {end}"
+                video_instance.error_details = _(
+                    "Neveljavni časi segmenta %(segment)s: začetek %(start)s >= konec %(end)s"
+                ) % {"segment": i + 1, "start": start, "end": end}
                 video_instance.save()
 
             # If this is the last segment and we have voice_duration, use it
@@ -556,7 +564,9 @@ def get_video_segments(video_instance: GenVideo) -> None:
         )
         video_instance.status = GenVideo.Statuses.FAILED
         video_instance.error_type = GenVideo.ErrorTypes.SEGMENTS_GENERATION
-        video_instance.error_details = f"Error generating segments: {str(e)}"
+        video_instance.error_details = _(
+            "Napaka pri generiranju segmentov: %(error)s"
+        ) % {"error": str(e)}
         video_instance.save()
         raise
 
@@ -614,7 +624,10 @@ our final approach into Coruscant.
         # Validate SRT content before saving
         is_valid, validation_message = validate_srt_content(srt_content)
         if not is_valid:
-            raise ValueError(f"Invalid SRT content: {validation_message}")
+            raise ValueError(
+                _("Neveljavna SRT vsebina: %(message)s")
+                % {"message": validation_message}
+            )
 
         logger.info(f"SRT validation result: {validation_message}")
 
@@ -633,7 +646,9 @@ our final approach into Coruscant.
         logger.error(f"✗ Error generating SRT file for video {video.id}: {str(e)}")
         video.status = GenVideo.Statuses.FAILED
         video.error_type = GenVideo.ErrorTypes.SRT_GENERATION
-        video.error_details = f"Error generating SRT file: {str(e)}"
+        video.error_details = _("Napaka pri generiranju SRT datoteke: %(error)s") % {
+            "error": str(e)
+        }
         video.save()
         raise
 
@@ -663,6 +678,154 @@ def render_final_video(video: GenVideo) -> None:
         get_temporary_file_from_url,
         get_temporary_file_path,
     )
+
+    def _build_entry_animation_filter(animation: str, clip_duration: float):
+        safe_duration = max(float(clip_duration or 0.0), 0.1)
+        animation = (animation or "none").strip().lower()
+        entry_duration = min(0.6, safe_duration / 2)
+
+        if animation == "fade_in_soft":
+            return f"fade=t=in:st=0:d={min(0.3, entry_duration):.3f}"
+        if animation == "fade_in_strong":
+            return f"fade=t=in:st=0:d={entry_duration:.3f}"
+        if animation == "zoom_in_soft":
+            return (
+                f"scale=iw*(1+0.04*min(t/{entry_duration:.3f}\\,1)):"
+                f"ih*(1+0.04*min(t/{entry_duration:.3f}\\,1)):eval=frame,"
+                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
+            )
+        if animation == "zoom_in_strong":
+            return (
+                f"scale=iw*(1+0.09*min(t/{entry_duration:.3f}\\,1)):"
+                f"ih*(1+0.09*min(t/{entry_duration:.3f}\\,1)):eval=frame,"
+                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
+            )
+        return None
+
+    def _build_mid_animation_filter(animation: str, clip_duration: float):
+        safe_duration = max(float(clip_duration or 0.0), 0.1)
+        animation = (animation or "none").strip().lower()
+
+        if animation == "slow_zoom_in_soft":
+            return (
+                f"scale=iw*(1+0.04*t/{safe_duration:.3f}):"
+                f"ih*(1+0.04*t/{safe_duration:.3f}):eval=frame,"
+                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
+            )
+        if animation == "slow_zoom_in_strong":
+            return (
+                f"scale=iw*(1+0.10*t/{safe_duration:.3f}):"
+                f"ih*(1+0.10*t/{safe_duration:.3f}):eval=frame,"
+                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
+            )
+        if animation == "slow_zoom_out_soft":
+            return (
+                f"scale=iw*(1.04-0.04*t/{safe_duration:.3f}):"
+                f"ih*(1.04-0.04*t/{safe_duration:.3f}):eval=frame,"
+                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
+            )
+        if animation == "slow_zoom_out_strong":
+            return (
+                f"scale=iw*(1.10-0.10*t/{safe_duration:.3f}):"
+                f"ih*(1.10-0.10*t/{safe_duration:.3f}):eval=frame,"
+                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
+            )
+        if animation == "subtle_pan_lr":
+            return (
+                "scale=iw*1.06:ih*1.06:eval=frame,"
+                f"crop=1080:1920:(iw-1080)*(0.5+0.5*sin(2*PI*t/{safe_duration:.3f}-PI/2)):(ih-1920)/2"
+            )
+        if animation == "subtle_pan_ud":
+            return (
+                "scale=iw*1.06:ih*1.06:eval=frame,"
+                f"crop=1080:1920:(iw-1080)/2:(ih-1920)*(0.5+0.5*sin(2*PI*t/{safe_duration:.3f}-PI/2))"
+            )
+        return None
+
+    def _build_exit_animation_filter(animation: str, clip_duration: float):
+        safe_duration = max(float(clip_duration or 0.0), 0.1)
+        animation = (animation or "none").strip().lower()
+        exit_duration = min(0.6, safe_duration / 2)
+        fade_out_start = max(0.0, safe_duration - exit_duration)
+
+        if animation == "fade_out_soft":
+            soft_duration = min(0.3, exit_duration)
+            return (
+                f"fade=t=out:st={max(0.0, safe_duration-soft_duration):.3f}:"
+                f"d={soft_duration:.3f}"
+            )
+        if animation == "fade_out_strong":
+            return f"fade=t=out:st={fade_out_start:.3f}:d={exit_duration:.3f}"
+        if animation == "zoom_out_soft":
+            return (
+                f"scale=iw*(1+0.04*max(({safe_duration:.3f}-t)/{exit_duration:.3f}\\,0)):"
+                f"ih*(1+0.04*max(({safe_duration:.3f}-t)/{exit_duration:.3f}\\,0)):eval=frame,"
+                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
+            )
+        if animation == "zoom_out_strong":
+            return (
+                f"scale=iw*(1+0.09*max(({safe_duration:.3f}-t)/{exit_duration:.3f}\\,0)):"
+                f"ih*(1+0.09*max(({safe_duration:.3f}-t)/{exit_duration:.3f}\\,0)):eval=frame,"
+                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
+            )
+        return None
+
+    def _build_segment_animation_filter(animation, clip_duration: float):
+        if isinstance(animation, dict):
+            animation_in = animation.get("in", "none")
+            animation_mid = animation.get("mid", "none")
+            animation_out = animation.get("out", "none")
+        else:
+            # Backward compatibility with legacy single animation selection.
+            legacy = (animation or "none").strip().lower()
+            legacy_in_map = {
+                "fade_in": "fade_in_soft",
+                "fade_in_out": "fade_in_soft",
+            }
+            legacy_mid_map = {
+                "zoom_in": "slow_zoom_in_soft",
+                "zoom_out": "slow_zoom_out_soft",
+            }
+            legacy_out_map = {
+                "fade_out": "fade_out_soft",
+                "fade_in_out": "fade_out_soft",
+            }
+            animation_in = legacy_in_map.get(legacy, "none")
+            animation_mid = legacy_mid_map.get(legacy, "none")
+            animation_out = legacy_out_map.get(legacy, "none")
+
+        filters = []
+        entry_filter = _build_entry_animation_filter(animation_in, clip_duration)
+        mid_filter = _build_mid_animation_filter(animation_mid, clip_duration)
+        exit_filter = _build_exit_animation_filter(animation_out, clip_duration)
+
+        if entry_filter:
+            filters.append(entry_filter)
+        if mid_filter:
+            filters.append(mid_filter)
+        if exit_filter:
+            filters.append(exit_filter)
+
+        if not filters:
+            return None
+
+        return ",".join(filters)
+
+    def _append_animation_to_vf(
+        base_filter: str, animation: str, clip_duration: float
+    ) -> str:
+        animation_filter = _build_segment_animation_filter(animation, clip_duration)
+        if not animation_filter:
+            return base_filter
+        return f"{base_filter},{animation_filter}"
+
+    def _append_animation_to_filter_complex(
+        base_filter: str, animation: str, clip_duration: float
+    ) -> str:
+        animation_filter = _build_segment_animation_filter(animation, clip_duration)
+        if not animation_filter:
+            return base_filter
+        return f"{base_filter},{animation_filter}"
 
     try:
         video.status = GenVideo.Statuses.RENDERING
@@ -710,12 +873,20 @@ def render_final_video(video: GenVideo) -> None:
                 horizontal_mode = segment.video_proposals[0].get(
                     "horizontal_mode", "crop"
                 )
+                animation_mode = {
+                    "in": segment.video_proposals[0].get("animation_in", "none"),
+                    "mid": segment.video_proposals[0].get(
+                        "animation_mid",
+                        segment.video_proposals[0].get("animation", "none"),
+                    ),
+                    "out": segment.video_proposals[0].get("animation_out", "none"),
+                }
 
                 output_file = temp_path / f"clip_{i:03d}.mp4"
                 duration = segment.duration()
 
                 logger.info(
-                    f"Processing clip {i+1}/{segments.count()}: {duration:.2f}s from URL (dimensions: {width}x{height}, is_image: {is_image}, mode: {horizontal_mode})"
+                    f"Processing clip {i+1}/{segments.count()}: {duration:.2f}s from URL (dimensions: {width}x{height}, is_image: {is_image}, mode: {horizontal_mode}, animation_in: {animation_mode['in']}, animation_mid: {animation_mode['mid']}, animation_out: {animation_mode['out']})"
                 )
 
                 if is_image:
@@ -746,7 +917,11 @@ def render_final_video(video: GenVideo) -> None:
                                     "-t",
                                     str(duration),
                                     "-vf",
-                                    "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                    _append_animation_to_vf(
+                                        "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                        animation_mode,
+                                        duration,
+                                    ),
                                     "-c:v",
                                     "libx264",
                                     "-preset",
@@ -771,10 +946,14 @@ def render_final_video(video: GenVideo) -> None:
                                 )
 
                                 # Complex filter for blur
-                                video_filter = (
-                                    "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
-                                    "[0:v]scale=1080:-1:force_original_aspect_ratio=decrease[main];"
-                                    "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
+                                video_filter = _append_animation_to_filter_complex(
+                                    (
+                                        "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
+                                        "[0:v]scale=1080:-1:force_original_aspect_ratio=decrease[main];"
+                                        "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
+                                    ),
+                                    animation_mode,
+                                    duration,
                                 )
 
                                 cmd = [
@@ -813,10 +992,14 @@ def render_final_video(video: GenVideo) -> None:
                                 # Complex filter - use ffmpeg variables (iw/ih) for dynamic dimensions
                                 # ih = input height, iw = input width
                                 # crop=ih:ih:(iw-ih)/2:0 makes square crop centered horizontally
-                                video_filter = (
-                                    "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
-                                    "[0:v]crop=ih:ih:(iw-ih)/2:0,scale=1080:-1:force_original_aspect_ratio=decrease[main];"
-                                    "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
+                                video_filter = _append_animation_to_filter_complex(
+                                    (
+                                        "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
+                                        "[0:v]crop=ih:ih:(iw-ih)/2:0,scale=1080:-1:force_original_aspect_ratio=decrease[main];"
+                                        "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
+                                    ),
+                                    animation_mode,
+                                    duration,
                                 )
 
                                 cmd = [
@@ -860,7 +1043,11 @@ def render_final_video(video: GenVideo) -> None:
                                     "-t",
                                     str(duration),
                                     "-vf",
-                                    "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                    _append_animation_to_vf(
+                                        "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                        animation_mode,
+                                        duration,
+                                    ),
                                     "-c:v",
                                     "libx264",
                                     "-preset",
@@ -892,7 +1079,11 @@ def render_final_video(video: GenVideo) -> None:
                                 "-t",
                                 str(duration),
                                 "-vf",
-                                "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                _append_animation_to_vf(
+                                    "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                    animation_mode,
+                                    duration,
+                                ),
                                 "-c:v",
                                 "libx264",
                                 "-preset",
@@ -946,7 +1137,11 @@ def render_final_video(video: GenVideo) -> None:
                                     "-t",
                                     str(duration),
                                     "-vf",
-                                    "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                    _append_animation_to_vf(
+                                        "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                        animation_mode,
+                                        duration,
+                                    ),
                                     "-c:v",
                                     "libx264",
                                     "-preset",
@@ -971,10 +1166,14 @@ def render_final_video(video: GenVideo) -> None:
                                 )
 
                                 # Complex filter, must use -filter_complex
-                                video_filter = (
-                                    "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
-                                    "[0:v]scale=1080:-1:force_original_aspect_ratio=decrease[main];"
-                                    "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
+                                video_filter = _append_animation_to_filter_complex(
+                                    (
+                                        "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
+                                        "[0:v]scale=1080:-1:force_original_aspect_ratio=decrease[main];"
+                                        "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
+                                    ),
+                                    animation_mode,
+                                    duration,
                                 )
 
                                 cmd = [
@@ -1010,10 +1209,14 @@ def render_final_video(video: GenVideo) -> None:
 
                                 # Complex filter with ffmpeg variables (iw/ih)
                                 # crop=ih:ih:(iw-ih)/2:0 makes square crop centered horizontally
-                                video_filter = (
-                                    "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
-                                    "[0:v]crop=ih:ih:(iw-ih)/2:0,scale=1080:-1:force_original_aspect_ratio=decrease[main];"
-                                    "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
+                                video_filter = _append_animation_to_filter_complex(
+                                    (
+                                        "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
+                                        "[0:v]crop=ih:ih:(iw-ih)/2:0,scale=1080:-1:force_original_aspect_ratio=decrease[main];"
+                                        "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
+                                    ),
+                                    animation_mode,
+                                    duration,
                                 )
 
                                 cmd = [
@@ -1053,7 +1256,11 @@ def render_final_video(video: GenVideo) -> None:
                                     "-t",
                                     str(duration),
                                     "-vf",
-                                    "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                    _append_animation_to_vf(
+                                        "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                        animation_mode,
+                                        duration,
+                                    ),
                                     "-c:v",
                                     "libx264",
                                     "-preset",
@@ -1083,7 +1290,11 @@ def render_final_video(video: GenVideo) -> None:
                                 "-t",
                                 str(duration),
                                 "-vf",
-                                "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                _append_animation_to_vf(
+                                    "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                    animation_mode,
+                                    duration,
+                                ),
                                 "-c:v",
                                 "libx264",
                                 "-preset",
@@ -1130,8 +1341,21 @@ def render_final_video(video: GenVideo) -> None:
                 "0",  # Allow absolute file paths in concat.txt
                 "-i",
                 str(concat_file),  # Input: concat.txt with list of video files
-                "-c",
-                "copy",  # Copy video/audio streams without re-encoding (fast!)
+                "-fflags",
+                "+genpts",  # Regenerate continuous timestamps across clip boundaries
+                "-vsync",
+                "cfr",  # Normalize to constant frame rate to avoid 1-frame drops
+                "-r",
+                "30",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "medium",
+                "-crf",
+                "23",
+                "-pix_fmt",
+                "yuv420p",
+                "-an",
                 "-y",  # Overwrite output file without asking
                 str(concatenated_file),  # Output: single concatenated video
             ]
@@ -1143,7 +1367,37 @@ def render_final_video(video: GenVideo) -> None:
             # Step 4: Add audio and subtitles (if available)
             final_output = temp_path / "final.mp4"
             print("Adding audio and subtitles...")
-            with get_temporary_file_path(video.voice_file) as voice_file:
+            from contextlib import ExitStack
+
+            def _escape_ffmpeg_filter_path(path_value: str) -> str:
+                return (
+                    path_value.replace("\\", "\\\\")
+                    .replace(":", "\\:")
+                    .replace("'", "\\'")
+                )
+
+            with ExitStack() as stack:
+                voice_file = stack.enter_context(
+                    get_temporary_file_path(video.voice_file)
+                )
+
+                srt_file = None
+                if video.srt_file:
+                    srt_file = stack.enter_context(
+                        get_temporary_file_path(video.srt_file)
+                    )
+
+                logo_file = None
+                if video.logo and video.logo.logo_file:
+                    try:
+                        logo_file = stack.enter_context(
+                            get_temporary_file_path(video.logo.logo_file)
+                        )
+                    except Exception as logo_error:
+                        logger.warning(
+                            f"Could not load logo for video {video.id}, rendering without logo: {logo_error}"
+                        )
+
                 cmd = [
                     "ffmpeg",
                     "-i",
@@ -1152,87 +1406,127 @@ def render_final_video(video: GenVideo) -> None:
                     voice_file,  # Input 2: Voice audio file (narration)
                 ]
 
-                # Add subtitles if available
-                if video.srt_file:
-                    with get_temporary_file_path(video.srt_file) as srt_file:
-                        # Get subtitle parameters from video model
-                        font_size = video.subtitle_font_size or 12
-                        font_family = video.subtitle_font_family or "Montserrat"
-                        font_weight = video.subtitle_font_weight or "900"
-                        stroke_weight = video.subtitle_stroke_weight or 3
-                        shadow = video.subtitle_shadow or 1
-                        vertical_position = video.subtitle_vertical_position or 10
+                use_logo_overlay = bool(logo_file)
+                if use_logo_overlay:
+                    # Loop logo image so overlay is available for entire output timeline.
+                    cmd.extend(["-stream_loop", "-1", "-i", logo_file])  # Input 3
 
-                        # Determine if font should be bold based on weight
-                        bold = 1 if int(font_weight) >= 700 else 0
+                # Build subtitle style if subtitles are enabled
+                subtitle_filter = None
+                if srt_file:
+                    font_size = video.subtitle_font_size or 12
+                    font_family = video.subtitle_font_family or "Montserrat"
+                    font_weight = video.subtitle_font_weight or "900"
+                    stroke_weight = video.subtitle_stroke_weight or 3
+                    shadow = video.subtitle_shadow or 1
+                    vertical_position = video.subtitle_vertical_position or 10
 
-                        # Calculate MarginV (distance from bottom in pixels)
-                        # In ASS format, MarginV is the margin from the bottom edge
-                        # For 1080p video, convert percentage to pixels from bottom
-                        # Higher percentage = higher position = larger margin from bottom
-                        max_margin_v = 300
-                        margin_v = int((vertical_position / 100) * max_margin_v)
-                        print("Margin:", margin_v)
-                        # margin_v = 200
+                    bold = 1 if int(font_weight) >= 700 else 0
+                    max_margin_v = 300
+                    margin_v = int((vertical_position / 100) * max_margin_v)
+                    style = f"FontName={font_family},FontSize={font_size},Bold={bold},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline={stroke_weight},Shadow={shadow},MarginV={margin_v}"
+                    escaped_srt = _escape_ffmpeg_filter_path(srt_file)
+                    subtitle_filter = f"subtitles='{escaped_srt}':force_style='{style}'"
 
-                        # Build style string dynamically (ASS subtitle format)
-                        # FontName: Font family to use
-                        # FontSize: Size in pixels
-                        # Bold: 1=bold, 0=normal
-                        # PrimaryColour: Text color in &HAABBGGRR format (white = &H00FFFFFF)
-                        # OutlineColour: Stroke/outline color (black = &H00000000)
-                        # Outline: Stroke width in pixels
-                        # Shadow: Shadow offset/intensity
-                        # MarginV: Vertical margin from bottom edge in pixels
-                        style = f"FontName={font_family},FontSize={font_size},Bold={bold},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline={stroke_weight},Shadow={shadow},MarginV={margin_v}"
+                # Add logo overlay if logo is selected; otherwise preserve existing behavior
+                if subtitle_filter and use_logo_overlay:
+                    logo_position = getattr(video, "logo_position", "top_right")
+                    logo_size_percent = max(
+                        5, min(40, int(getattr(video, "logo_size_percent", 15) or 15))
+                    )
+                    logo_width = int(1080 * (logo_size_percent / 100.0))
+                    logo_x = (
+                        "24" if logo_position == "top_left" else "main_w-overlay_w-24"
+                    )
+                    logo_y = "24"
 
-                        # Burn-in subtitles with custom style
-                        # subtitles filter: Renders SRT file onto video permanently
-                        # force_style: Overrides all subtitle styling with our custom style
-                        subtitle_filter = f"subtitles={srt_file}:force_style='{style}'"
-                        cmd.extend(
-                            [
-                                "-vf",
-                                subtitle_filter,  # Apply subtitle video filter
-                                "-c:v",
-                                "libx264",  # Video codec: H.264 (must re-encode to burn-in subtitles)
-                                "-preset",
-                                "medium",  # Encoding speed preset
-                                "-crf",
-                                "23",  # Quality level (constant rate factor)
-                            ]
-                        )
-                        # Add audio settings
-                        cmd.extend(
-                            [
-                                "-c:a",
-                                "aac",  # Audio codec: AAC
-                                "-b:a",
-                                "192k",  # Audio bitrate: 192 kbps (good quality)
-                                "-shortest",  # End output when shortest input stream ends (video or audio)
-                                "-y",  # Overwrite output file without asking
-                                str(final_output),  # Output file path
-                            ]
-                        )
-                        result = subprocess.run(cmd, capture_output=True, text=True)
-                else:
-                    # No subtitles - just copy video stream (fast, no re-encoding)
-                    cmd.extend(["-c:v", "copy"])  # Copy video codec as-is
-
-                    # Add audio settings
-                    cmd.extend(
-                        [
-                            "-c:a",
-                            "aac",  # Audio codec: AAC
-                            "-b:a",
-                            "192k",  # Audio bitrate: 192 kbps
-                            "-shortest",  # End when shortest input stream ends
-                            "-y",  # Overwrite output file without asking
-                            str(final_output),  # Output file path
-                        ]
+                    filter_complex = (
+                        f"[0:v]{subtitle_filter}[vsub];"
+                        f"[2:v]scale={logo_width}:-1[logo];"
+                        f"[vsub][logo]overlay={logo_x}:{logo_y}:format=auto:eof_action=repeat:shortest=0[vout]"
                     )
 
-                    result = subprocess.run(cmd, capture_output=True, text=True)
+                    cmd.extend(
+                        [
+                            "-filter_complex",
+                            filter_complex,
+                            "-map",
+                            "[vout]",
+                            "-map",
+                            "1:a:0",
+                            "-c:v",
+                            "libx264",
+                            "-preset",
+                            "medium",
+                            "-crf",
+                            "23",
+                        ]
+                    )
+                elif subtitle_filter:
+                    cmd.extend(
+                        [
+                            "-vf",
+                            subtitle_filter,
+                            "-map",
+                            "0:v:0",
+                            "-map",
+                            "1:a:0",
+                            "-c:v",
+                            "libx264",
+                            "-preset",
+                            "medium",
+                            "-crf",
+                            "23",
+                        ]
+                    )
+                elif use_logo_overlay:
+                    logo_position = getattr(video, "logo_position", "top_right")
+                    logo_size_percent = max(
+                        5, min(40, int(getattr(video, "logo_size_percent", 15) or 15))
+                    )
+                    logo_width = int(1080 * (logo_size_percent / 100.0))
+                    logo_x = (
+                        "24" if logo_position == "top_left" else "main_w-overlay_w-24"
+                    )
+                    logo_y = "24"
+
+                    filter_complex = (
+                        f"[2:v]scale={logo_width}:-1[logo];"
+                        f"[0:v][logo]overlay={logo_x}:{logo_y}:format=auto:eof_action=repeat:shortest=0[vout]"
+                    )
+                    cmd.extend(
+                        [
+                            "-filter_complex",
+                            filter_complex,
+                            "-map",
+                            "[vout]",
+                            "-map",
+                            "1:a:0",
+                            "-c:v",
+                            "libx264",
+                            "-preset",
+                            "medium",
+                            "-crf",
+                            "23",
+                        ]
+                    )
+                else:
+                    # No subtitles/logo - keep original fast path.
+                    cmd.extend(["-c:v", "copy", "-map", "0:v:0", "-map", "1:a:0"])
+
+                cmd.extend(
+                    [
+                        "-c:a",
+                        "aac",
+                        "-b:a",
+                        "192k",
+                        "-shortest",
+                        "-y",
+                        str(final_output),
+                    ]
+                )
+
+                result = subprocess.run(cmd, capture_output=True, text=True)
                 if result.returncode != 0:
                     raise RuntimeError(f"FFmpeg final render failed: {result.stderr}")
 
@@ -1251,6 +1545,8 @@ def render_final_video(video: GenVideo) -> None:
         print(f"Error rendering video {video}: {str(e)}")
         video.status = GenVideo.Statuses.FAILED
         video.error_type = GenVideo.ErrorTypes.RENDERING
-        video.error_details = f"Error rendering final video: {str(e)}"
+        video.error_details = _("Napaka pri renderiranju končnega videa: %(error)s") % {
+            "error": str(e)
+        }
         video.save()
         raise

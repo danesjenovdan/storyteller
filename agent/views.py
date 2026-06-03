@@ -7,8 +7,11 @@ from functools import wraps
 from django.conf import settings as django_settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.files.storage import default_storage
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.translation import gettext as _
+from django.utils.translation import ngettext
 from PIL import Image
 
 from agent.content_apis import (
@@ -27,7 +30,7 @@ from agent.tasks import (
 from agent.utils import get_temporary_file_path
 
 from .forms import VideoCreateForm
-from .models import GenVideo, VideoSegment
+from .models import GenVideo, UsersLogo, VideoSegment
 
 # Create your views here.
 
@@ -40,7 +43,7 @@ def ajax_login_required(view_func):
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
         if not request.user.is_authenticated:
-            return JsonResponse({"error": "Authentication required"}, status=401)
+            return JsonResponse({"error": _("Authentication required")}, status=401)
         return view_func(request, *args, **kwargs)
 
     return wrapper
@@ -64,7 +67,7 @@ def modify_scenario_with_gemini(request):
     from agent.utils import ensure_google_api_key
 
     if request.method != "POST":
-        return JsonResponse({"error": "Method not allowed"}, status=405)
+        return JsonResponse({"error": _("Method not allowed")}, status=405)
 
     try:
         data = json.loads(request.body)
@@ -72,7 +75,7 @@ def modify_scenario_with_gemini(request):
         modify_prompt = data.get("modify_prompt", "")
 
         if not modify_prompt:
-            return JsonResponse({"error": "Modify prompt is required"}, status=400)
+            return JsonResponse({"error": _("Modify prompt is required")}, status=400)
 
         # Ensure Google API key is set
         ensure_google_api_key()
@@ -92,7 +95,10 @@ def modify_scenario_with_gemini(request):
         )
 
     except Exception as e:
-        return JsonResponse({"error": f"Error calling Gemini: {str(e)}"}, status=500)
+        return JsonResponse(
+            {"error": _("Error calling Gemini: %(error)s") % {"error": str(e)}},
+            status=500,
+        )
 
 
 @login_required(login_url="/admin/login/")
@@ -104,7 +110,7 @@ def video_create(request):
     # Voice models based on TTS provider
     if tts_provider == "elevenlabs":
         VOICE_MODELS = [
-            ("", "--- Izberite glasovni model ---"),
+            ("", _("--- Izberite glasovni model ---")),
             ("21m00Tcm4TlvDq8ikWAM", "Rachel - Calm and composed"),
             ("AZnzlk1XvdvUeBnXmlld", "Domi - Strong and authoritative"),
             ("EXAVITQu4vr4xnSDxMaL", "Bella - Soft and warm"),
@@ -117,7 +123,7 @@ def video_create(request):
         ]
     elif tts_provider == "gemini":
         VOICE_MODELS = [
-            ("", "--- Izberite glasovni model ---"),
+            ("", _("--- Izberite glasovni model ---")),
             ("Puck", "Puck - Neutral and balanced"),
             ("Charon", "Charon - Male, authoritative"),
             ("Kore", "Kore - Warm, storytelling"),
@@ -126,7 +132,7 @@ def video_create(request):
         ]
     else:  # openai
         VOICE_MODELS = [
-            ("", "--- Izberite glasovni model ---"),
+            ("", _("--- Izberite glasovni model ---")),
             ("alloy", "Alloy - Neutral and balanced"),
             ("echo", "Echo - Male, clear and expressive"),
             ("fable", "Fable - British accent, warm"),
@@ -143,7 +149,7 @@ def video_create(request):
             if video.scenario:
                 # If only scenario is provided, directly simplify to scenario
                 messages.success(
-                    request, "Video ustvarjen! Generiranje zvočne datoteke..."
+                    request, _("Video ustvarjen! Generiranje zvočne datoteke...")
                 )
                 video.status = GenVideo.Statuses.GENERATING_VOICE
                 video.save()
@@ -162,10 +168,10 @@ def video_create(request):
                 generate_srt_file(video)
                 return redirect("video_detail", video_id=video.id)
             else:
-                messages.success(request, "Video mora vsebovati scenario!")
+                messages.success(request, _("Video mora vsebovati scenario!"))
                 return render(request, "agent/video_create.html", {"form": form})
         else:
-            messages.error(request, "Napaka pri ustvarjanju videa.")
+            messages.error(request, _("Napaka pri ustvarjanju videa."))
     else:
         form = VideoCreateForm(voice_models=VOICE_MODELS)
 
@@ -219,7 +225,10 @@ def search_videos(request, video_segment_id):
         return JsonResponse(response)
 
     except Exception as e:
-        return JsonResponse({"error": f"Unexpected error: {str(e)}"}, status=500)
+        return JsonResponse(
+            {"error": _("Unexpected error: %(error)s") % {"error": str(e)}},
+            status=500,
+        )
 
 
 @ajax_login_required
@@ -237,7 +246,7 @@ def search_images(request, video_segment_id):
     sources = resolve_sources(request.GET.getlist("sources"))
 
     if not query:
-        return JsonResponse({"error": "Query parameter is required"}, status=400)
+        return JsonResponse({"error": _("Query parameter is required")}, status=400)
 
     try:
         images, warnings = search_images_by_sources(
@@ -270,7 +279,10 @@ def search_images(request, video_segment_id):
         return JsonResponse(response)
 
     except Exception as e:
-        return JsonResponse({"error": f"Unexpected error: {str(e)}"}, status=500)
+        return JsonResponse(
+            {"error": _("Unexpected error: %(error)s") % {"error": str(e)}},
+            status=500,
+        )
 
 
 @ajax_login_required
@@ -281,7 +293,7 @@ def upload_segment_image(request, video_segment_id):
     """
 
     if request.method != "POST":
-        return JsonResponse({"error": "Method not allowed"}, status=405)
+        return JsonResponse({"error": _("Method not allowed")}, status=405)
 
     video_segment = get_object_or_404(
         VideoSegment, id=video_segment_id, video__user=request.user
@@ -289,7 +301,7 @@ def upload_segment_image(request, video_segment_id):
 
     try:
         if "image" not in request.FILES:
-            return JsonResponse({"error": "No file provided"}, status=400)
+            return JsonResponse({"error": _("No file provided")}, status=400)
 
         uploaded_file = request.FILES["image"]
 
@@ -298,7 +310,9 @@ def upload_segment_image(request, video_segment_id):
         is_image = uploaded_file.content_type.startswith("image/")
 
         if not is_video and not is_image:
-            return JsonResponse({"error": "File must be a video or image"}, status=400)
+            return JsonResponse(
+                {"error": _("File must be a video or image")}, status=400
+            )
 
         # Create a unique filename
         ext = os.path.splitext(uploaded_file.name)[1]
@@ -324,7 +338,7 @@ def upload_segment_image(request, video_segment_id):
                     "width": width,
                     "height": height,
                     "is_image": True,
-                    "message": "Image uploaded successfully",
+                    "message": _("Image uploaded successfully"),
                 }
             )
         else:
@@ -359,7 +373,10 @@ def upload_segment_image(request, video_segment_id):
                 result = subprocess.run(cmd, capture_output=True, text=True)
                 if result.returncode != 0:
                     return JsonResponse(
-                        {"error": f"Could not analyze video: {result.stderr}"},
+                        {
+                            "error": _("Could not analyze video: %(error)s")
+                            % {"error": result.stderr}
+                        },
                         status=500,
                     )
 
@@ -371,7 +388,9 @@ def upload_segment_image(request, video_segment_id):
                     None,
                 )
                 if not video_stream:
-                    return JsonResponse({"error": "No video stream found"}, status=400)
+                    return JsonResponse(
+                        {"error": _("No video stream found")}, status=400
+                    )
 
                 width = int(video_stream.get("width", 0))
                 height = int(video_stream.get("height", 0))
@@ -385,7 +404,7 @@ def upload_segment_image(request, video_segment_id):
                         "height": height,
                         "duration": duration,
                         "is_image": False,
-                        "message": "Video uploaded successfully",
+                        "message": _("Video uploaded successfully"),
                     }
                 )
             finally:
@@ -394,7 +413,10 @@ def upload_segment_image(request, video_segment_id):
                     os.unlink(full_path)
 
     except Exception as e:
-        return JsonResponse({"error": f"Error uploading file: {str(e)}"}, status=500)
+        return JsonResponse(
+            {"error": _("Error uploading file: %(error)s") % {"error": str(e)}},
+            status=500,
+        )
 
 
 @ajax_login_required
@@ -408,7 +430,7 @@ def save_selected_video(request, video_segment_id):
     from django.http import JsonResponse
 
     if request.method != "POST":
-        return JsonResponse({"error": "Method not allowed"}, status=405)
+        return JsonResponse({"error": _("Method not allowed")}, status=405)
 
     video_segment = get_object_or_404(
         VideoSegment, id=video_segment_id, video__user=request.user
@@ -419,8 +441,67 @@ def save_selected_video(request, video_segment_id):
         video_url = data.get("video_url")
         video_metadata = data.get("metadata", {})
 
+        allowed_in_animations = {
+            "none",
+            "fade_in_soft",
+            "fade_in_strong",
+            "zoom_in_soft",
+            "zoom_in_strong",
+        }
+        allowed_mid_animations = {
+            "none",
+            "slow_zoom_in_soft",
+            "slow_zoom_in_strong",
+            "slow_zoom_out_soft",
+            "slow_zoom_out_strong",
+            "subtle_pan_lr",
+            "subtle_pan_ud",
+        }
+        allowed_out_animations = {
+            "none",
+            "fade_out_soft",
+            "fade_out_strong",
+            "zoom_out_soft",
+            "zoom_out_strong",
+        }
+
+        legacy_animation = (video_metadata.get("animation") or "").strip()
+        requested_in = (video_metadata.get("animation_in") or "").strip()
+        requested_mid = (video_metadata.get("animation_mid") or "").strip()
+        requested_out = (video_metadata.get("animation_out") or "").strip()
+
+        normalized_in = (
+            requested_in if requested_in in allowed_in_animations else "none"
+        )
+        normalized_mid = (
+            requested_mid if requested_mid in allowed_mid_animations else "none"
+        )
+        normalized_out = (
+            requested_out if requested_out in allowed_out_animations else "none"
+        )
+
+        # Backward compatibility for existing single animation field.
+        if (
+            not requested_mid
+            and legacy_animation
+            and legacy_animation
+            in {"zoom_in", "zoom_out", "fade_in", "fade_out", "fade_in_out"}
+        ):
+            legacy_map = {
+                "zoom_in": "slow_zoom_in_soft",
+                "zoom_out": "slow_zoom_out_soft",
+                "fade_in": "none",
+                "fade_out": "none",
+                "fade_in_out": "none",
+            }
+            normalized_mid = legacy_map.get(legacy_animation, "none")
+            if legacy_animation in {"fade_in", "fade_in_out"}:
+                normalized_in = "fade_in_soft"
+            if legacy_animation in {"fade_out", "fade_in_out"}:
+                normalized_out = "fade_out_soft"
+
         if not video_url:
-            return JsonResponse({"error": "video_url is required"}, status=400)
+            return JsonResponse({"error": _("video_url is required")}, status=400)
 
         # Check if we're updating existing video or adding new one
         existing_proposal = None
@@ -431,6 +512,22 @@ def save_selected_video(request, video_segment_id):
                     break
 
         if existing_proposal:
+            final_animation_in = (
+                normalized_in
+                if requested_in or legacy_animation
+                else existing_proposal.get("animation_in", "none")
+            )
+            final_animation_mid = (
+                normalized_mid
+                if requested_mid or legacy_animation
+                else existing_proposal.get("animation_mid", "none")
+            )
+            final_animation_out = (
+                normalized_out
+                if requested_out or legacy_animation
+                else existing_proposal.get("animation_out", "none")
+            )
+
             # Update existing proposal - preserve all existing data and update with new metadata
             existing_proposal.update(
                 {
@@ -461,6 +558,10 @@ def save_selected_video(request, video_segment_id):
                         "horizontal_mode",
                         existing_proposal.get("horizontal_mode", "crop"),
                     ),
+                    "animation_in": final_animation_in,
+                    "animation_mid": final_animation_mid,
+                    "animation_out": final_animation_out,
+                    "animation": final_animation_mid,
                     "is_image": video_metadata.get(
                         "is_image", existing_proposal.get("is_image", False)
                     ),
@@ -482,6 +583,10 @@ def save_selected_video(request, video_segment_id):
                     "width": video_metadata.get("width"),
                     "height": video_metadata.get("height"),
                     "horizontal_mode": video_metadata.get("horizontal_mode", "crop"),
+                    "animation_in": normalized_in,
+                    "animation_mid": normalized_mid,
+                    "animation_out": normalized_out,
+                    "animation": normalized_mid,
                     "is_image": video_metadata.get("is_image", False),
                     "selected": True,
                 }
@@ -508,13 +613,16 @@ def save_selected_video(request, video_segment_id):
         return JsonResponse(
             {
                 "success": True,
-                "message": "Video URL uspešno shranjen.",
+                "message": _("Video URL uspešno shranjen."),
                 "video_url": video_url,
             }
         )
 
     except Exception as e:
-        return JsonResponse({"error": f"Error saving video: {str(e)}"}, status=500)
+        return JsonResponse(
+            {"error": _("Error saving video: %(error)s") % {"error": str(e)}},
+            status=500,
+        )
 
 
 @login_required(login_url="/admin/login/")
@@ -548,6 +656,7 @@ def video_detail(request, video_id):
     context = {
         "video": video,
         "segments": segments,
+        "user_logos": request.user.logos.all().order_by("-created_at"),
         "total_segments": total_segments,
         "completed_segments": completed_segments,
         "progress_percentage": progress_percentage,
@@ -578,21 +687,29 @@ def render_video(request, video_id):
     ]
 
     if len(segments_with_urls) != total_segments:
+        missing_count = total_segments - len(segments_with_urls)
+        error_message = ngettext(
+            "Ne moreš renderirati videa - manjka izbrani video klip (%(selected)s/%(total)s)",
+            "Ne moreš renderirati videa - manjkajo izbrani video klipi (%(selected)s/%(total)s)",
+            missing_count,
+        ) % {"selected": len(segments_with_urls), "total": total_segments}
         messages.error(
             request,
-            f"Ne moreš renderirati videa - manjkajo izbrani video klipi ({len(segments_with_urls)}/{total_segments})",
+            error_message,
         )
         return redirect("video_detail", video_id=video_id)
 
     if not video.voice_file:
-        messages.error(request, "Ne moreš renderirati videa - manjka zvočna datoteka")
+        messages.error(
+            request, _("Ne moreš renderirati videa - manjka zvočna datoteka")
+        )
         return redirect("video_detail", video_id=video_id)
 
     # Trigger rendering task
     render_final_video(video)
 
     messages.success(
-        request, "Renderiranje videa se je začelo! To lahko traja nekaj minut."
+        request, _("Renderiranje videa se je začelo! To lahko traja nekaj minut.")
     )
 
     return redirect("video_detail", video_id=video_id)
@@ -611,13 +728,17 @@ def generate_voice(request, video_id):
     video = get_object_or_404(GenVideo, id=video_id, user=request.user)
 
     if not video.scenario:
-        messages.error(request, "Ne moreš generirati zvoka - manjka vsebinski skript")
+        messages.error(
+            request, _("Ne moreš generirati zvoka - manjka vsebinski skript")
+        )
         return redirect("video_detail", video_id=video_id)
 
     if not video.voice_model:
         messages.error(
             request,
-            "Ne moreš generirati zvoka - manjka glasovni model. Uredi skript in izberi glas.",
+            _(
+                "Ne moreš generirati zvoka - manjka glasovni model. Uredi skript in izberi glas."
+            ),
         )
         return redirect("video_edit_script", video_id=video_id)
 
@@ -634,7 +755,10 @@ def generate_voice(request, video_id):
 
     messages.success(
         request,
-        f"Generiranje zvočnega posnetka se je začelo ({tts_provider.upper()})! Posnetek bo kmalu na voljo.",
+        _(
+            "Generiranje zvočnega posnetka se je začelo (%(provider)s)! Posnetek bo kmalu na voljo."
+        )
+        % {"provider": tts_provider.upper()},
     )
 
     return redirect("video_detail", video_id=video_id)
@@ -658,7 +782,7 @@ def regenerate_segments(request, video_id):
 
     if not video.scenario:
         messages.error(
-            request, "Ne moreš generirati segmentov - manjka vsebinski skript"
+            request, _("Ne moreš generirati segmentov - manjka vsebinski skript")
         )
         return redirect("video_detail", video_id=video_id)
 
@@ -668,7 +792,7 @@ def regenerate_segments(request, video_id):
     # Trigger segment generation task
     get_video_segments(video)
 
-    messages.success(request, "Segmenti se ponovno generirajo...")
+    messages.success(request, _("Segmenti se ponovno generirajo..."))
     return redirect("video_detail", video_id=video_id)
 
 
@@ -689,7 +813,7 @@ def regenerate_srt(request, video_id):
 
     if not video.voice_file:
         messages.error(
-            request, "Ne moreš generirati podnapisov - manjka zvočna datoteka"
+            request, _("Ne moreš generirati podnapisov - manjka zvočna datoteka")
         )
         return redirect("video_detail", video_id=video_id)
 
@@ -703,7 +827,8 @@ def regenerate_srt(request, video_id):
     generate_srt_file(video)
 
     messages.success(
-        request, "Generiranje segmentov se je začelo! Segmenti bodo kmalu na voljo."
+        request,
+        _("Generiranje podnapisov se je začelo! Podnapisi bodo kmalu na voljo."),
     )
 
     return redirect("video_detail", video_id=video_id)
@@ -719,7 +844,7 @@ def set_subtitle_style(request, video_id):
     from django.http import JsonResponse
 
     if request.method != "POST":
-        return JsonResponse({"error": "Method not allowed"}, status=405)
+        return JsonResponse({"error": _("Method not allowed")}, status=405)
 
     video = get_object_or_404(GenVideo, id=video_id, user=request.user)
 
@@ -752,5 +877,120 @@ def set_subtitle_style(request, video_id):
             }
         )
 
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required(login_url="/admin/login/")
+def upload_logo(request, video_id):
+    """
+    Upload a new logo for the current user and optionally select it for this video.
+    """
+    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+
+    if request.method != "POST":
+        return JsonResponse({"error": _("Method not allowed")}, status=405)
+
+    try:
+        if "logo" not in request.FILES:
+            return JsonResponse({"error": _("No logo file provided")}, status=400)
+
+        uploaded_file = request.FILES["logo"]
+        if not uploaded_file.content_type.startswith("image/"):
+            return JsonResponse({"error": _("Logo must be an image")}, status=400)
+
+        user_logo = UsersLogo.objects.create(user=request.user, logo_file=uploaded_file)
+
+        # Newly uploaded logo becomes selected for convenience.
+        video.logo = user_logo
+        video.save(update_fields=["logo", "updated_at"])
+
+        return JsonResponse(
+            {
+                "success": True,
+                "logo": {
+                    "id": user_logo.id,
+                    "url": user_logo.logo_file.url,
+                    "name": os.path.basename(user_logo.logo_file.name),
+                },
+            }
+        )
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required(login_url="/admin/login/")
+def set_video_logo(request, video_id):
+    """
+    Select which user logo should be used for a specific video.
+    """
+    import json
+
+    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+
+    if request.method != "POST":
+        return JsonResponse({"error": _("Method not allowed")}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        logo_id = data.get("logo_id")
+
+        if logo_id in (None, "", "null"):
+            video.logo = None
+            video.save(update_fields=["logo", "updated_at"])
+            return JsonResponse({"success": True, "logo_id": None})
+
+        selected_logo = get_object_or_404(UsersLogo, id=logo_id, user=request.user)
+        video.logo = selected_logo
+        video.save(update_fields=["logo", "updated_at"])
+
+        return JsonResponse(
+            {
+                "success": True,
+                "logo_id": selected_logo.id,
+                "logo_url": selected_logo.logo_file.url,
+            }
+        )
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required(login_url="/admin/login/")
+def set_logo_settings(request, video_id):
+    """
+    Save logo placement settings (corner and size) for a video.
+    """
+    import json
+
+    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+
+    if request.method != "POST":
+        return JsonResponse({"error": _("Method not allowed")}, status=405)
+
+    try:
+        data = json.loads(request.body)
+
+        logo_position = data.get("logo_position", GenVideo.LogoPositions.TOP_RIGHT)
+        logo_size_percent = int(data.get("logo_size_percent", 15))
+
+        if logo_position not in {
+            GenVideo.LogoPositions.TOP_LEFT,
+            GenVideo.LogoPositions.TOP_RIGHT,
+        }:
+            return JsonResponse({"error": _("Invalid logo position")}, status=400)
+
+        logo_size_percent = max(5, min(40, logo_size_percent))
+
+        video.logo_position = logo_position
+        video.logo_size_percent = logo_size_percent
+        video.save(update_fields=["logo_position", "logo_size_percent", "updated_at"])
+
+        return JsonResponse(
+            {
+                "success": True,
+                "logo_position": logo_position,
+                "logo_size_percent": logo_size_percent,
+            }
+        )
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)

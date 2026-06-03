@@ -1,33 +1,41 @@
-from django.conf import settings
+from django.conf import global_settings, settings
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 
 # Create your models here.
 
 
 class GenVideo(models.Model):
     class Statuses(models.TextChoices):
-        CREATED = "CREATED", "Ustvarjen"
-        GENERATING_SCENARIO = "GENERATING_SCENARIO", "Generiranje scenarija"
-        SCENARIO_READY = "SCENARIO_READY", "Scenarij pripravljen"
-        GENERATING_SCRIPT = "GENERATING_SCRIPT", "Generiranje skripta"
-        SCRIPT_READY = "SCRIPT_READY", "Skript pripravljen"
-        GENERATING_VOICE = "GENERATING_VOICE", "Generiranje zvoka"
-        VOICE_READY = "VOICE_READY", "Zvok pripravljen"
-        GENERATING_SUBTITLES = "GENERATING_SUBTITLES", "Generiranje podnapisov"
-        SUBTITLES_READY = "SUBTITLES_READY", "Podnapisi pripravljeni"
-        GENERATING_SEGMENTS = "GENERATING_SEGMENTS", "Generiranje segmentov"
-        SEGMENTS_READY = "SEGMENTS_READY", "Segmenti pripravljeni"
-        SELECTING_VIDEOS = "SELECTING_VIDEOS", "Izbiranje video klipov"
-        VIDEOS_SELECTED = "VIDEOS_SELECTED", "Video klipi izbrani"
-        RENDERING = "RENDERING", "Renderiranje končnega videa"
-        COMPLETED = "COMPLETED", "Končano"
-        FAILED = "FAILED", "Napaka"
+        CREATED = "CREATED", _("Ustvarjen")
+        GENERATING_SCENARIO = "GENERATING_SCENARIO", _("Generiranje scenarija")
+        SCENARIO_READY = "SCENARIO_READY", _("Scenarij pripravljen")
+        GENERATING_SCRIPT = "GENERATING_SCRIPT", _("Generiranje skripta")
+        SCRIPT_READY = "SCRIPT_READY", _("Skript pripravljen")
+        GENERATING_VOICE = "GENERATING_VOICE", _("Generiranje zvoka")
+        VOICE_READY = "VOICE_READY", _("Zvok pripravljen")
+        GENERATING_SUBTITLES = "GENERATING_SUBTITLES", _("Generiranje podnapisov")
+        SUBTITLES_READY = "SUBTITLES_READY", _("Podnapisi pripravljeni")
+        GENERATING_SEGMENTS = "GENERATING_SEGMENTS", _("Generiranje segmentov")
+        SEGMENTS_READY = "SEGMENTS_READY", _("Segmenti pripravljeni")
+        SELECTING_VIDEOS = "SELECTING_VIDEOS", _("Izbiranje video klipov")
+        VIDEOS_SELECTED = "VIDEOS_SELECTED", _("Video klipi izbrani")
+        RENDERING = "RENDERING", _("Renderiranje končnega videa")
+        COMPLETED = "COMPLETED", _("Končano")
+        FAILED = "FAILED", _("Napaka")
 
     class ErrorTypes(models.TextChoices):
-        VOICE_GENERATION = "VOICE_GENERATION", "Napaka pri generiranju zvoka"
-        SRT_GENERATION = "SRT_GENERATION", "Napaka pri generiranju podnapisov"
-        SEGMENTS_GENERATION = "SEGMENTS_GENERATION", "Napaka pri generiranju segmentov"
-        RENDERING = "RENDERING", "Napaka pri renderiranju videa"
+        VOICE_GENERATION = "VOICE_GENERATION", _("Napaka pri generiranju zvoka")
+        SRT_GENERATION = "SRT_GENERATION", _("Napaka pri generiranju podnapisov")
+        SEGMENTS_GENERATION = "SEGMENTS_GENERATION", _(
+            "Napaka pri generiranju segmentov"
+        )
+        RENDERING = "RENDERING", _("Napaka pri renderiranju videa")
+
+    class LogoPositions(models.TextChoices):
+        TOP_LEFT = "top_left", _("Zgoraj levo")
+        TOP_RIGHT = "top_right", _("Zgoraj desno")
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="videos"
@@ -36,6 +44,12 @@ class GenVideo(models.Model):
     scenario = models.TextField(null=True, blank=True)
     prompt = models.TextField(default=settings.DEFAULT_PROMPT)
     modify_prompt = models.TextField(blank=True, null=True)
+    language = models.CharField(
+        max_length=10,
+        choices=settings.LANGUAGES,
+        default="sl",
+        help_text="Language code used for voice generation",
+    )
     voice_model = models.CharField(max_length=100, null=True, blank=True)
     voice_file = models.FileField(
         upload_to="voice_files/",
@@ -96,6 +110,24 @@ class GenVideo(models.Model):
     )
     error_details = models.TextField(
         blank=True, null=True, help_text="Error details if task failed"
+    )
+    logo = models.ForeignKey(
+        "UsersLogo",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="Optional logo to include in the video",
+    )
+    logo_position = models.CharField(
+        max_length=20,
+        choices=LogoPositions.choices,
+        default=LogoPositions.TOP_RIGHT,
+        help_text="Selected corner for logo placement",
+    )
+    logo_size_percent = models.PositiveSmallIntegerField(
+        default=15,
+        validators=[MinValueValidator(5), MaxValueValidator(40)],
+        help_text="Logo width as percentage of final video width",
     )
     result_url = models.URLField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -173,3 +205,19 @@ class VideoSegment(models.Model):
 
     def duration(self):
         return self.end_time - self.start_time
+
+
+class UsersLogo(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="logos"
+    )
+    logo_file = models.FileField(
+        upload_to="user_logos/",
+        null=True,
+        blank=True,
+        help_text="User uploaded logo file",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Logo {self.id} for User {self.user.username}"

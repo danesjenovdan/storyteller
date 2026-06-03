@@ -1,16 +1,13 @@
-<!DOCTYPE html>
-<html lang="sl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Moji videi</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body>
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Moji videi" %}{% endblock %}
+
+{% block content %}
     <div class="container mt-5">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1>Moji videi</h1>
-            <a href="{% url 'video_create' %}" class="btn btn-primary">+ Nov video</a>
+            <h1>{% trans "Moji videi" %}</h1>
+            <a href="{% url 'video_create' %}" class="btn btn-primary">{% trans "+ Nov video" %}</a>
         </div>
         
         {% if messages %}
@@ -43,12 +40,12 @@
                                 </div>
                                 
                                 <small class="text-muted d-block mb-3">
-                                    Ustvarjeno: {{ video.created_at|date:"d.m.Y H:i" }}
+                                    {% trans "Ustvarjeno" %}: {{ video.created_at|date:"d.m.Y H:i" }}
                                 </small>
                                 
                                 <div class="d-flex gap-2">
                                     <a href="{% url 'video_detail' video.id %}" class="btn btn-sm btn-primary">
-                                        Podrobnosti
+                                        {% trans "Podrobnosti" %}
                                     </a>
                                 </div>
                             </div>
@@ -58,11 +55,8 @@
             </div>
         {% else %}
             <div class="alert alert-info">
-                Še nimate ustvarjenih videov. <a href="{% url 'video_create' %}">Ustvarite prvi video</a>
+                {% trans "Še nimate ustvarjenih videov." %} <a href="{% url 'video_create' %}">{% trans "Ustvarite prvi video" %}</a>
             </div>
         {% endif %}
     </div>
-    
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+{% endblock %}
