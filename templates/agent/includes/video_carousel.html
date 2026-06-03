@@ -1,3 +1,4 @@
+{% load i18n %}
 <style>
   .video-carousel .video-preview {
     width: 150px;
@@ -16,12 +17,12 @@
     <ul class="nav nav-tabs mb-3" id="mediaTab-{{ segment.id }}" role="tablist">
       <li class="nav-item" role="presentation">
         <button class="nav-link active" id="videos-tab-{{ segment.id }}" data-bs-toggle="tab" data-bs-target="#videos-{{ segment.id }}" type="button" role="tab">
-          <i class="bi bi-film"></i> Videi
+          <i class="bi bi-film"></i> {% trans "Videi" %}
         </button>
       </li>
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="images-tab-{{ segment.id }}" data-bs-toggle="tab" data-bs-target="#images-{{ segment.id }}" type="button" role="tab">
-          <i class="bi bi-image"></i> Slike
+          <i class="bi bi-image"></i> {% trans "Slike" %}
         </button>
       </li>
     </ul>
@@ -31,14 +32,14 @@
       <div class="tab-pane fade show active" id="videos-{{ segment.id }}" role="tabpanel">
         <div class="row query-row">
           <div class="col-12 mb-3">
-            <div class="small">Ključne besede:</div>
+            <div class="small">{% trans "Ključne besede:" %}</div>
             <div class="input-group">
               <input name="query" id="query-videos-{{ segment.id }}" class="form-control" value="{{ segment.query }}">
-              <button class="btn btn-outline-primary search-videos-btn" type="button">Išči videe</button>
+              <button class="btn btn-outline-primary search-videos-btn" type="button">{% trans "Išči videe" %}</button>
             </div>
           </div>
           <div class="col-12 mb-3">
-            <div class="small">Viri:</div>
+            <div class="small">{% trans "Viri:" %}</div>
             <div class="d-flex flex-wrap gap-2">
               <div class="form-check">
                 <input class="form-check-input source-videos-checkbox" type="checkbox" value="pexels" id="source-pexels-videos-{{ segment.id }}" checked>
@@ -53,10 +54,10 @@
         </div>
         <div class="row results-row">
           <div class="col-12">
-            <div class="small">Rezultati:</div>
+            <div class="small">{% trans "Rezultati:" %}</div>
             <div class="alert alert-info videos-alert" role="alert">
               <i class="bi bi-info-circle-fill"></i>
-              <span>Uporabi zgornji obrazec za iskanje videov</span>
+              <span>{% trans "Uporabi zgornji obrazec za iskanje videov" %}</span>
             </div>
             <div class="results-container">
               <div class="horizontal-scroll">
@@ -77,7 +78,7 @@
                         <div class="preview-loader" style="display: none;">
                           <div class="position-absolute top-50 start-50 translate-middle">
                             <div class="spinner-border text-white" role="status" style="filter: drop-shadow(0 0 0.25rem #000);">
-                              <span class="visually-hidden">Loading...</span>
+                              <span class="visually-hidden">{% trans "Loading..." %}</span>
                             </div>
                           </div>
                         </div>
@@ -99,14 +100,14 @@
       <div class="tab-pane fade" id="images-{{ segment.id }}" role="tabpanel">
         <div class="row query-row">
           <div class="col-12 mb-3">
-            <div class="small">Ključne besede:</div>
+            <div class="small">{% trans "Ključne besede:" %}</div>
             <div class="input-group">
               <input name="query" id="query-images-{{ segment.id }}" class="form-control" value="{{ segment.query }}">
-              <button class="btn btn-outline-primary search-images-btn" type="button">Išči slike</button>
+              <button class="btn btn-outline-primary search-images-btn" type="button">{% trans "Išči slike" %}</button>
             </div>
           </div>
           <div class="col-12 mb-3">
-            <div class="small">Viri:</div>
+            <div class="small">{% trans "Viri:" %}</div>
             <div class="d-flex flex-wrap gap-2">
               <div class="form-check">
                 <input class="form-check-input source-images-checkbox" type="checkbox" value="pexels" id="source-pexels-images-{{ segment.id }}" checked>
@@ -121,10 +122,10 @@
         </div>
         <div class="row results-row">
           <div class="col-12">
-            <div class="small">Rezultati:</div>
+            <div class="small">{% trans "Rezultati:" %}</div>
             <div class="alert alert-info images-alert" role="alert">
               <i class="bi bi-info-circle-fill"></i>
-              <span>Uporabi zgornji obrazec za iskanje slik</span>
+              <span>{% trans "Uporabi zgornji obrazec za iskanje slik" %}</span>
             </div>
             <div class="results-container">
               <div class="horizontal-scroll">
@@ -151,6 +152,39 @@
 <script>
   (function () {
     'use strict';
+
+    const i18n = {
+      defaultSourceName: '{% trans "Pexels" %}',
+      uploadVideo: '{% trans "Naloži video" %}',
+      uploadImage: '{% trans "Naloži sliko" %}',
+      clickToChooseFile: '{% trans "Klikni za izbiro datoteke" %}',
+      uploadMore: '{% trans "Naloži več" %}',
+      invalidVideoType: '{% trans "Prosim naloži samo videe!" %}',
+      invalidImageType: '{% trans "Prosim naloži samo slike!" %}',
+      uploadingVideo: '{% trans "Nalagam video..." %}',
+      uploadingImage: '{% trans "Nalagam sliko..." %}',
+      uploadSuccessVideo: '{% trans "Video uspešno naložen!" %}',
+      uploadSuccessImage: '{% trans "Slika uspešno naložena!" %}',
+      uploadedVideoUser: '{% trans "Naložen video" %}',
+      uploadedImageUser: '{% trans "Naložena slika" %}',
+      uploadErrorPrefix: '{% trans "Napaka pri nalaganju:" %}',
+      searching: '{% trans "Iščem..." %}',
+      noVideosFound: '{% trans "Ni najdenih videov. Poskusi z drugimi ključnimi besedami." %}',
+      noImagesFound: '{% trans "Ni najdenih slik. Poskusi z drugimi ključnimi besedami." %}',
+      selectedImageAlt: '{% trans "Izbrana slika" %}',
+      browserNoVideoSupport: '{% trans "Vaš brskalnik ne podpira predvajanja videa." %}',
+      replace: '{% trans "Zamenjaj" %}',
+      savingSetting: '{% trans "Shranjujem nastavitev..." %}',
+      modeUpdated: '{% trans "Način uspešno posodobljen!" %}',
+      saveModeErrorPrefix: '{% trans "Napaka pri shranjevanju načina:" %}',
+      savingSelection: '{% trans "Shranjujem izbrano vsebino..." %}',
+      selectionSaved: '{% trans "Vsebina uspešno shranjena!" %}',
+      saveErrorPrefix: '{% trans "Napaka pri shranjevanju:" %}',
+      horizontalModeAria: '{% trans "Horizontal mode" %}',
+      crop: '{% trans "Crop" %}',
+      blur: '{% trans "Blur" %}',
+      blurAndCrop: '{% trans "Blur & Crop" %}'
+    };
 
     const el = document.currentScript.previousElementSibling;
     const segmentId = el.getAttribute('data-segment-id');
@@ -199,7 +233,7 @@
     }
 
     function formatSourceName(source) {
-      if (!source) return 'Pexels';
+      if (!source) return i18n.defaultSourceName;
       return source.charAt(0).toUpperCase() + source.slice(1).toLowerCase();
     }
 
@@ -218,8 +252,8 @@
       uploadCard.innerHTML = `
         <div class="text-center p-3">
           <i class="bi bi-cloud-upload fs-1 text-primary"></i>
-          <div class="mt-2 fw-bold">${isVideo ? 'Naloži video' : 'Naloži sliko'}</div>
-          <small class="text-muted">Klikni za izbiro datoteke</small>
+          <div class="mt-2 fw-bold">${isVideo ? i18n.uploadVideo : i18n.uploadImage}</div>
+          <small class="text-muted">${i18n.clickToChooseFile}</small>
         </div>
         <input type="file" accept="${isVideo ? 'video/*' : 'image/*'}" style="display: none;" class="upload-input">
       `;
@@ -246,11 +280,11 @@
         // Validate file type
         const expectedType = isVideo ? 'video/' : 'image/';
         if (!file.type.startsWith(expectedType)) {
-          showAlert(`Prosim naloži samo ${isVideo ? 'videe' : 'slike'}!`, 'danger', !isVideo);
+          showAlert(isVideo ? i18n.invalidVideoType : i18n.invalidImageType, 'danger', !isVideo);
           return;
         }
 
-        showAlert(`Nalagam ${isVideo ? 'video' : 'sliko'}...`, 'loading', !isVideo);
+        showAlert(isVideo ? i18n.uploadingVideo : i18n.uploadingImage, 'loading', !isVideo);
 
         const formData = new FormData();
         formData.append('image', file);
@@ -274,7 +308,7 @@
         if (data.error) {
           showAlert(data.error, 'danger', !isVideo);
         } else {
-          showAlert(`${isVideo ? 'Video' : 'Slika'} uspešno naložen${isVideo ? '' : 'a'}!`, 'success', !isVideo);
+          showAlert(isVideo ? i18n.uploadSuccessVideo : i18n.uploadSuccessImage, 'success', !isVideo);
 
           // Create media object
           const mediaObject = {
@@ -283,7 +317,7 @@
             image: data.image_url || data.video_url,
             url: '',
             source: 'upload',
-            user: `Naložen${isVideo ? ' video' : 'a slika'}`,
+            user: isVideo ? i18n.uploadedVideoUser : i18n.uploadedImageUser,
             duration: data.duration || 5,  // Use 5 seconds as default for images
             width: data.width,
             height: data.height,
@@ -294,8 +328,8 @@
           selectVideo(mediaObject);
         }
       } catch (error) {
-        console.error('Napaka pri nalaganju:', error);
-        showAlert('Napaka pri nalaganju: ' + error.message, 'danger', !isVideo);
+        console.error(i18n.uploadErrorPrefix, error);
+        showAlert(i18n.uploadErrorPrefix + ' ' + error.message, 'danger', !isVideo);
       }
     }
 
@@ -403,7 +437,7 @@
         existingButton.remove();
       }
       const loadMoreButton = document.createElement('button');
-      loadMoreButton.textContent = 'Naloži več';
+      loadMoreButton.textContent = i18n.uploadMore;
       loadMoreButton.className = 'btn btn-outline-primary video-preview load-more-button';
       loadMoreButton.addEventListener('click', () => {
         if (isImages) {
@@ -417,7 +451,7 @@
 
     async function searchVideos(page = 1) {
       try {
-        showAlert('Iščem...', 'loading', false);
+        showAlert(i18n.searching, 'loading', false);
         const sources = getSelectedSources(false).join(',');
 
         const response = await fetch(`${searchVideosUrl}?query=${encodeURIComponent(searchVideosInput.value)}&page=${page}&sources=${encodeURIComponent(sources)}`);
@@ -426,7 +460,7 @@
         if (data.error) {
           showAlert(data.error, 'danger', false);
         } else if (!data?.videos?.length) {
-          showAlert('Ni najdenih videov. Poskusi z drugimi ključnimi besedami.', 'info', false);
+          showAlert(i18n.noVideosFound, 'info', false);
         } else {
           if (page === 1) {
             // Clear results and add upload card first
@@ -445,14 +479,14 @@
           showAlert(null, 'info', false);
         }
       } catch (error) {
-        console.error('Napaka pri iskanju:', error);
-        showAlert('Napaka pri iskanju: ' + error.message, 'danger', false);
+        console.error(i18n.saveErrorPrefix, error);
+        showAlert(i18n.saveErrorPrefix + ' ' + error.message, 'danger', false);
       }
     }
 
     async function searchImages(page = 1) {
       try {
-        showAlert('Iščem...', 'loading', true);
+        showAlert(i18n.searching, 'loading', true);
         const sources = getSelectedSources(true).join(',');
 
         const response = await fetch(`${searchImagesUrl}?query=${encodeURIComponent(searchImagesInput.value)}&page=${page}&sources=${encodeURIComponent(sources)}`);
@@ -461,7 +495,7 @@
         if (data.error) {
           showAlert(data.error, 'danger', true);
         } else if (!data?.images?.length) {
-          showAlert('Ni najdenih slik. Poskusi z drugimi ključnimi besedami.', 'info', true);
+          showAlert(i18n.noImagesFound, 'info', true);
         } else {
           if (page === 1) {
             // Clear results and add upload card first
@@ -480,8 +514,8 @@
           showAlert(null, 'info', true);
         }
       } catch (error) {
-        console.error('Napaka pri iskanju:', error);
-        showAlert('Napaka pri iskanju: ' + error.message, 'danger', true);
+        console.error(i18n.saveErrorPrefix, error);
+        showAlert(i18n.saveErrorPrefix + ' ' + error.message, 'danger', true);
       }
     }
 
@@ -507,15 +541,15 @@
       let modeButtonsHTML = '';
       if (isHorizontal) {
         modeButtonsHTML = `
-          <div class="btn-group btn-group-sm mt-2" role="group" aria-label="Horizontal mode">
-            <button type="button" class="btn ${currentMode === 'crop' ? 'btn-primary' : 'btn-outline-primary'} mode-btn" data-mode="crop" title="Crop">
-              <i class="bi bi-crop"></i> Crop
+          <div class="btn-group btn-group-sm mt-2" role="group" aria-label="${i18n.horizontalModeAria}">
+            <button type="button" class="btn ${currentMode === 'crop' ? 'btn-primary' : 'btn-outline-primary'} mode-btn" data-mode="crop" title="${i18n.crop}">
+              <i class="bi bi-crop"></i> ${i18n.crop}
             </button>
-            <button type="button" class="btn ${currentMode === 'blur' ? 'btn-primary' : 'btn-outline-primary'} mode-btn" data-mode="blur" title="Blur">
-              <i class="bi bi-images"></i> Blur
+            <button type="button" class="btn ${currentMode === 'blur' ? 'btn-primary' : 'btn-outline-primary'} mode-btn" data-mode="blur" title="${i18n.blur}">
+              <i class="bi bi-images"></i> ${i18n.blur}
             </button>
-            <button type="button" class="btn ${currentMode === 'blur_crop' ? 'btn-primary' : 'btn-outline-primary'} mode-btn" data-mode="blur_crop" title="Blur & Crop">
-              <i class="bi bi-circle-half"></i> Blur&Crop
+            <button type="button" class="btn ${currentMode === 'blur_crop' ? 'btn-primary' : 'btn-outline-primary'} mode-btn" data-mode="blur_crop" title="${i18n.blurAndCrop}">
+              <i class="bi bi-circle-half"></i> ${i18n.blurAndCrop}
             </button>
           </div>
         `;
@@ -524,10 +558,10 @@
       // Update right column with preview
       const rightCol = cardBody.querySelector('.col-md-4');
       const mediaTag = video.is_image ?
-        `<img src="${video.video_url}" class="video-preview w-100" alt="Izbrana slika">` :
+        `<img src="${video.video_url}" class="video-preview w-100" alt="${i18n.selectedImageAlt}">` :
         `<video controls class="video-preview">
           <source src="${video.video_url}" type="video/mp4">
-          Vaš brskalnik ne podpira predvajanja videa.
+          ${i18n.browserNoVideoSupport}
         </video>`;
 
       const sourceLabel = formatSourceName(video.source || 'pexels');
@@ -539,7 +573,7 @@
             <i class="bi bi-box-arrow-up-right"></i> ${sourceLabel}
           </a>` : ''}
           <a href="#" class="btn btn-sm btn-outline-secondary toggle-select-video">
-            <i class="bi bi-arrow-repeat"></i> Zamenjaj
+            <i class="bi bi-arrow-repeat"></i> ${i18n.replace}
           </a>
         </div>
         ${modeButtonsHTML}
@@ -571,7 +605,7 @@
 
             // Save the new mode
             try {
-              showAlert('Shranjujem nastavitev...', 'loading', video.is_image);
+              showAlert(i18n.savingSetting, 'loading', video.is_image);
 
               const response = await fetch(saveUrl, {
                 method: 'POST',
@@ -600,7 +634,7 @@
               if (data.error) {
                 showAlert(data.error, 'danger', video.is_image);
               } else {
-                showAlert('Način uspešno posodobljen!', 'success', video.is_image);
+                showAlert(i18n.modeUpdated, 'success', video.is_image);
 
                 // Update button states
                 modeButtons.forEach(b => {
@@ -615,8 +649,8 @@
                 });
               }
             } catch (error) {
-              console.error('Napaka pri shranjevanju načina:', error);
-              showAlert('Napaka pri shranjevanju načina: ' + error.message, 'danger', video.is_image);
+              console.error(i18n.saveModeErrorPrefix, error);
+              showAlert(i18n.saveModeErrorPrefix + ' ' + error.message, 'danger', video.is_image);
             }
           });
         });
@@ -646,7 +680,7 @@
 
     async function selectVideo(video) {
       try {
-        showAlert('Shranjujem izbrano vsebino...', 'loading', video.is_image || false);
+        showAlert(i18n.savingSelection, 'loading', video.is_image || false);
 
         const response = await fetch(saveUrl, {
           method: 'POST',
@@ -675,13 +709,13 @@
         if (data.error) {
           showAlert(data.error, 'danger', video.is_image || false);
         } else {
-          showAlert('Vsebina uspešno shranjena!', 'success', video.is_image || false);
+          showAlert(i18n.selectionSaved, 'success', video.is_image || false);
           // Update the UI to show selected video/image
           updateSegmentUI(video);
         }
       } catch (error) {
-        console.error('Napaka pri shranjevanju:', error);
-        showAlert('Napaka pri shranjevanju: ' + error.message, 'danger', video.is_image || false);
+        console.error(i18n.saveErrorPrefix, error);
+        showAlert(i18n.saveErrorPrefix + ' ' + error.message, 'danger', video.is_image || false);
       }
     }
 

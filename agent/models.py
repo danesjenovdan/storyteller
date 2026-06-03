@@ -1,38 +1,41 @@
-from django.conf import settings
+from django.conf import global_settings, settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 
 # Create your models here.
 
 
 class GenVideo(models.Model):
     class Statuses(models.TextChoices):
-        CREATED = "CREATED", "Ustvarjen"
-        GENERATING_SCENARIO = "GENERATING_SCENARIO", "Generiranje scenarija"
-        SCENARIO_READY = "SCENARIO_READY", "Scenarij pripravljen"
-        GENERATING_SCRIPT = "GENERATING_SCRIPT", "Generiranje skripta"
-        SCRIPT_READY = "SCRIPT_READY", "Skript pripravljen"
-        GENERATING_VOICE = "GENERATING_VOICE", "Generiranje zvoka"
-        VOICE_READY = "VOICE_READY", "Zvok pripravljen"
-        GENERATING_SUBTITLES = "GENERATING_SUBTITLES", "Generiranje podnapisov"
-        SUBTITLES_READY = "SUBTITLES_READY", "Podnapisi pripravljeni"
-        GENERATING_SEGMENTS = "GENERATING_SEGMENTS", "Generiranje segmentov"
-        SEGMENTS_READY = "SEGMENTS_READY", "Segmenti pripravljeni"
-        SELECTING_VIDEOS = "SELECTING_VIDEOS", "Izbiranje video klipov"
-        VIDEOS_SELECTED = "VIDEOS_SELECTED", "Video klipi izbrani"
-        RENDERING = "RENDERING", "Renderiranje končnega videa"
-        COMPLETED = "COMPLETED", "Končano"
-        FAILED = "FAILED", "Napaka"
+        CREATED = "CREATED", _("Ustvarjen")
+        GENERATING_SCENARIO = "GENERATING_SCENARIO", _("Generiranje scenarija")
+        SCENARIO_READY = "SCENARIO_READY", _("Scenarij pripravljen")
+        GENERATING_SCRIPT = "GENERATING_SCRIPT", _("Generiranje skripta")
+        SCRIPT_READY = "SCRIPT_READY", _("Skript pripravljen")
+        GENERATING_VOICE = "GENERATING_VOICE", _("Generiranje zvoka")
+        VOICE_READY = "VOICE_READY", _("Zvok pripravljen")
+        GENERATING_SUBTITLES = "GENERATING_SUBTITLES", _("Generiranje podnapisov")
+        SUBTITLES_READY = "SUBTITLES_READY", _("Podnapisi pripravljeni")
+        GENERATING_SEGMENTS = "GENERATING_SEGMENTS", _("Generiranje segmentov")
+        SEGMENTS_READY = "SEGMENTS_READY", _("Segmenti pripravljeni")
+        SELECTING_VIDEOS = "SELECTING_VIDEOS", _("Izbiranje video klipov")
+        VIDEOS_SELECTED = "VIDEOS_SELECTED", _("Video klipi izbrani")
+        RENDERING = "RENDERING", _("Renderiranje končnega videa")
+        COMPLETED = "COMPLETED", _("Končano")
+        FAILED = "FAILED", _("Napaka")
 
     class ErrorTypes(models.TextChoices):
-        VOICE_GENERATION = "VOICE_GENERATION", "Napaka pri generiranju zvoka"
-        SRT_GENERATION = "SRT_GENERATION", "Napaka pri generiranju podnapisov"
-        SEGMENTS_GENERATION = "SEGMENTS_GENERATION", "Napaka pri generiranju segmentov"
-        RENDERING = "RENDERING", "Napaka pri renderiranju videa"
+        VOICE_GENERATION = "VOICE_GENERATION", _("Napaka pri generiranju zvoka")
+        SRT_GENERATION = "SRT_GENERATION", _("Napaka pri generiranju podnapisov")
+        SEGMENTS_GENERATION = "SEGMENTS_GENERATION", _(
+            "Napaka pri generiranju segmentov"
+        )
+        RENDERING = "RENDERING", _("Napaka pri renderiranju videa")
 
     class LogoPositions(models.TextChoices):
-        TOP_LEFT = "top_left", "Zgoraj levo"
-        TOP_RIGHT = "top_right", "Zgoraj desno"
+        TOP_LEFT = "top_left", _("Zgoraj levo")
+        TOP_RIGHT = "top_right", _("Zgoraj desno")
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="videos"
@@ -41,6 +44,12 @@ class GenVideo(models.Model):
     scenario = models.TextField(null=True, blank=True)
     prompt = models.TextField(default=settings.DEFAULT_PROMPT)
     modify_prompt = models.TextField(blank=True, null=True)
+    language = models.CharField(
+        max_length=10,
+        choices=settings.LANGUAGES,
+        default="sl",
+        help_text="Language code used for voice generation",
+    )
     voice_model = models.CharField(max_length=100, null=True, blank=True)
     voice_file = models.FileField(
         upload_to="voice_files/",

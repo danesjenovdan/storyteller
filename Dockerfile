@@ -1,7 +1,8 @@
 FROM python:3.13
 
 # RUN /usr/local/bin/python -m pip install --upgrade pip
-RUN apt-get update && apt-get install -y ffmpeg
+RUN apt-get update && apt-get install -y ffmpeg gettext \
+	&& rm -rf /var/lib/apt/lists/*
 
 RUN mkdir /app
 WORKDIR /app
@@ -15,5 +16,7 @@ COPY . /app
 
 EXPOSE 8000
 ENV PYTHONUNBUFFERED=1
+
+RUN python3 manage.py compilemessages
 
 CMD exec python manage.py runserver 0.0.0.0:8000

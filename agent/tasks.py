@@ -6,6 +6,7 @@ import time
 
 from django.conf import settings
 from django.core.files.base import ContentFile
+from django.utils.translation import gettext as _
 from elevenlabs.client import ElevenLabs
 from google import genai
 from google.genai.types import Content, Part
@@ -174,7 +175,7 @@ def generate_voice_file_eleven_labs(video: int) -> None:
             voice_id=voice_id,
             text=video.scenario,
             model_id="eleven_v3",
-            language_code="sl",
+            language_code=(video.language or "sl").split("-")[0],
         )
 
         # Collect audio chunks into bytes
@@ -210,7 +211,9 @@ def generate_voice_file_eleven_labs(video: int) -> None:
         video = GenVideo.objects.get(id=video.id)
         video.status = GenVideo.Statuses.FAILED
         video.error_type = GenVideo.ErrorTypes.VOICE_GENERATION
-        video.error_details = f"Error generating voice file (ElevenLabs): {str(e)}"
+        video.error_details = _("Napaka pri ustvarjanju zvočne datoteke (ElevenLabs): %(error)s") % {
+            "error": str(e)
+        }
         video.save()
         raise
 
@@ -282,8 +285,9 @@ def generate_voice_file_openai(video: int) -> None:
         video = GenVideo.objects.get(id=video.id)
         video.status = GenVideo.Statuses.FAILED
         video.error_type = GenVideo.ErrorTypes.VOICE_GENERATION
-        video.error_details = f"Error generating voice file (Gemini): {str(e)}"
-        video.error_details = f"Error generating voice file (OpenAI): {str(e)}"
+        video.error_details = _("Napaka pri ustvarjanju zvočne datoteke (OpenAI): %(error)s") % {
+            "error": str(e)
+        }
         video.save()
         raise
 
@@ -446,7 +450,7 @@ def generate_voice_file_gemini(video: int) -> None:
             generate_srt_file(video)
         else:
             logger.error(f"Response content: {response}")
-            raise ValueError("No audio data in response")
+            raise ValueError(_("V odgovoru ni zvočnih podatkov"))
 
     except GenVideo.DoesNotExist:
         logger.error(f"Video with id {video.id} does not exist")
@@ -482,7 +486,9 @@ def get_video_segments(video_instance: GenVideo) -> None:
                 logger.error(error_msg)
                 video_instance.status = GenVideo.Statuses.FAILED
                 video_instance.error_type = GenVideo.ErrorTypes.SEGMENTS_GENERATION
-                video_instance.error_details = f"{error_msg}. Vsebina morda krši Gemini politiko. Poskusite preformulirati prompt ali scenarij."
+                video_instance.error_details = _(
+                    "Gemini je blokiral vsebino. Vsebina morda krši Gemini politiko. Poskusite preformulirati prompt ali scenarij."
+                )
                 video_instance.save()
                 raise ValueError(error_msg)
 
@@ -495,7 +501,7 @@ def get_video_segments(video_instance: GenVideo) -> None:
             video_instance.status = GenVideo.Statuses.FAILED
             video_instance.error_type = GenVideo.ErrorTypes.SEGMENTS_GENERATION
             video_instance.error_details = (
-                "Gemini je vrnil prazen odgovor. Poskusite preformulirati prompt."
+                _("Gemini je vrnil prazen odgovor. Poskusite preformulirati prompt.")
             )
             video_instance.save()
             raise ValueError(error_msg)
@@ -510,7 +516,7 @@ def get_video_segments(video_instance: GenVideo) -> None:
             logger.info(len(data))
             data = json.loads(data[0]["text"])
         else:
-            raise ValueError("Unexpected model response format for video segments")
+            raise ValueError(_("Nepričakovan format odgovora modela za video segmente"))
 
         for i, segment_data in enumerate(data):
             start = float(segment_data["start"].strip())
@@ -521,7 +527,9 @@ def get_video_segments(video_instance: GenVideo) -> None:
             if start >= end:
                 video_instance.status = GenVideo.Statuses.FAILED
                 video_instance.error_type = GenVideo.ErrorTypes.SEGMENTS_GENERATION
-                video_instance.error_details = f"Invalid segment times for segment {i+1}: start {start} >= end {end}"
+                video_instance.error_details = _(
+                    "Neveljavni časi segmenta %(segment)s: začetek %(start)s >= konec %(end)s"
+                ) % {"segment": i + 1, "start": start, "end": end}
                 video_instance.save()
 
             # If this is the last segment and we have voice_duration, use it
@@ -556,7 +564,9 @@ def get_video_segments(video_instance: GenVideo) -> None:
         )
         video_instance.status = GenVideo.Statuses.FAILED
         video_instance.error_type = GenVideo.ErrorTypes.SEGMENTS_GENERATION
-        video_instance.error_details = f"Error generating segments: {str(e)}"
+        video_instance.error_details = _("Napaka pri generiranju segmentov: %(error)s") % {
+            "error": str(e)
+        }
         video_instance.save()
         raise
 
@@ -614,7 +624,10 @@ our final approach into Coruscant.
         # Validate SRT content before saving
         is_valid, validation_message = validate_srt_content(srt_content)
         if not is_valid:
-            raise ValueError(f"Invalid SRT content: {validation_message}")
+            raise ValueError(
+                _("Neveljavna SRT vsebina: %(message)s")
+                % {"message": validation_message}
+            )
 
         logger.info(f"SRT validation result: {validation_message}")
 
@@ -633,7 +646,9 @@ our final approach into Coruscant.
         logger.error(f"✗ Error generating SRT file for video {video.id}: {str(e)}")
         video.status = GenVideo.Statuses.FAILED
         video.error_type = GenVideo.ErrorTypes.SRT_GENERATION
-        video.error_details = f"Error generating SRT file: {str(e)}"
+        video.error_details = _("Napaka pri generiranju SRT datoteke: %(error)s") % {
+            "error": str(e)
+        }
         video.save()
         raise
 
@@ -663,6 +678,154 @@ def render_final_video(video: GenVideo) -> None:
         get_temporary_file_from_url,
         get_temporary_file_path,
     )
+
+    def _build_entry_animation_filter(animation: str, clip_duration: float):
+        safe_duration = max(float(clip_duration or 0.0), 0.1)
+        animation = (animation or "none").strip().lower()
+        entry_duration = min(0.6, safe_duration / 2)
+
+        if animation == "fade_in_soft":
+            return f"fade=t=in:st=0:d={min(0.3, entry_duration):.3f}"
+        if animation == "fade_in_strong":
+            return f"fade=t=in:st=0:d={entry_duration:.3f}"
+        if animation == "zoom_in_soft":
+            return (
+                f"scale=iw*(1+0.04*min(t/{entry_duration:.3f}\\,1)):"
+                f"ih*(1+0.04*min(t/{entry_duration:.3f}\\,1)):eval=frame,"
+                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
+            )
+        if animation == "zoom_in_strong":
+            return (
+                f"scale=iw*(1+0.09*min(t/{entry_duration:.3f}\\,1)):"
+                f"ih*(1+0.09*min(t/{entry_duration:.3f}\\,1)):eval=frame,"
+                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
+            )
+        return None
+
+    def _build_mid_animation_filter(animation: str, clip_duration: float):
+        safe_duration = max(float(clip_duration or 0.0), 0.1)
+        animation = (animation or "none").strip().lower()
+
+        if animation == "slow_zoom_in_soft":
+            return (
+                f"scale=iw*(1+0.04*t/{safe_duration:.3f}):"
+                f"ih*(1+0.04*t/{safe_duration:.3f}):eval=frame,"
+                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
+            )
+        if animation == "slow_zoom_in_strong":
+            return (
+                f"scale=iw*(1+0.10*t/{safe_duration:.3f}):"
+                f"ih*(1+0.10*t/{safe_duration:.3f}):eval=frame,"
+                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
+            )
+        if animation == "slow_zoom_out_soft":
+            return (
+                f"scale=iw*(1.04-0.04*t/{safe_duration:.3f}):"
+                f"ih*(1.04-0.04*t/{safe_duration:.3f}):eval=frame,"
+                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
+            )
+        if animation == "slow_zoom_out_strong":
+            return (
+                f"scale=iw*(1.10-0.10*t/{safe_duration:.3f}):"
+                f"ih*(1.10-0.10*t/{safe_duration:.3f}):eval=frame,"
+                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
+            )
+        if animation == "subtle_pan_lr":
+            return (
+                "scale=iw*1.06:ih*1.06:eval=frame,"
+                f"crop=1080:1920:(iw-1080)*(0.5+0.5*sin(2*PI*t/{safe_duration:.3f}-PI/2)):(ih-1920)/2"
+            )
+        if animation == "subtle_pan_ud":
+            return (
+                "scale=iw*1.06:ih*1.06:eval=frame,"
+                f"crop=1080:1920:(iw-1080)/2:(ih-1920)*(0.5+0.5*sin(2*PI*t/{safe_duration:.3f}-PI/2))"
+            )
+        return None
+
+    def _build_exit_animation_filter(animation: str, clip_duration: float):
+        safe_duration = max(float(clip_duration or 0.0), 0.1)
+        animation = (animation or "none").strip().lower()
+        exit_duration = min(0.6, safe_duration / 2)
+        fade_out_start = max(0.0, safe_duration - exit_duration)
+
+        if animation == "fade_out_soft":
+            soft_duration = min(0.3, exit_duration)
+            return (
+                f"fade=t=out:st={max(0.0, safe_duration-soft_duration):.3f}:"
+                f"d={soft_duration:.3f}"
+            )
+        if animation == "fade_out_strong":
+            return f"fade=t=out:st={fade_out_start:.3f}:d={exit_duration:.3f}"
+        if animation == "zoom_out_soft":
+            return (
+                f"scale=iw*(1+0.04*max(({safe_duration:.3f}-t)/{exit_duration:.3f}\\,0)):"
+                f"ih*(1+0.04*max(({safe_duration:.3f}-t)/{exit_duration:.3f}\\,0)):eval=frame,"
+                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
+            )
+        if animation == "zoom_out_strong":
+            return (
+                f"scale=iw*(1+0.09*max(({safe_duration:.3f}-t)/{exit_duration:.3f}\\,0)):"
+                f"ih*(1+0.09*max(({safe_duration:.3f}-t)/{exit_duration:.3f}\\,0)):eval=frame,"
+                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
+            )
+        return None
+
+    def _build_segment_animation_filter(animation, clip_duration: float):
+        if isinstance(animation, dict):
+            animation_in = animation.get("in", "none")
+            animation_mid = animation.get("mid", "none")
+            animation_out = animation.get("out", "none")
+        else:
+            # Backward compatibility with legacy single animation selection.
+            legacy = (animation or "none").strip().lower()
+            legacy_in_map = {
+                "fade_in": "fade_in_soft",
+                "fade_in_out": "fade_in_soft",
+            }
+            legacy_mid_map = {
+                "zoom_in": "slow_zoom_in_soft",
+                "zoom_out": "slow_zoom_out_soft",
+            }
+            legacy_out_map = {
+                "fade_out": "fade_out_soft",
+                "fade_in_out": "fade_out_soft",
+            }
+            animation_in = legacy_in_map.get(legacy, "none")
+            animation_mid = legacy_mid_map.get(legacy, "none")
+            animation_out = legacy_out_map.get(legacy, "none")
+
+        filters = []
+        entry_filter = _build_entry_animation_filter(animation_in, clip_duration)
+        mid_filter = _build_mid_animation_filter(animation_mid, clip_duration)
+        exit_filter = _build_exit_animation_filter(animation_out, clip_duration)
+
+        if entry_filter:
+            filters.append(entry_filter)
+        if mid_filter:
+            filters.append(mid_filter)
+        if exit_filter:
+            filters.append(exit_filter)
+
+        if not filters:
+            return None
+
+        return ",".join(filters)
+
+    def _append_animation_to_vf(
+        base_filter: str, animation: str, clip_duration: float
+    ) -> str:
+        animation_filter = _build_segment_animation_filter(animation, clip_duration)
+        if not animation_filter:
+            return base_filter
+        return f"{base_filter},{animation_filter}"
+
+    def _append_animation_to_filter_complex(
+        base_filter: str, animation: str, clip_duration: float
+    ) -> str:
+        animation_filter = _build_segment_animation_filter(animation, clip_duration)
+        if not animation_filter:
+            return base_filter
+        return f"{base_filter},{animation_filter}"
 
     try:
         video.status = GenVideo.Statuses.RENDERING
@@ -710,12 +873,20 @@ def render_final_video(video: GenVideo) -> None:
                 horizontal_mode = segment.video_proposals[0].get(
                     "horizontal_mode", "crop"
                 )
+                animation_mode = {
+                    "in": segment.video_proposals[0].get("animation_in", "none"),
+                    "mid": segment.video_proposals[0].get(
+                        "animation_mid",
+                        segment.video_proposals[0].get("animation", "none"),
+                    ),
+                    "out": segment.video_proposals[0].get("animation_out", "none"),
+                }
 
                 output_file = temp_path / f"clip_{i:03d}.mp4"
                 duration = segment.duration()
 
                 logger.info(
-                    f"Processing clip {i+1}/{segments.count()}: {duration:.2f}s from URL (dimensions: {width}x{height}, is_image: {is_image}, mode: {horizontal_mode})"
+                    f"Processing clip {i+1}/{segments.count()}: {duration:.2f}s from URL (dimensions: {width}x{height}, is_image: {is_image}, mode: {horizontal_mode}, animation_in: {animation_mode['in']}, animation_mid: {animation_mode['mid']}, animation_out: {animation_mode['out']})"
                 )
 
                 if is_image:
@@ -746,7 +917,11 @@ def render_final_video(video: GenVideo) -> None:
                                     "-t",
                                     str(duration),
                                     "-vf",
-                                    "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                    _append_animation_to_vf(
+                                        "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                        animation_mode,
+                                        duration,
+                                    ),
                                     "-c:v",
                                     "libx264",
                                     "-preset",
@@ -771,10 +946,14 @@ def render_final_video(video: GenVideo) -> None:
                                 )
 
                                 # Complex filter for blur
-                                video_filter = (
-                                    "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
-                                    "[0:v]scale=1080:-1:force_original_aspect_ratio=decrease[main];"
-                                    "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
+                                video_filter = _append_animation_to_filter_complex(
+                                    (
+                                        "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
+                                        "[0:v]scale=1080:-1:force_original_aspect_ratio=decrease[main];"
+                                        "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
+                                    ),
+                                    animation_mode,
+                                    duration,
                                 )
 
                                 cmd = [
@@ -813,10 +992,14 @@ def render_final_video(video: GenVideo) -> None:
                                 # Complex filter - use ffmpeg variables (iw/ih) for dynamic dimensions
                                 # ih = input height, iw = input width
                                 # crop=ih:ih:(iw-ih)/2:0 makes square crop centered horizontally
-                                video_filter = (
-                                    "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
-                                    "[0:v]crop=ih:ih:(iw-ih)/2:0,scale=1080:-1:force_original_aspect_ratio=decrease[main];"
-                                    "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
+                                video_filter = _append_animation_to_filter_complex(
+                                    (
+                                        "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
+                                        "[0:v]crop=ih:ih:(iw-ih)/2:0,scale=1080:-1:force_original_aspect_ratio=decrease[main];"
+                                        "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
+                                    ),
+                                    animation_mode,
+                                    duration,
                                 )
 
                                 cmd = [
@@ -860,7 +1043,11 @@ def render_final_video(video: GenVideo) -> None:
                                     "-t",
                                     str(duration),
                                     "-vf",
-                                    "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                    _append_animation_to_vf(
+                                        "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                        animation_mode,
+                                        duration,
+                                    ),
                                     "-c:v",
                                     "libx264",
                                     "-preset",
@@ -892,7 +1079,11 @@ def render_final_video(video: GenVideo) -> None:
                                 "-t",
                                 str(duration),
                                 "-vf",
-                                "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                _append_animation_to_vf(
+                                    "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                    animation_mode,
+                                    duration,
+                                ),
                                 "-c:v",
                                 "libx264",
                                 "-preset",
@@ -946,7 +1137,11 @@ def render_final_video(video: GenVideo) -> None:
                                     "-t",
                                     str(duration),
                                     "-vf",
-                                    "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                    _append_animation_to_vf(
+                                        "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                        animation_mode,
+                                        duration,
+                                    ),
                                     "-c:v",
                                     "libx264",
                                     "-preset",
@@ -971,10 +1166,14 @@ def render_final_video(video: GenVideo) -> None:
                                 )
 
                                 # Complex filter, must use -filter_complex
-                                video_filter = (
-                                    "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
-                                    "[0:v]scale=1080:-1:force_original_aspect_ratio=decrease[main];"
-                                    "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
+                                video_filter = _append_animation_to_filter_complex(
+                                    (
+                                        "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
+                                        "[0:v]scale=1080:-1:force_original_aspect_ratio=decrease[main];"
+                                        "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
+                                    ),
+                                    animation_mode,
+                                    duration,
                                 )
 
                                 cmd = [
@@ -1010,10 +1209,14 @@ def render_final_video(video: GenVideo) -> None:
 
                                 # Complex filter with ffmpeg variables (iw/ih)
                                 # crop=ih:ih:(iw-ih)/2:0 makes square crop centered horizontally
-                                video_filter = (
-                                    "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
-                                    "[0:v]crop=ih:ih:(iw-ih)/2:0,scale=1080:-1:force_original_aspect_ratio=decrease[main];"
-                                    "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
+                                video_filter = _append_animation_to_filter_complex(
+                                    (
+                                        "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
+                                        "[0:v]crop=ih:ih:(iw-ih)/2:0,scale=1080:-1:force_original_aspect_ratio=decrease[main];"
+                                        "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
+                                    ),
+                                    animation_mode,
+                                    duration,
                                 )
 
                                 cmd = [
@@ -1053,7 +1256,11 @@ def render_final_video(video: GenVideo) -> None:
                                     "-t",
                                     str(duration),
                                     "-vf",
-                                    "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                    _append_animation_to_vf(
+                                        "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                        animation_mode,
+                                        duration,
+                                    ),
                                     "-c:v",
                                     "libx264",
                                     "-preset",
@@ -1083,7 +1290,11 @@ def render_final_video(video: GenVideo) -> None:
                                 "-t",
                                 str(duration),
                                 "-vf",
-                                "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                _append_animation_to_vf(
+                                    "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                    animation_mode,
+                                    duration,
+                                ),
                                 "-c:v",
                                 "libx264",
                                 "-preset",
@@ -1334,6 +1545,8 @@ def render_final_video(video: GenVideo) -> None:
         print(f"Error rendering video {video}: {str(e)}")
         video.status = GenVideo.Statuses.FAILED
         video.error_type = GenVideo.ErrorTypes.RENDERING
-        video.error_details = f"Error rendering final video: {str(e)}"
+        video.error_details = _("Napaka pri renderiranju končnega videa: %(error)s") % {
+            "error": str(e)
+        }
         video.save()
         raise

@@ -1,10 +1,9 @@
-<!DOCTYPE html>
-<html lang="sl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ video.title }} - Podrobnosti</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{{ video.title }} - {% trans "Podrobnosti" %}{% endblock %}
+
+{% block extra_head %}
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&family=Bebas+Neue&family=Roboto:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
@@ -132,15 +131,16 @@
             border-radius: 4px;
         }
     </style>
-</head>
-<body>
+{% endblock %}
+
+{% block content %}
     <div class="container mt-4">
         <!-- Header -->
         <div class="row mb-4">
             <div class="col-md-12">
                 <nav aria-label="breadcrumb">
                     <ol class="breadcrumb">
-                        <li class="breadcrumb-item"><a href="{% url 'video_list' %}">Videi</a></li>
+                        <li class="breadcrumb-item"><a href="{% url 'video_list' %}">{% trans "Videi" %}</a></li>
                         <li class="breadcrumb-item active">{{ video.title }}</li>
                     </ol>
                 </nav>
@@ -148,25 +148,25 @@
                 <div class="row">
                     <div class="col-md-6">
                         <p class="text-muted mb-0">
-                            Ustvarjeno: {{ video.created_at|date:"d.m.Y H:i" }}<br>
-                            Posodobljeno: {{ video.updated_at|date:"d.m.Y H:i" }}
+                            {% trans "Ustvarjeno" %}: {{ video.created_at|date:"d.m.Y H:i" }}<br>
+                            {% trans "Posodobljeno" %}: {{ video.updated_at|date:"d.m.Y H:i" }}
                         </p>
                     </div>
                     <div class="col-md-6 text-end">
                         {% if video.status == 'GENERATING_VOICE' or video.status == 'GENERATING_SUBTITLES' or video.status == 'GENERATING_SEGMENTS' or video.status == 'RENDERING' or video.status == 'PROCESSING' %}
-                            <div class="text-muted">Generiranje ...</div>
+                            <div class="text-muted">{% trans "Generiranje ..." %}</div>
                             <div class="spinner-border text-primary me-2" role="status" style="width: 1.5rem; height: 1.5rem;"></div>
                         {% elif completed_segments == total_segments and total_segments > 0 and video.voice_file %}
                             <form method="post" action="{% url 'render_video' video.id %}" style="margin: 0;">
                                 {% csrf_token %}
                                 <button type="submit" class="btn btn-lg btn-success">
-                                    <i class="bi bi-film"></i> Generiraj video
+                                    <i class="bi bi-film"></i> {% trans "Generiraj video" %}
                                 </button>
                             </form>
                         {% elif video.status == 'FAILED' and video.error_details %}
                             <div class="alert alert-danger mb-3" role="alert">
                                 <h6 class="alert-heading">
-                                    <i class="bi bi-exclamation-triangle-fill"></i> Napaka
+                                    <i class="bi bi-exclamation-triangle-fill"></i> {% trans "Napaka" %}
                                     {% if video.error_type %}
                                         <span class="badge bg-danger ms-2">{{ video.get_error_type_display }}</span>
                                     {% endif %}
@@ -184,7 +184,7 @@
                                 <span class="lead fw-bold text-danger" id="completedSegments">{{ completed_segments }}</span>
                                 /
                                 <span class="lead fw-bold" id="totalSegments">{{ total_segments }}</span>
-                                segmentov ima izbran video klip
+                                {% trans "segmentov ima izbran video klip" %}
                             </div>
                         {% endif %}
                     </div>
@@ -200,21 +200,21 @@
             <div class="col-md-12">
                 <h5 class="d-flex align-items-center mb-3">
                     <div>
-                        <i class="bi bi-camera-video-fill"></i> Končni video
+                        <i class="bi bi-camera-video-fill"></i> {% trans "Končni video" %}
                     </div>
                 </h5>
                 <div class="card">
                     <div class="card-body">
-                        <p class="text-success"><i class="bi bi-check-circle-fill"></i> Pripravljen</p>
+                        <p class="text-success"><i class="bi bi-check-circle-fill"></i> {% trans "Pripravljen" %}</p>
                         <video controls class="w-100 mb-2" style="max-height: 200px;">
                             <source src="{{ video.final_file.url }}" type="video/mp4">
-                            Vaš brskalnik ne podpira predvajanja videa.
+                            {% trans "Vaš brskalnik ne podpira predvajanja videa." %}
                         </video>
                         <a href="{{ video.final_file.url }}" class="btn btn-sm btn-success" target="_blank">
-                            <i class="bi bi-play-circle"></i> Predvajaj
+                            <i class="bi bi-play-circle"></i> {% trans "Predvajaj" %}
                         </a>
                         <a href="{{ video.final_file.url }}" class="btn btn-sm btn-outline-primary" download>
-                            <i class="bi bi-download"></i> Prenesi
+                            <i class="bi bi-download"></i> {% trans "Prenesi" %}
                         </a>
                     </div>
                 </div>
@@ -228,14 +228,14 @@
                 <div class="d-flex flex-column h-100">
                     <h5 class="d-flex justify-content-between align-items-center mb-2">
                         <div>
-                            <i class="bi bi-journal-text"></i> Scenarij
+                            <i class="bi bi-journal-text"></i> {% trans "Scenarij" %}
                         </div>
                         <div class="d-flex align-items-center">
                             <i class="bi bi-arrow-clockwise"></i>
-                            <form method="post" action="{% url 'regenerate_segments' video.id %}" style="margin: 0;" onsubmit="return confirm('Ali si prepričan? Vsi obstoječi segmenti bodo izbrisani!');">
+                            <form method="post" action="{% url 'regenerate_segments' video.id %}" style="margin: 0;" onsubmit="return confirm(i18n.confirmRegenerateSegments);">
                                 {% csrf_token %}
                                 <button type="submit" class="btn btn-sm btn-link" {% if not video.scenario %}disabled{% endif %}>
-                                    Generiraj ponovno
+                                    {% trans "Generiraj ponovno" %}
                                 </button>
                             </form>
                         </div>
@@ -252,14 +252,14 @@
                 <div class="d-flex flex-column h-100">
                     <h5 class="d-flex justify-content-between align-items-center mb-2">
                         <div>
-                            <i class="bi bi-mic-fill"></i> Zvočna datoteka
+                            <i class="bi bi-mic-fill"></i> {% trans "Zvočna datoteka" %}
                         </div>
                         <div class="d-flex align-items-center">
                             <i class="bi bi-arrow-clockwise"></i>
                             <form method="post" action="{% url 'generate_voice' video.id %}" style="margin: 0;">
                                 {% csrf_token %}
                                 <button type="submit" class="btn btn-sm btn-link" {% if not video.scenario %}disabled{% endif %}>
-                                    Generiraj ponovno
+                                    {% trans "Generiraj ponovno" %}
                                 </button>
                             </form>
                         </div>
@@ -267,17 +267,17 @@
                     <div class="card flex-grow-1">
                         <div class="card-body">
                             {% if video.voice_file %}
-                                <p class="text-success"><i class="bi bi-check-circle-fill"></i> Naložena</p>
-                                <p class="text-muted">Model: {{ video.voice_model }}</p>
+                                <p class="text-success"><i class="bi bi-check-circle-fill"></i> {% trans "Naložena" %}</p>
+                                <p class="text-muted">{% trans "Model" %}: {{ video.voice_model }}</p>
                                 <audio controls class="w-100 mb-2">
                                     <source src="{{ video.voice_file.url }}" type="audio/mpeg">
-                                    Vaš brskalnik ne podpira predvajanja zvoka.
+                                    {% trans "Vaš brskalnik ne podpira predvajanja zvoka." %}
                                 </audio>
                                 <a href="{{ video.voice_file.url }}" class="btn btn-sm btn-outline-primary" download>
-                                    <i class="bi bi-download"></i> Prenesi
+                                    <i class="bi bi-download"></i> {% trans "Prenesi" %}
                                 </a>
                             {% else %}
-                                <p class="text-muted">Ni na voljo</p>
+                                <p class="text-muted">{% trans "Ni na voljo" %}</p>
                             {% endif %}
                         </div>
                     </div>
@@ -290,14 +290,14 @@
             <div class="col-md-12">
                 <h5 class="d-flex justify-content-between align-items-center mb-2">
                     <div>
-                        <i class="bi bi-file-text-fill"></i> Podnapisi (SRT)
+                        <i class="bi bi-file-text-fill"></i> {% trans "Podnapisi (SRT)" %}
                     </div>
                     <div class="d-flex align-items-center">
                         <i class="bi bi-arrow-clockwise"></i>
-                        <form method="post" action="{% url 'regenerate_srt' video.id %}" style="margin: 0;" onsubmit="return confirm('Ali si prepričan? Obstoječi podnapisi bodo izbrisani!');">
+                        <form method="post" action="{% url 'regenerate_srt' video.id %}" style="margin: 0;" onsubmit="return confirm(i18n.confirmRegenerateSrt);">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-sm btn-link" {% if not video.voice_file %}disabled{% endif %}>
-                                Generiraj ponovno
+                                {% trans "Generiraj ponovno" %}
                             </button>
                         </form>
                     </div>
@@ -307,16 +307,16 @@
                         {% if video.srt_file %}
                         <div class="row g-3">
                             <div class="col-lg-5">
-                                <p class="text-success"><i class="bi bi-check-circle-fill"></i> Naloženi</p>
+                                <p class="text-success"><i class="bi bi-check-circle-fill"></i> {% trans "Naloženi" %}</p>
                                 <a href="{{ video.srt_file.url }}" class="btn btn-sm btn-outline-primary mb-3" download>
-                                    <i class="bi bi-download"></i> Prenesi
+                                    <i class="bi bi-download"></i> {% trans "Prenesi" %}
                                 </a>
 
-                                <h6 class="mt-3 mb-2">Prilagodi podnapise:</h6>
+                                <h6 class="mt-3 mb-2">{% trans "Prilagodi podnapise:" %}</h6>
 
                                 <div class="row g-3 mb-3">
                                     <div class="col-md-12">
-                                        <label class="form-label">Font</label>
+                                        <label class="form-label">{% trans "Font" %}</label>
                                         <select class="form-select" id="fontFamily" onchange="updateSubtitlePreview()">
                                             <option value="Montserrat" {% if video.subtitle_font_family == 'Montserrat' or not video.subtitle_font_family %}selected{% endif %}>Montserrat</option>
                                             <option value="Impact" {% if video.subtitle_font_family == 'Impact' %}selected{% endif %}>Impact</option>
@@ -326,43 +326,43 @@
                                         </select>
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label">Velikost: <span id="fontSizeValue">{{ video.subtitle_font_size|default:12 }}</span>px</label>
+                                        <label class="form-label">{% trans "Velikost" %}: <span id="fontSizeValue">{{ video.subtitle_font_size|default:12 }}</span>px</label>
                                         <input type="range" class="form-range" min="10" max="20" value="{{ video.subtitle_font_size|default:12 }}" id="fontSize" oninput="updateSubtitlePreview()">
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label">Stroke: <span id="strokeValue">{{ video.subtitle_stroke_weight|default:3 }}</span>px</label>
+                                        <label class="form-label">{% trans "Stroke" %}: <span id="strokeValue">{{ video.subtitle_stroke_weight|default:3 }}</span>px</label>
                                         <input type="range" class="form-range" min="0" max="6" value="{{ video.subtitle_stroke_weight|default:3 }}" id="strokeWeight" oninput="updateSubtitlePreview()">
                                     </div>
                                     <div class="col-md-12">
-                                        <label class="form-label">Font Weight</label>
+                                        <label class="form-label">{% trans "Font Weight" %}</label>
                                         <select class="form-select" id="fontWeight" onchange="updateSubtitlePreview()">
-                                            <option value="400" {% if video.subtitle_font_weight == '400' %}selected{% endif %}>Normal (400)</option>
-                                            <option value="700" {% if video.subtitle_font_weight == '700' %}selected{% endif %}>Bold (700)</option>
-                                            <option value="900" {% if video.subtitle_font_weight == '900' or not video.subtitle_font_weight %}selected{% endif %}>Heavy (900)</option>
+                                            <option value="400" {% if video.subtitle_font_weight == '400' %}selected{% endif %}>{% trans "Normal" %} (400)</option>
+                                            <option value="700" {% if video.subtitle_font_weight == '700' %}selected{% endif %}>{% trans "Bold" %} (700)</option>
+                                            <option value="900" {% if video.subtitle_font_weight == '900' or not video.subtitle_font_weight %}selected{% endif %}>{% trans "Heavy" %} (900)</option>
                                         </select>
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label">Shadow: <span id="shadowValue">{{ video.subtitle_shadow|default:1 }}</span></label>
+                                        <label class="form-label">{% trans "Shadow" %}: <span id="shadowValue">{{ video.subtitle_shadow|default:1 }}</span></label>
                                         <input type="range" class="form-range" min="0" max="3" value="{{ video.subtitle_shadow|default:1 }}" id="shadow" oninput="updateSubtitlePreview()">
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label">Višina: <span id="verticalPositionValue">{{ video.subtitle_vertical_position|default:10 }}</span>%</label>
+                                        <label class="form-label">{% trans "Višina" %}: <span id="verticalPositionValue">{{ video.subtitle_vertical_position|default:10 }}</span>%</label>
                                         <input type="range" class="form-range" min="0" max="50" value="{{ video.subtitle_vertical_position|default:10 }}" id="verticalPosition" oninput="updateSubtitlePreview()">
                                     </div>
                                     <div class="col-md-12">
                                         <button class="btn btn-primary" onclick="saveSubtitleSettings('{{ video.id }}')">
-                                            <i class="bi bi-check-circle"></i> Shrani nastavitve
+                                            <i class="bi bi-check-circle"></i> {% trans "Shrani nastavitve" %}
                                         </button>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-lg-3">
-                                <h6 class="mt-1 mb-2">Logotip:</h6>
+                                <h6 class="mt-1 mb-2">{% trans "Logotip:" %}</h6>
                                 <div class="border rounded p-2 mb-2" style="max-height: 260px; overflow-y: auto;">
                                     <div id="logoOptionsContainer" class="d-grid gap-2">
                                         <label class="logo-option {% if not video.logo_id %}selected{% endif %}" data-logo-card-id="none">
                                             <input class="form-check-input me-2" type="radio" name="selectedLogo" value="" data-logo-url="" {% if not video.logo_id %}checked{% endif %}>
-                                            <span class="small">Brez logotipa</span>
+                                            <span class="small">{% trans "Brez logotipa" %}</span>
                                         </label>
                                         {% for logo in user_logos %}
                                         <label class="logo-option {% if video.logo_id == logo.id %}selected{% endif %}" data-logo-card-id="{{ logo.id }}">
@@ -370,34 +370,34 @@
                                             <img src="{{ logo.logo_file.url }}" class="logo-option-thumb mt-2" alt="Logo {{ logo.id }}">
                                         </label>
                                         {% empty %}
-                                        <div class="text-muted small" id="noLogosMessage">Ni še naloženih logotipov.</div>
+                                        <div class="text-muted small" id="noLogosMessage">{% trans "Ni še naloženih logotipov." %}</div>
                                         {% endfor %}
                                     </div>
                                 </div>
 
                                 <div class="mb-2">
-                                    <label class="form-label">Položaj logotipa</label>
+                                    <label class="form-label">{% trans "Položaj logotipa" %}</label>
                                     <select class="form-select" id="logoPosition" onchange="updateLogoPreview()">
-                                        <option value="top_left" {% if video.logo_position == 'top_left' %}selected{% endif %}>Zgoraj levo</option>
-                                        <option value="top_right" {% if video.logo_position != 'top_left' %}selected{% endif %}>Zgoraj desno</option>
+                                        <option value="top_left" {% if video.logo_position == 'top_left' %}selected{% endif %}>{% trans "Zgoraj levo" %}</option>
+                                        <option value="top_right" {% if video.logo_position != 'top_left' %}selected{% endif %}>{% trans "Zgoraj desno" %}</option>
                                     </select>
                                 </div>
                                 <div class="mb-2">
-                                    <label class="form-label">Velikost: <span id="logoSizeValue">{{ video.logo_size_percent|default:15 }}</span>%</label>
+                                    <label class="form-label">{% trans "Velikost" %}: <span id="logoSizeValue">{{ video.logo_size_percent|default:15 }}</span>%</label>
                                     <input type="range" class="form-range" min="5" max="40" value="{{ video.logo_size_percent|default:15 }}" id="logoSizePercent" oninput="updateLogoPreview()">
                                 </div>
                                 <div class="d-grid mb-2">
                                     <button class="btn btn-outline-primary btn-sm" onclick="saveLogoSettings('{{ video.id }}')">
-                                        <i class="bi bi-check-circle"></i> Shrani logo nastavitve
+                                        <i class="bi bi-check-circle"></i> {% trans "Shrani logo nastavitve" %}
                                     </button>
                                 </div>
 
                                 <form id="logoUploadForm" class="border rounded p-2" enctype="multipart/form-data">
-                                    <label class="form-label mb-1">Naloži nov logotip</label>
+                                    <label class="form-label mb-1">{% trans "Naloži nov logotip" %}</label>
                                     <input type="file" class="form-control form-control-sm mb-2" id="logoFileInput" name="logo" accept="image/*" required>
                                     <div class="d-grid">
                                         <button type="submit" class="btn btn-sm btn-success">
-                                            <i class="bi bi-upload"></i> Upload
+                                            <i class="bi bi-upload"></i> {% trans "Upload" %}
                                         </button>
                                     </div>
                                 </form>
@@ -411,13 +411,13 @@
                                         alt="Logo preview"
                                     >
                                     <div class="subtitle-preview">
-                                        <span id="subtitlePreviewText">Primer Teksta je takšen, a bi mel drugačnega?</span>
+                                        <span id="subtitlePreviewText">{% trans "Primer Teksta je takšen, a bi mel drugačnega?" %}</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
                         {% else %}
-                            <p class="text-muted">Ni na voljo</p>
+                            <p class="text-muted">{% trans "Ni na voljo" %}</p>
                         {% endif %}
                     </div>
                 </div>
@@ -427,7 +427,7 @@
         <!-- Video Segments -->
         <div class="row mb-4">
             <div class="col-md-12">
-                <h3>Video segmenti ({{ total_segments }})</h3>
+                <h3>{% trans "Video segmenti" %} ({{ total_segments }})</h3>
             </div>
         </div>
 
@@ -454,26 +454,26 @@
                                 <p class="text-muted mb-1">
                                     <i class="bi bi-clock"></i>
                                     {{ segment.start_time|floatformat:1 }}s - {{ segment.end_time|floatformat:1 }}s
-                                    (trajanje: {{ segment.duration|floatformat:1 }}s)
+                                    ({% trans "trajanje" %}: {{ segment.duration|floatformat:1 }}s)
                                 </p>
                                 <p class="text-muted mb-1">
-                                    <i class="bi bi-search"></i> Ključne besede: {{ segment.query }}
+                                    <i class="bi bi-search"></i> {% trans "Ključne besede" %}: {{ segment.query }}
                                 </p>
 
                                 {% if not segment.video_proposals or not segment.video_proposals.0.selected %}
                                 <a href="#" class="btn btn-sm btn-primary mt-2 toggle-select-video">
-                                    <i class="bi bi-film"></i> Izberi video
+                                    <i class="bi bi-film"></i> {% trans "Izberi video" %}
                                 </a>
                                 {% endif %}
                             </div>
                             <div class="col-md-4">
                                 {% if segment.video_proposals and segment.video_proposals.0.selected %}
                                     {% if segment.video_proposals.0.is_image %}
-                                        <img src="{{ segment.video_proposals.0.video_url }}" class="video-preview w-100" alt="Izbrana slika">
+                                        <img src="{{ segment.video_proposals.0.video_url }}" class="video-preview w-100" alt="{% trans "Izbrana slika" %}">
                                     {% else %}
                                         <video controls class="video-preview">
                                             <source src="{{ segment.video_proposals.0.video_url }}" type="video/mp4">
-                                            Vaš brskalnik ne podpira predvajanja videa.
+                                            {% trans "Vaš brskalnik ne podpira predvajanja videa." %}
                                         </video>
                                     {% endif %}
                                     <div class="mt-2">
@@ -483,7 +483,10 @@
                                         </a>
                                         {% endif %}
                                         <a href="#" class="btn btn-sm btn-outline-secondary toggle-select-video">
-                                            <i class="bi bi-arrow-repeat"></i> Zamenjaj
+                                            <i class="bi bi-arrow-repeat"></i> {% trans "Zamenjaj" %}
+                                        </a>
+                                        <a href="#" class="btn btn-sm btn-outline-dark toggle-animation-settings">
+                                            <i class="bi bi-magic"></i> {% trans "Animacije" %}
                                         </a>
                                     </div>
                                     {% if segment.video_proposals.0.width > segment.video_proposals.0.height %}
@@ -502,10 +505,56 @@
                                 {% else %}
                                     <p class="text-muted text-center">
                                         <i class="bi bi-exclamation-triangle" style="font-size: 3rem;"></i><br>
-                                        Video ni izbran
+                                        {% trans "Video ni izbran" %}
                                     </p>
                                 {% endif %}
                             </div>
+                            {% if segment.video_proposals and segment.video_proposals.0.selected %}
+                            <div class="col-md-12 select-animation-container mt-2" style="display: none;">
+                                <div class="card border-0 bg-light">
+                                    <div class="card-body py-2">
+                                        <div class="small text-muted mb-2">{% trans "Animacije segmenta:" %}</div>
+
+                                        <div class="mb-2 animation-mode-group" data-segment-id="{{ segment.id }}" data-slot="in">
+                                            <div class="small fw-semibold mb-1">{% trans "Vhod" %}</div>
+                                            <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Entry animation">
+                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_in == 'none' or not segment.video_proposals.0.animation_in %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="in" data-value="none">{% trans "Brez" %}</button>
+                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_in == 'fade_in_soft' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="in" data-value="fade_in_soft">Fade Soft</button>
+                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_in == 'fade_in_strong' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="in" data-value="fade_in_strong">Fade Strong</button>
+                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_in == 'zoom_in_soft' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="in" data-value="zoom_in_soft">Zoom In Soft</button>
+                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_in == 'zoom_in_strong' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="in" data-value="zoom_in_strong">Zoom In Strong</button>
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-2 animation-mode-group" data-segment-id="{{ segment.id }}" data-slot="mid">
+                                            <div class="small fw-semibold mb-1">{% trans "Vmes" %}</div>
+                                            <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Middle animation">
+                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'none' or not segment.video_proposals.0.animation_mid and not segment.video_proposals.0.animation %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="none">{% trans "Brez" %}</button>
+                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'slow_zoom_in_soft' or segment.video_proposals.0.animation == 'zoom_in' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="slow_zoom_in_soft">Zoom In Soft</button>
+                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'slow_zoom_in_strong' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="slow_zoom_in_strong">Zoom In Strong</button>
+                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'slow_zoom_out_soft' or segment.video_proposals.0.animation == 'zoom_out' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="slow_zoom_out_soft">Zoom Out Soft</button>
+                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'slow_zoom_out_strong' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="slow_zoom_out_strong">Zoom Out Strong</button>
+                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'subtle_pan_lr' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="subtle_pan_lr">Pan L-R</button>
+                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'subtle_pan_ud' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="subtle_pan_ud">Pan U-D</button>
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-2 animation-mode-group" data-segment-id="{{ segment.id }}" data-slot="out">
+                                            <div class="small fw-semibold mb-1">{% trans "Izhod" %}</div>
+                                            <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Exit animation">
+                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_out == 'none' or not segment.video_proposals.0.animation_out %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="out" data-value="none">{% trans "Brez" %}</button>
+                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_out == 'fade_out_soft' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="out" data-value="fade_out_soft">Fade Soft</button>
+                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_out == 'fade_out_strong' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="out" data-value="fade_out_strong">Fade Strong</button>
+                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_out == 'zoom_out_soft' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="out" data-value="zoom_out_soft">Zoom Out Soft</button>
+                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_out == 'zoom_out_strong' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="out" data-value="zoom_out_strong">Zoom Out Strong</button>
+                                            </div>
+                                        </div>
+
+                                        <div class="small text-muted mt-2 animation-status"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
                             <div class="col-md-12 select-video-container mt-3" style="{% if segment.video_proposals and segment.video_proposals.0.selected %}display: none;{% endif %}">
                                 {% include "agent/includes/video_carousel.html" with segment=segment %}
                             </div>
@@ -518,7 +567,7 @@
         <div class="row">
             <div class="col-md-12">
                 <div class="alert alert-info">
-                    Ni stavkov. Dodaj vsebinski skript, da se samodejno ustvarijo stavki.
+                    {% trans "Ni stavkov. Dodaj vsebinski skript, da se samodejno ustvarijo stavki." %}
                 </div>
             </div>
         </div>
@@ -529,15 +578,40 @@
                 <form method="post" action="{% url 'render_video' video.id %}" style="margin: 0;">
                     {% csrf_token %}
                     <button type="submit" id="generateVideoBottomBtn" class="btn btn-lg btn-success" {% if completed_segments == total_segments and total_segments > 0 and video.voice_file %}{% else %}disabled{% endif %}>
-                        <i class="bi bi-film"></i> Generiraj video
+                        <i class="bi bi-film"></i> {% trans "Generiraj video" %}
                     </button>
                 </form>
             </div>
         </div>
     </div>
+{% endblock %}
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+{% block extra_scripts %}
     <script>
+        const i18n = {
+            confirmRegenerateSegments: '{% trans "Ali si prepričan? Vsi obstoječi segmenti bodo izbrisani!" %}',
+            confirmRegenerateSrt: '{% trans "Ali si prepričan? Obstoječi podnapisi bodo izbrisani!" %}',
+            missingMediaUrl: '{% trans "Napaka: Video/Slika URL ni najden" %}',
+            savingSetting: '{% trans "Shranjujem nastavitev..." %}',
+            modeUpdated: '{% trans "Način uspešno posodobljen!" %}',
+            modeSaveErrorPrefix: '{% trans "Napaka pri shranjevanju načina:" %}',
+            logoSaveFailed: '{% trans "Failed to save selected logo" %}',
+            logoSaveError: '{% trans "Napaka pri shranjevanju izbranega logotipa" %}',
+            logoSettingsSaved: '{% trans "Logo nastavitve so shranjene!" %}',
+            logoSettingsFailed: '{% trans "Failed to save logo settings" %}',
+            logoSettingsError: '{% trans "Napaka pri shranjevanju logo nastavitev" %}',
+            chooseLogoFile: '{% trans "Najprej izberi datoteko logotipa" %}',
+            uploadFailed: '{% trans "Upload failed" %}',
+            logoUploadError: '{% trans "Napaka pri uploadu logotipa:" %}',
+            subtitleSettingsFailed: '{% trans "Failed to save subtitle settings" %}',
+            subtitleSettingsSaved: '{% trans "Nastavitve podnapisov so shranjene!" %}',
+            subtitleSettingsError: '{% trans "Napaka pri shranjevanju nastavitev" %}',
+            savingAnimation: '{% trans "Shranjujem animacijo..." %}',
+            animationSaved: '{% trans "Animacija uspešno shranjena." %}',
+            errorPrefix: '{% trans "Napaka:" %}',
+            animationSaveErrorPrefix: '{% trans "Napaka pri shranjevanju animacije:" %}'
+        };
+
         // Auto-reload page every 15 seconds if video is being processed
         const videoStatus = '{{ video.status }}';
         const processingStatuses = ['GENERATING_VOICE', 'GENERATING_SUBTITLES', 'GENERATING_SEGMENTS', 'RENDERING'];
@@ -652,13 +726,13 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error('Failed to save selected logo');
+                    throw new Error(i18n.logoSaveFailed);
                 }
 
                 updateLogoPreview();
             } catch (error) {
                 console.error('Error saving selected logo:', error);
-                alert('Napaka pri shranjevanju izbranega logotipa');
+                alert(i18n.logoSaveError);
             }
         }
 
@@ -680,21 +754,21 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error('Failed to save logo settings');
+                    throw new Error(i18n.logoSettingsFailed);
                 }
 
                 updateLogoPreview();
-                alert('Logo nastavitve so shranjene!');
+                alert(i18n.logoSettingsSaved);
             } catch (error) {
                 console.error('Error saving logo settings:', error);
-                alert('Napaka pri shranjevanju logo nastavitev');
+                alert(i18n.logoSettingsError);
             }
         }
 
         async function uploadLogo(videoId) {
             const fileInput = document.getElementById('logoFileInput');
             if (!fileInput.files.length) {
-                alert('Najprej izberi datoteko logotipa');
+                alert(i18n.chooseLogoFile);
                 return;
             }
 
@@ -712,13 +786,13 @@
 
                 const result = await response.json();
                 if (!response.ok || !result.success) {
-                    throw new Error(result.error || 'Upload failed');
+                    throw new Error(result.error || i18n.uploadFailed);
                 }
 
                 location.reload();
             } catch (error) {
                 console.error('Error uploading logo:', error);
-                alert('Napaka pri uploadu logotipa: ' + error.message);
+                alert(i18n.logoUploadError + ' ' + error.message);
             }
         }
 
@@ -749,15 +823,15 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error('Failed to save subtitle settings');
+                    throw new Error(i18n.subtitleSettingsFailed);
                 }
 
                 const result = await response.json();
-                alert('Nastavitve podnapisov so shranjene!');
+                alert(i18n.subtitleSettingsSaved);
                 console.log('Subtitle settings saved:', result);
             } catch (error) {
                 console.error('Error saving subtitle settings:', error);
-                alert('Napaka pri shranjevanju nastavitev');
+                alert(i18n.subtitleSettingsError);
             }
         }
 
@@ -806,6 +880,24 @@
                 });
             });
 
+            // Toggle animation selector
+            const toggleAnimationButtons = document.querySelectorAll('.toggle-animation-settings');
+            toggleAnimationButtons.forEach(button => {
+                button.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    const container = this.closest('.card-body').querySelector('.select-animation-container');
+                    if (!container) {
+                        return;
+                    }
+                    if (container.style.display === 'none') {
+                        container.style.display = '';
+                        container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    } else {
+                        container.style.display = 'none';
+                    }
+                });
+            });
+
             // Handle horizontal mode buttons for already selected videos
             const horizontalModeGroups = document.querySelectorAll('.horizontal-mode-group');
             horizontalModeGroups.forEach(group => {
@@ -825,7 +917,7 @@
                                        imageElement ? imageElement.getAttribute('src') : null;
 
                         if (!videoUrl) {
-                            alert('Napaka: Video/Slika URL ni najden');
+                            alert(i18n.missingMediaUrl);
                             return;
                         }
 
@@ -841,7 +933,7 @@
                                 if (alertBox) {
                                     alertBox.className = 'alert alert-warning';
                                     alertBox.querySelector('i').className = 'bi bi-hourglass-split';
-                                    alertBox.querySelector('span').textContent = 'Shranjujem nastavitev...';
+                                    alertBox.querySelector('span').textContent = i18n.savingSetting;
                                     alertBox.style.display = 'block';
                                 }
                             }
@@ -863,7 +955,7 @@
                             const data = await response.json();
 
                             if (data.error) {
-                                alert('Napaka: ' + data.error);
+                                alert(i18n.errorPrefix + ' ' + data.error);
                                 if (alertBox) {
                                     alertBox.className = 'alert alert-danger';
                                     alertBox.querySelector('i').className = 'bi bi-exclamation-triangle-fill';
@@ -885,7 +977,7 @@
                                 if (alertBox) {
                                     alertBox.className = 'alert alert-success';
                                     alertBox.querySelector('i').className = 'bi bi-check-circle-fill';
-                                    alertBox.querySelector('span').textContent = 'Način uspešno posodobljen!';
+                                    alertBox.querySelector('span').textContent = i18n.modeUpdated;
                                     setTimeout(() => {
                                         alertBox.style.display = 'none';
                                     }, 2000);
@@ -893,7 +985,92 @@
                             }
                         } catch (error) {
                             console.error('Napaka pri shranjevanju načina:', error);
-                            alert('Napaka pri shranjevanju načina: ' + error.message);
+                            alert(i18n.modeSaveErrorPrefix + ' ' + error.message);
+                        }
+                    });
+                });
+            });
+
+            // Handle animation buttons
+            const animationModeGroups = document.querySelectorAll('.animation-mode-group');
+            animationModeGroups.forEach(group => {
+                const segmentId = group.getAttribute('data-segment-id');
+                const animationButtons = group.querySelectorAll('.animation-btn');
+                const slot = group.getAttribute('data-slot');
+
+                const slotToMetadataKey = {
+                    in: 'animation_in',
+                    mid: 'animation_mid',
+                    out: 'animation_out'
+                };
+
+                animationButtons.forEach(btn => {
+                    btn.addEventListener('click', async function(e) {
+                        e.preventDefault();
+                        const newAnimation = this.getAttribute('data-value');
+                        const metadataKey = slotToMetadataKey[slot];
+
+                        if (!metadataKey) {
+                            return;
+                        }
+
+                        const cardBody = this.closest('.card-body');
+                        const segmentBody = this.closest('.segment-card').querySelector('.card-body');
+                        const videoElement = segmentBody.querySelector('video source');
+                        const imageElement = segmentBody.querySelector('img.video-preview');
+                        const videoUrl = videoElement ? videoElement.getAttribute('src') :
+                                       imageElement ? imageElement.getAttribute('src') : null;
+
+                        if (!videoUrl) {
+                            alert(i18n.missingMediaUrl);
+                            return;
+                        }
+
+                        const statusEl = cardBody.querySelector('.animation-status');
+                        if (statusEl) {
+                            statusEl.textContent = i18n.savingAnimation;
+                        }
+
+                        try {
+                            const response = await fetch(`/video-segments/${segmentId}/save-video/`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                                },
+                                body: JSON.stringify({
+                                    video_url: videoUrl,
+                                    metadata: {
+                                        [metadataKey]: newAnimation
+                                    }
+                                })
+                            });
+
+                            const data = await response.json();
+                            if (data.error) {
+                                throw new Error(data.error);
+                            }
+
+                            animationButtons.forEach(animationBtn => {
+                                const animation = animationBtn.getAttribute('data-value');
+                                if (animation === newAnimation) {
+                                    animationBtn.classList.remove('btn-outline-primary');
+                                    animationBtn.classList.add('btn-primary');
+                                } else {
+                                    animationBtn.classList.remove('btn-primary');
+                                    animationBtn.classList.add('btn-outline-primary');
+                                }
+                            });
+
+                            if (statusEl) {
+                                statusEl.textContent = i18n.animationSaved;
+                            }
+                        } catch (error) {
+                            console.error('Napaka pri shranjevanju animacije:', error);
+                            if (statusEl) {
+                                statusEl.textContent = i18n.errorPrefix + ' ' + error.message;
+                            }
+                            alert(i18n.animationSaveErrorPrefix + ' ' + error.message);
                         }
                     });
                 });
@@ -906,5 +1083,4 @@
             }, 15000); // 15 seconds
         }
     </script>
-</body>
-</html>
+{% endblock %}
