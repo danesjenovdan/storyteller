@@ -211,9 +211,9 @@ def generate_voice_file_eleven_labs(video: int) -> None:
         video = GenVideo.objects.get(id=video.id)
         video.status = GenVideo.Statuses.FAILED
         video.error_type = GenVideo.ErrorTypes.VOICE_GENERATION
-        video.error_details = _("Napaka pri ustvarjanju zvočne datoteke (ElevenLabs): %(error)s") % {
-            "error": str(e)
-        }
+        video.error_details = _(
+            "Napaka pri ustvarjanju zvočne datoteke (ElevenLabs): %(error)s"
+        ) % {"error": str(e)}
         video.save()
         raise
 
@@ -285,9 +285,9 @@ def generate_voice_file_openai(video: int) -> None:
         video = GenVideo.objects.get(id=video.id)
         video.status = GenVideo.Statuses.FAILED
         video.error_type = GenVideo.ErrorTypes.VOICE_GENERATION
-        video.error_details = _("Napaka pri ustvarjanju zvočne datoteke (OpenAI): %(error)s") % {
-            "error": str(e)
-        }
+        video.error_details = _(
+            "Napaka pri ustvarjanju zvočne datoteke (OpenAI): %(error)s"
+        ) % {"error": str(e)}
         video.save()
         raise
 
@@ -500,8 +500,8 @@ def get_video_segments(video_instance: GenVideo) -> None:
             logger.error(error_msg)
             video_instance.status = GenVideo.Statuses.FAILED
             video_instance.error_type = GenVideo.ErrorTypes.SEGMENTS_GENERATION
-            video_instance.error_details = (
-                _("Gemini je vrnil prazen odgovor. Poskusite preformulirati prompt.")
+            video_instance.error_details = _(
+                "Gemini je vrnil prazen odgovor. Poskusite preformulirati prompt."
             )
             video_instance.save()
             raise ValueError(error_msg)
@@ -564,9 +564,9 @@ def get_video_segments(video_instance: GenVideo) -> None:
         )
         video_instance.status = GenVideo.Statuses.FAILED
         video_instance.error_type = GenVideo.ErrorTypes.SEGMENTS_GENERATION
-        video_instance.error_details = _("Napaka pri generiranju segmentov: %(error)s") % {
-            "error": str(e)
-        }
+        video_instance.error_details = _(
+            "Napaka pri generiranju segmentov: %(error)s"
+        ) % {"error": str(e)}
         video_instance.save()
         raise
 

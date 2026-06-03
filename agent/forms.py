@@ -30,7 +30,10 @@ class VideoCreateForm(forms.ModelForm):
         ]
         widgets = {
             "title": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": _("Vnesite naslov videa")}
+                attrs={
+                    "class": "form-control",
+                    "placeholder": _("Vnesite naslov videa"),
+                }
             ),
             "scenario": forms.Textarea(
                 attrs={

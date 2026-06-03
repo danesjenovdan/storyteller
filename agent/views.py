@@ -310,7 +310,9 @@ def upload_segment_image(request, video_segment_id):
         is_image = uploaded_file.content_type.startswith("image/")
 
         if not is_video and not is_image:
-            return JsonResponse({"error": _("File must be a video or image")}, status=400)
+            return JsonResponse(
+                {"error": _("File must be a video or image")}, status=400
+            )
 
         # Create a unique filename
         ext = os.path.splitext(uploaded_file.name)[1]
@@ -386,7 +388,9 @@ def upload_segment_image(request, video_segment_id):
                     None,
                 )
                 if not video_stream:
-                    return JsonResponse({"error": _("No video stream found")}, status=400)
+                    return JsonResponse(
+                        {"error": _("No video stream found")}, status=400
+                    )
 
                 width = int(video_stream.get("width", 0))
                 height = int(video_stream.get("height", 0))
@@ -696,7 +700,9 @@ def render_video(request, video_id):
         return redirect("video_detail", video_id=video_id)
 
     if not video.voice_file:
-        messages.error(request, _("Ne moreš renderirati videa - manjka zvočna datoteka"))
+        messages.error(
+            request, _("Ne moreš renderirati videa - manjka zvočna datoteka")
+        )
         return redirect("video_detail", video_id=video_id)
 
     # Trigger rendering task
@@ -722,13 +728,17 @@ def generate_voice(request, video_id):
     video = get_object_or_404(GenVideo, id=video_id, user=request.user)
 
     if not video.scenario:
-        messages.error(request, _("Ne moreš generirati zvoka - manjka vsebinski skript"))
+        messages.error(
+            request, _("Ne moreš generirati zvoka - manjka vsebinski skript")
+        )
         return redirect("video_detail", video_id=video_id)
 
     if not video.voice_model:
         messages.error(
             request,
-            _("Ne moreš generirati zvoka - manjka glasovni model. Uredi skript in izberi glas."),
+            _(
+                "Ne moreš generirati zvoka - manjka glasovni model. Uredi skript in izberi glas."
+            ),
         )
         return redirect("video_edit_script", video_id=video_id)
 
@@ -745,7 +755,9 @@ def generate_voice(request, video_id):
 
     messages.success(
         request,
-        _("Generiranje zvočnega posnetka se je začelo (%(provider)s)! Posnetek bo kmalu na voljo.")
+        _(
+            "Generiranje zvočnega posnetka se je začelo (%(provider)s)! Posnetek bo kmalu na voljo."
+        )
         % {"provider": tts_provider.upper()},
     )
 
@@ -815,7 +827,8 @@ def regenerate_srt(request, video_id):
     generate_srt_file(video)
 
     messages.success(
-        request, _("Generiranje podnapisov se je začelo! Podnapisi bodo kmalu na voljo.")
+        request,
+        _("Generiranje podnapisov se je začelo! Podnapisi bodo kmalu na voljo."),
     )
 
     return redirect("video_detail", video_id=video_id)
