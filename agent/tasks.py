@@ -1366,7 +1366,7 @@ def render_final_video(video: GenVideo) -> None:
 
             # Step 4: Add audio and subtitles (if available)
             final_output = temp_path / "final.mp4"
-            print("Adding audio and subtitles...")
+            logger.info(f"Adding audio and subtitles for video {video.id}...")
             from contextlib import ExitStack
 
             def _escape_ffmpeg_filter_path(path_value: str) -> str:
@@ -1377,22 +1377,31 @@ def render_final_video(video: GenVideo) -> None:
                 )
 
             with ExitStack() as stack:
+                logger.info(
+                    f"Preparing temporary media files for final render (video {video.id})"
+                )
+                logger.info(f"Preparing voice file: {video.voice_file.name}")
                 voice_file = stack.enter_context(
                     get_temporary_file_path(video.voice_file)
                 )
+                logger.info(f"Voice file ready: {voice_file}")
 
                 srt_file = None
                 if video.srt_file:
+                    logger.info(f"Preparing subtitle file: {video.srt_file.name}")
                     srt_file = stack.enter_context(
                         get_temporary_file_path(video.srt_file)
                     )
+                    logger.info(f"Subtitle file ready: {srt_file}")
 
                 logo_file = None
                 if video.logo and video.logo.logo_file:
                     try:
+                        logger.info(f"Preparing logo file: {video.logo.logo_file.name}")
                         logo_file = stack.enter_context(
                             get_temporary_file_path(video.logo.logo_file)
                         )
+                        logger.info(f"Logo file ready: {logo_file}")
                     except Exception as logo_error:
                         logger.warning(
                             f"Could not load logo for video {video.id}, rendering without logo: {logo_error}"
@@ -1526,8 +1535,45 @@ def render_final_video(video: GenVideo) -> None:
                     ]
                 )
 
-                result = subprocess.run(cmd, capture_output=True, text=True)
+                ffmpeg_timeout = int(
+                    getattr(settings, "FFMPEG_FINAL_RENDER_TIMEOUT_SECONDS", 300)
+                )
+                logger.info(
+                    f"Running final FFmpeg command for video {video.id} (timeout={ffmpeg_timeout}s)"
+                )
+                logger.debug(f"Final FFmpeg command: {' '.join(cmd)}")
+
+                start_time = time.monotonic()
+                try:
+                    result = subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        text=True,
+                        timeout=ffmpeg_timeout,
+                    )
+                except subprocess.TimeoutExpired as timeout_error:
+                    elapsed = time.monotonic() - start_time
+                    stderr_preview = (timeout_error.stderr or "")[-2000:]
+                    logger.error(
+                        f"Final FFmpeg command timed out after {elapsed:.1f}s for video {video.id}"
+                    )
+                    if stderr_preview:
+                        logger.error(
+                            f"Final FFmpeg stderr tail before timeout:\n{stderr_preview}"
+                        )
+                    raise RuntimeError(
+                        f"FFmpeg final render timed out after {elapsed:.1f}s"
+                    )
+
+                elapsed = time.monotonic() - start_time
+                logger.info(
+                    f"Final FFmpeg command finished in {elapsed:.1f}s for video {video.id}"
+                )
                 if result.returncode != 0:
+                    stderr_tail = (result.stderr or "")[-4000:]
+                    logger.error(
+                        f"FFmpeg final render failed for video {video.id}. stderr tail:\n{stderr_tail}"
+                    )
                     raise RuntimeError(f"FFmpeg final render failed: {result.stderr}")
 
                 # Step 5: Save to model
