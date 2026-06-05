@@ -441,64 +441,27 @@ def save_selected_video(request, video_segment_id):
         video_url = data.get("video_url")
         video_metadata = data.get("metadata", {})
 
-        allowed_in_animations = {
-            "none",
-            "fade_in_soft",
-            "fade_in_strong",
-            "zoom_in_soft",
-            "zoom_in_strong",
-        }
+        allowed_in_animations = {"none", "fade"}
         allowed_mid_animations = {
             "none",
-            "slow_zoom_in_soft",
-            "slow_zoom_in_strong",
-            "slow_zoom_out_soft",
-            "slow_zoom_out_strong",
+            "zoom_in",
+            "zoom_out",
             "subtle_pan_lr",
             "subtle_pan_ud",
         }
-        allowed_out_animations = {
-            "none",
-            "fade_out_soft",
-            "fade_out_strong",
-            "zoom_out_soft",
-            "zoom_out_strong",
-        }
+        allowed_out_animations = {"none", "fade"}
 
-        legacy_animation = (video_metadata.get("animation") or "").strip()
         requested_in = (video_metadata.get("animation_in") or "").strip()
         requested_mid = (video_metadata.get("animation_mid") or "").strip()
         requested_out = (video_metadata.get("animation_out") or "").strip()
 
-        normalized_in = (
-            requested_in if requested_in in allowed_in_animations else "none"
-        )
+        normalized_in = requested_in if requested_in in allowed_in_animations else "none"
         normalized_mid = (
             requested_mid if requested_mid in allowed_mid_animations else "none"
         )
         normalized_out = (
             requested_out if requested_out in allowed_out_animations else "none"
         )
-
-        # Backward compatibility for existing single animation field.
-        if (
-            not requested_mid
-            and legacy_animation
-            and legacy_animation
-            in {"zoom_in", "zoom_out", "fade_in", "fade_out", "fade_in_out"}
-        ):
-            legacy_map = {
-                "zoom_in": "slow_zoom_in_soft",
-                "zoom_out": "slow_zoom_out_soft",
-                "fade_in": "none",
-                "fade_out": "none",
-                "fade_in_out": "none",
-            }
-            normalized_mid = legacy_map.get(legacy_animation, "none")
-            if legacy_animation in {"fade_in", "fade_in_out"}:
-                normalized_in = "fade_in_soft"
-            if legacy_animation in {"fade_out", "fade_in_out"}:
-                normalized_out = "fade_out_soft"
 
         if not video_url:
             return JsonResponse({"error": _("video_url is required")}, status=400)
@@ -514,17 +477,17 @@ def save_selected_video(request, video_segment_id):
         if existing_proposal:
             final_animation_in = (
                 normalized_in
-                if requested_in or legacy_animation
+                if requested_in
                 else existing_proposal.get("animation_in", "none")
             )
             final_animation_mid = (
                 normalized_mid
-                if requested_mid or legacy_animation
+                if requested_mid
                 else existing_proposal.get("animation_mid", "none")
             )
             final_animation_out = (
                 normalized_out
-                if requested_out or legacy_animation
+                if requested_out
                 else existing_proposal.get("animation_out", "none")
             )
 

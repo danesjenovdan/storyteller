@@ -519,10 +519,7 @@
                                             <div class="small fw-semibold mb-1">{% trans "Vhod" %}</div>
                                             <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Entry animation">
                                                 <button type="button" class="btn {% if segment.video_proposals.0.animation_in == 'none' or not segment.video_proposals.0.animation_in %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="in" data-value="none">{% trans "Brez" %}</button>
-                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_in == 'fade_in_soft' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="in" data-value="fade_in_soft">Fade Soft</button>
-                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_in == 'fade_in_strong' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="in" data-value="fade_in_strong">Fade Strong</button>
-                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_in == 'zoom_in_soft' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="in" data-value="zoom_in_soft">Zoom In Soft</button>
-                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_in == 'zoom_in_strong' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="in" data-value="zoom_in_strong">Zoom In Strong</button>
+                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_in == 'fade' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="in" data-value="fade">Fade</button>
                                             </div>
                                         </div>
 
@@ -530,10 +527,8 @@
                                             <div class="small fw-semibold mb-1">{% trans "Vmes" %}</div>
                                             <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Middle animation">
                                                 <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'none' or not segment.video_proposals.0.animation_mid and not segment.video_proposals.0.animation %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="none">{% trans "Brez" %}</button>
-                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'slow_zoom_in_soft' or segment.video_proposals.0.animation == 'zoom_in' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="slow_zoom_in_soft">Zoom In Soft</button>
-                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'slow_zoom_in_strong' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="slow_zoom_in_strong">Zoom In Strong</button>
-                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'slow_zoom_out_soft' or segment.video_proposals.0.animation == 'zoom_out' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="slow_zoom_out_soft">Zoom Out Soft</button>
-                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'slow_zoom_out_strong' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="slow_zoom_out_strong">Zoom Out Strong</button>
+                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'zoom_in' or segment.video_proposals.0.animation == 'zoom_in' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="zoom_in">Zoom In</button>
+                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'zoom_out' or segment.video_proposals.0.animation == 'zoom_out' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="zoom_out">Zoom Out</button>
                                                 <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'subtle_pan_lr' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="subtle_pan_lr">Pan L-R</button>
                                                 <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'subtle_pan_ud' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="subtle_pan_ud">Pan U-D</button>
                                             </div>
@@ -543,10 +538,7 @@
                                             <div class="small fw-semibold mb-1">{% trans "Izhod" %}</div>
                                             <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Exit animation">
                                                 <button type="button" class="btn {% if segment.video_proposals.0.animation_out == 'none' or not segment.video_proposals.0.animation_out %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="out" data-value="none">{% trans "Brez" %}</button>
-                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_out == 'fade_out_soft' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="out" data-value="fade_out_soft">Fade Soft</button>
-                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_out == 'fade_out_strong' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="out" data-value="fade_out_strong">Fade Strong</button>
-                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_out == 'zoom_out_soft' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="out" data-value="zoom_out_soft">Zoom Out Soft</button>
-                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_out == 'zoom_out_strong' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="out" data-value="zoom_out_strong">Zoom Out Strong</button>
+                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_out == 'fade' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="out" data-value="fade">Fade</button>
                                             </div>
                                         </div>
 

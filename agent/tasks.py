@@ -684,61 +684,37 @@ def render_final_video(video: GenVideo) -> None:
         animation = (animation or "none").strip().lower()
         entry_duration = min(0.6, safe_duration / 2)
 
-        if animation == "fade_in_soft":
-            return f"fade=t=in:st=0:d={min(0.3, entry_duration):.3f}"
-        if animation == "fade_in_strong":
+        if animation == "fade":
             return f"fade=t=in:st=0:d={entry_duration:.3f}"
-        if animation == "zoom_in_soft":
-            return (
-                f"scale=iw*(1+0.04*min(t/{entry_duration:.3f}\\,1)):"
-                f"ih*(1+0.04*min(t/{entry_duration:.3f}\\,1)):eval=frame,"
-                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
-            )
-        if animation == "zoom_in_strong":
-            return (
-                f"scale=iw*(1+0.09*min(t/{entry_duration:.3f}\\,1)):"
-                f"ih*(1+0.09*min(t/{entry_duration:.3f}\\,1)):eval=frame,"
-                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
-            )
         return None
 
     def _build_mid_animation_filter(animation: str, clip_duration: float):
         safe_duration = max(float(clip_duration or 0.0), 0.1)
         animation = (animation or "none").strip().lower()
 
-        if animation == "slow_zoom_in_soft":
-            return (
-                f"scale=iw*(1+0.04*t/{safe_duration:.3f}):"
-                f"ih*(1+0.04*t/{safe_duration:.3f}):eval=frame,"
-                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
-            )
-        if animation == "slow_zoom_in_strong":
+        if animation == "zoom_in":
             return (
                 f"scale=iw*(1+0.10*t/{safe_duration:.3f}):"
                 f"ih*(1+0.10*t/{safe_duration:.3f}):eval=frame,"
                 "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
             )
-        if animation == "slow_zoom_out_soft":
+        if animation == "zoom_out":
             return (
-                f"scale=iw*(1.04-0.04*t/{safe_duration:.3f}):"
-                f"ih*(1.04-0.04*t/{safe_duration:.3f}):eval=frame,"
-                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
-            )
-        if animation == "slow_zoom_out_strong":
-            return (
-                f"scale=iw*(1.10-0.10*t/{safe_duration:.3f}):"
-                f"ih*(1.10-0.10*t/{safe_duration:.3f}):eval=frame,"
+                f"scale=iw*(1.20-0.10*t/{safe_duration:.3f}):"
+                f"ih*(1.20-0.10*t/{safe_duration:.3f}):eval=frame,"
                 "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
             )
         if animation == "subtle_pan_lr":
             return (
-                "scale=iw*1.06:ih*1.06:eval=frame,"
-                f"crop=1080:1920:(iw-1080)*(0.5+0.5*sin(2*PI*t/{safe_duration:.3f}-PI/2)):(ih-1920)/2"
+                # Uniform overscan gives enough travel distance to avoid visible step movement.
+                "scale=iw*1.30:ih*1.30:eval=frame,"
+                f"crop=1080:1920:'(iw-1080)*min(t/{safe_duration:.3f}\\,1)':(ih-1920)/2"
             )
         if animation == "subtle_pan_ud":
             return (
-                "scale=iw*1.06:ih*1.06:eval=frame,"
-                f"crop=1080:1920:(iw-1080)/2:(ih-1920)*(0.5+0.5*sin(2*PI*t/{safe_duration:.3f}-PI/2))"
+                # Uniform overscan gives enough travel distance to avoid visible step movement.
+                "scale=iw*1.30:ih*1.30:eval=frame,"
+                f"crop=1080:1920:(iw-1080)/2:'(ih-1920)*min(t/{safe_duration:.3f}\\,1)'"
             )
         return None
 
@@ -748,26 +724,8 @@ def render_final_video(video: GenVideo) -> None:
         exit_duration = min(0.6, safe_duration / 2)
         fade_out_start = max(0.0, safe_duration - exit_duration)
 
-        if animation == "fade_out_soft":
-            soft_duration = min(0.3, exit_duration)
-            return (
-                f"fade=t=out:st={max(0.0, safe_duration-soft_duration):.3f}:"
-                f"d={soft_duration:.3f}"
-            )
-        if animation == "fade_out_strong":
+        if animation == "fade":
             return f"fade=t=out:st={fade_out_start:.3f}:d={exit_duration:.3f}"
-        if animation == "zoom_out_soft":
-            return (
-                f"scale=iw*(1+0.04*max(({safe_duration:.3f}-t)/{exit_duration:.3f}\\,0)):"
-                f"ih*(1+0.04*max(({safe_duration:.3f}-t)/{exit_duration:.3f}\\,0)):eval=frame,"
-                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
-            )
-        if animation == "zoom_out_strong":
-            return (
-                f"scale=iw*(1+0.09*max(({safe_duration:.3f}-t)/{exit_duration:.3f}\\,0)):"
-                f"ih*(1+0.09*max(({safe_duration:.3f}-t)/{exit_duration:.3f}\\,0)):eval=frame,"
-                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
-            )
         return None
 
     def _build_segment_animation_filter(animation, clip_duration: float):
@@ -776,23 +734,9 @@ def render_final_video(video: GenVideo) -> None:
             animation_mid = animation.get("mid", "none")
             animation_out = animation.get("out", "none")
         else:
-            # Backward compatibility with legacy single animation selection.
-            legacy = (animation or "none").strip().lower()
-            legacy_in_map = {
-                "fade_in": "fade_in_soft",
-                "fade_in_out": "fade_in_soft",
-            }
-            legacy_mid_map = {
-                "zoom_in": "slow_zoom_in_soft",
-                "zoom_out": "slow_zoom_out_soft",
-            }
-            legacy_out_map = {
-                "fade_out": "fade_out_soft",
-                "fade_in_out": "fade_out_soft",
-            }
-            animation_in = legacy_in_map.get(legacy, "none")
-            animation_mid = legacy_mid_map.get(legacy, "none")
-            animation_out = legacy_out_map.get(legacy, "none")
+            animation_in = "none"
+            animation_mid = (animation or "none").strip().lower()
+            animation_out = "none"
 
         filters = []
         entry_filter = _build_entry_animation_filter(animation_in, clip_duration)
@@ -929,9 +873,9 @@ def render_final_video(video: GenVideo) -> None:
                                     "-crf",
                                     "23",
                                     "-r",
-                                    "30",
+                                    "60",
                                     "-g",
-                                    "30",
+                                    "60",
                                     "-pix_fmt",
                                     "yuv420p",
                                     "-an",
@@ -973,9 +917,9 @@ def render_final_video(video: GenVideo) -> None:
                                     "-crf",
                                     "23",
                                     "-r",
-                                    "30",
+                                    "60",
                                     "-g",
-                                    "30",
+                                    "60",
                                     "-pix_fmt",
                                     "yuv420p",
                                     "-an",
@@ -1019,9 +963,9 @@ def render_final_video(video: GenVideo) -> None:
                                     "-crf",
                                     "23",
                                     "-r",
-                                    "30",
+                                    "60",
                                     "-g",
-                                    "30",
+                                    "60",
                                     "-pix_fmt",
                                     "yuv420p",
                                     "-an",
@@ -1055,9 +999,9 @@ def render_final_video(video: GenVideo) -> None:
                                     "-crf",
                                     "23",
                                     "-r",
-                                    "30",
+                                    "60",
                                     "-g",
-                                    "30",
+                                    "60",
                                     "-pix_fmt",
                                     "yuv420p",
                                     "-an",
@@ -1091,9 +1035,9 @@ def render_final_video(video: GenVideo) -> None:
                                 "-crf",
                                 "23",
                                 "-r",
-                                "30",
+                                "60",
                                 "-g",
-                                "30",
+                                "60",
                                 "-pix_fmt",
                                 "yuv420p",
                                 "-an",
@@ -1149,9 +1093,9 @@ def render_final_video(video: GenVideo) -> None:
                                     "-crf",
                                     "23",
                                     "-r",
-                                    "30",
+                                    "60",
                                     "-g",
-                                    "30",
+                                    "60",
                                     "-pix_fmt",
                                     "yuv420p",
                                     "-an",
@@ -1191,9 +1135,9 @@ def render_final_video(video: GenVideo) -> None:
                                     "-crf",
                                     "23",
                                     "-r",
-                                    "30",
+                                    "60",
                                     "-g",
-                                    "30",
+                                    "60",
                                     "-pix_fmt",
                                     "yuv420p",
                                     "-an",
@@ -1234,9 +1178,9 @@ def render_final_video(video: GenVideo) -> None:
                                     "-crf",
                                     "23",
                                     "-r",
-                                    "30",
+                                    "60",
                                     "-g",
-                                    "30",
+                                    "60",
                                     "-pix_fmt",
                                     "yuv420p",
                                     "-an",
@@ -1268,9 +1212,9 @@ def render_final_video(video: GenVideo) -> None:
                                     "-crf",
                                     "23",
                                     "-r",
-                                    "30",
+                                    "60",
                                     "-g",
-                                    "30",
+                                    "60",
                                     "-pix_fmt",
                                     "yuv420p",
                                     "-an",
@@ -1302,9 +1246,9 @@ def render_final_video(video: GenVideo) -> None:
                                 "-crf",
                                 "23",
                                 "-r",
-                                "30",
+                                "60",
                                 "-g",
-                                "30",
+                                "60",
                                 "-pix_fmt",
                                 "yuv420p",
                                 "-an",
@@ -1346,7 +1290,7 @@ def render_final_video(video: GenVideo) -> None:
                 "-vsync",
                 "cfr",  # Normalize to constant frame rate to avoid 1-frame drops
                 "-r",
-                "30",
+                "60",
                 "-c:v",
                 "libx264",
                 "-preset",
