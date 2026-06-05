@@ -455,7 +455,9 @@ def save_selected_video(request, video_segment_id):
         requested_mid = (video_metadata.get("animation_mid") or "").strip()
         requested_out = (video_metadata.get("animation_out") or "").strip()
 
-        normalized_in = requested_in if requested_in in allowed_in_animations else "none"
+        normalized_in = (
+            requested_in if requested_in in allowed_in_animations else "none"
+        )
         normalized_mid = (
             requested_mid if requested_mid in allowed_mid_animations else "none"
         )
