@@ -1,6 +1,7 @@
 {% extends "base.html" %}
+{% load i18n %}
 
-{% block title %}Ustvari nov video{% endblock %}
+{% block title %}{% trans "Ustvari nov video" %}{% endblock %}
 
 {% block extra_head %}
     <style>
@@ -35,8 +36,8 @@
     <div class="container mt-5">
         <div class="row">
             <div class="col-md-8 offset-md-2">
-                <h1 class="mb-4">Ustvari nov video</h1>
-                
+                <h1 class="mb-4">{% trans "Ustvari nov video" %}</h1>
+
                 {% if messages %}
                     {% for message in messages %}
                         <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
@@ -45,12 +46,12 @@
                         </div>
                     {% endfor %}
                 {% endif %}
-                
+
                 <div class="card">
                     <div class="card-body">
                         <form method="post" enctype="multipart/form-data">
                             {% csrf_token %}
-                            
+
                             <div class="mb-3">
                                 <label for="{{ form.title.id_for_label }}" class="form-label">{{ form.title.label }}</label>
                                 {{ form.title }}
@@ -58,24 +59,24 @@
                                     <div class="text-danger">{{ form.title.errors }}</div>
                                 {% endif %}
                             </div>
-                            
+
                             <div class="mb-3">
                                 <ul class="nav nav-tabs" id="contentTabs" role="tablist">
                                     <li class="nav-item" role="presentation">
                                         <button class="nav-link active" id="scenario-tab" data-bs-toggle="tab" data-bs-target="#scenario-content" type="button" role="tab">
-                                            Scenarij
+                                            {% trans "Scenarij" %}
                                         </button>
                                     </li>
                                     <li class="nav-item" role="presentation">
                                         <button class="nav-link" id="audio-tab" data-bs-toggle="tab" data-bs-target="#audio-content" type="button" role="tab">
-                                            Naloži zvočni posnetek
+                                            {% trans "Naloži zvočni posnetek" %}
                                         </button>
                                     </li>
                                 </ul>
                                 <div class="tab-content" id="contentTabContent">
                                     <div class="tab-pane fade show active" id="scenario-content" role="tabpanel">
                                         <div class="mt-3">
-                                            <label for="{{ form.scenario.id_for_label }}" class="form-label">Vpiši scenarij videa</label>
+                                            <label for="{{ form.scenario.id_for_label }}" class="form-label">{% trans "Vpiši scenarij videa" %}</label>
                                             {{ form.scenario }}
                                             {% if form.scenario.errors %}
                                                 <div class="text-danger">{{ form.scenario.errors }}</div>
@@ -83,10 +84,10 @@
                                         </div>
                                         <div class="mb-3">
                                             <button type="button" class="btn btn-sm btn-outline-secondary" id="togglePrompt">
-                                                <span id="togglePromptText">Prikaži napredno (uredi prompt)</span>
+                                                <span id="togglePromptText">{% trans "Prikaži napredno (uredi prompt)" %}</span>
                                             </button>
                                         </div>
-                                        
+
                                         <div class="mb-3" id="promptField" style="display: none;">
                                             <label for="{{ form.modify_prompt.id_for_label }}" class="form-label">{{ form.modify_prompt.label }}</label>
                                             {{ form.modify_prompt }}
@@ -142,7 +143,7 @@
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="d-flex justify-content-between">
                                 <a href="{% url 'video_list' %}" class="btn btn-secondary">Prekliči</a>
                                 <button type="submit" class="btn btn-primary">Ustvari video</button>
@@ -163,7 +164,7 @@
             if (file) {
                 const audioPreview = document.getElementById('audioPreview');
                 const audioPlayer = document.getElementById('audioPlayer');
-                
+
                 const fileURL = URL.createObjectURL(file);
                 audioPlayer.src = fileURL;
                 audioPreview.style.display = 'block';
@@ -190,7 +191,7 @@
         document.getElementById('togglePrompt').addEventListener('click', function() {
             const promptField = document.getElementById('promptField');
             const toggleText = document.getElementById('togglePromptText');
-            
+
             if (promptField.style.display === 'none') {
                 promptField.style.display = 'block';
                 toggleText.textContent = 'Skrij napredno (uredi prompt)';
@@ -245,7 +246,7 @@
                 if (response.ok && data.success) {
                     // Update scenario field with modified content
                     scenarioField.value = data.modified_scenario;
-                    
+
                     // Show success feedback
                     modifyBtnText.textContent = '✓ Scenarij posodobljen!';
                     setTimeout(() => {
