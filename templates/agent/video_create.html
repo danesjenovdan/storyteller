@@ -84,7 +84,7 @@
                                         </div>
                                         <div class="mb-3">
                                             <button type="button" class="btn btn-sm btn-outline-secondary" id="togglePrompt">
-                                                <span id="togglePromptText">{% trans "Prikaži napredno (uredi prompt)" %}</span>
+                                                <span id="togglePromptText" data-toggle-text="{% trans 'Optimiziraj z AI (zapri)' %}">{% trans "Optimiziraj z AI (odpri)" %}</span>
                                             </button>
                                         </div>
 
@@ -194,10 +194,14 @@
 
             if (promptField.style.display === 'none') {
                 promptField.style.display = 'block';
-                toggleText.textContent = 'Skrij napredno (uredi prompt)';
+                const otherText = toggleText.getAttribute('data-toggle-text');
+                toggleText.setAttribute('data-toggle-text', toggleText.textContent);
+                toggleText.textContent = otherText;
             } else {
                 promptField.style.display = 'none';
-                toggleText.textContent = 'Prikaži napredno (uredi prompt)';
+                const otherText = toggleText.getAttribute('data-toggle-text');
+                toggleText.setAttribute('data-toggle-text', toggleText.textContent);
+                toggleText.textContent = otherText;
             }
         });
 
