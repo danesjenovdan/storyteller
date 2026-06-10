@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-10 09:22+0000\n"
+"POT-Creation-Date: 2026-06-10 09:30+0000\n"
 "PO-Revision-Date: 2026-06-03 16:10+0000\n"
 "Last-Translator: Storyteller Team <dev@example.com>\n"
 "Language-Team: English\n"
@@ -557,6 +557,24 @@ msgstr "Optimize with AI (close)"
 #: templates/agent/video_create.html:87
 msgid "Optimiziraj z AI (odpri)"
 msgstr "Optimize with AI (open)"
+
+#: templates/agent/video_create.html:148
+msgid "Prekliči"
+msgstr "Cancel"
+
+#: templates/agent/video_create.html:149
+msgid "Ustvari video"
+msgstr "Create video"
+
+#: templates/agent/video_create.html:203
+msgid ""
+"Preoblikuj to besedilo, da bo primerno kot scenarij za kratek vertikalni "
+"video. Pripravi golo besedilo za govorca, brez opomb, označb in dodatnih "
+"komentarjev."
+msgstr ""
+"Reformat this text to make it suitable as a script for a short vertical "
+"video. Prepare a bare text for the speaker, without notes, annotations, or "
+"additional comments."
 
 #: templates/agent/video_detail.html:4 templates/agent/videos.html:48
 msgid "Podrobnosti"

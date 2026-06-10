@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-10 09:22+0000\n"
+"POT-Creation-Date: 2026-06-10 09:30+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -547,6 +547,21 @@ msgstr ""
 
 #: templates/agent/video_create.html:87
 msgid "Optimiziraj z AI (odpri)"
+msgstr ""
+
+#: templates/agent/video_create.html:148
+msgid "Prekliči"
+msgstr ""
+
+#: templates/agent/video_create.html:149
+msgid "Ustvari video"
+msgstr ""
+
+#: templates/agent/video_create.html:203
+msgid ""
+"Preoblikuj to besedilo, da bo primerno kot scenarij za kratek vertikalni "
+"video. Pripravi golo besedilo za govorca, brez opomb, označb in dodatnih "
+"komentarjev."
 msgstr ""
 
 #: templates/agent/video_detail.html:4 templates/agent/videos.html:48

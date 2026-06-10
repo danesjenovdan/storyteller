@@ -145,8 +145,8 @@
                             </div>
 
                             <div class="d-flex justify-content-between">
-                                <a href="{% url 'video_list' %}" class="btn btn-secondary">Prekliči</a>
-                                <button type="submit" class="btn btn-primary">Ustvari video</button>
+                                <a href="{% url 'video_list' %}" class="btn btn-secondary">{% trans "Prekliči" %}</a>
+                                <button type="submit" class="btn btn-primary">{% trans "Ustvari video" %}</button>
                             </div>
                         </form>
                     </div>
@@ -197,6 +197,11 @@
                 const otherText = toggleText.getAttribute('data-toggle-text');
                 toggleText.setAttribute('data-toggle-text', toggleText.textContent);
                 toggleText.textContent = otherText;
+
+                const modifyPromptField = document.getElementById('{{ form.modify_prompt.id_for_label }}');
+                if (modifyPromptField.value.trim() === '') {
+                    modifyPromptField.value = `{% blocktrans %}Preoblikuj to besedilo, da bo primerno kot scenarij za kratek vertikalni video. Pripravi golo besedilo za govorca, brez opomb, označb in dodatnih komentarjev.{% endblocktrans %}`;
+                }
             } else {
                 promptField.style.display = 'none';
                 const otherText = toggleText.getAttribute('data-toggle-text');
