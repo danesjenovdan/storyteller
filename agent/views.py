@@ -4,15 +4,18 @@ import subprocess
 import tempfile
 from functools import wraps
 
+import requests
+
 from django.conf import settings as django_settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.files.storage import default_storage
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext as _
 from django.utils.translation import ngettext
 from PIL import Image
+from elevenlabs import ElevenLabs
 
 from agent.content_apis import (
     resolve_sources,
@@ -30,7 +33,13 @@ from agent.tasks import (
 from agent.utils import get_temporary_file_path
 
 from .forms import VideoCreateForm
-from .models import GenVideo, UsersLogo, VideoSegment
+from .models import (
+    GenVideo,
+    ProviderTTSModel,
+    ProviderTTSModelLanguage,
+    UsersLogo,
+    VideoSegment,
+)
 
 # Create your views here.
 
@@ -47,6 +56,217 @@ def ajax_login_required(view_func):
         return view_func(request, *args, **kwargs)
 
     return wrapper
+
+
+def _language_label(language_id, fallback_name=None):
+    normalized_id = (language_id or "").strip().lower().replace("_", "-")
+    if not normalized_id:
+        return fallback_name or ""
+
+    django_languages = dict(getattr(django_settings, "LANGUAGES", []))
+    if normalized_id in django_languages:
+        return django_languages[normalized_id]
+
+    short_id = normalized_id.split("-")[0]
+    if short_id in django_languages:
+        return django_languages[short_id]
+
+    if fallback_name and fallback_name.strip():
+        return fallback_name.strip()
+
+    return normalized_id
+
+
+def _seed_static_provider_models(provider):
+    static_models = {
+        "gemini": [
+            {"id": "Puck", "name": "Puck - Neutral and balanced", "languages": []},
+            {"id": "Charon", "name": "Charon - Male, authoritative", "languages": []},
+            {"id": "Kore", "name": "Kore - Warm, storytelling", "languages": []},
+            {"id": "Fenrir", "name": "Fenrir - Deep male", "languages": []},
+            {"id": "Aoede", "name": "Aoede - Female, energetic", "languages": []},
+        ],
+        "openai": [
+            {"id": "alloy", "name": "Alloy - Neutral and balanced", "languages": []},
+            {"id": "echo", "name": "Echo - Male, clear and expressive", "languages": []},
+            {"id": "fable", "name": "Fable - British accent, warm", "languages": []},
+            {"id": "onyx", "name": "Onyx - Deep and authoritative", "languages": []},
+            {"id": "nova", "name": "Nova - Female, energetic", "languages": []},
+            {"id": "shimmer", "name": "Shimmer - Female, soft and warm", "languages": []},
+        ],
+    }
+
+    seeded = False
+    for item in static_models.get(provider, []):
+        model_obj, _ = ProviderTTSModel.objects.update_or_create(
+            provider=provider,
+            external_id=item["id"],
+            defaults={
+                "name": item["name"],
+                "description": "",
+                "can_do_text_to_speech": True,
+                "is_active": True,
+                "raw_payload": {"source": "static"},
+            },
+        )
+        model_obj.languages.all().delete()
+        for lang in item.get("languages", []):
+            language_id = (lang.get("language_id") or "").strip()
+            language_name = _language_label(language_id, lang.get("name"))
+            ProviderTTSModelLanguage.objects.create(
+                tts_model=model_obj,
+                language_id=language_id,
+                name=language_name,
+            )
+        seeded = True
+    return seeded
+
+
+def _sync_elevenlabs_models_to_db():
+    if not django_settings.ELEVENLABS_API_KEY:
+        return False
+
+    # Persist voice catalog (not TTS model catalog), because users select voices.
+    # Naming of this function is kept to avoid wider refactors.
+
+    client = ElevenLabs(api_key=django_settings.ELEVENLABS_API_KEY)
+
+    if hasattr(client.voices, "get_all"):
+        voices_result = client.voices.get_all()
+    elif hasattr(client.voices, "search"):
+        voices_result = client.voices.search()
+    elif hasattr(client.voices, "list"):
+        voices_result = client.voices.list()
+    else:
+        return False
+
+    if hasattr(voices_result, "model_dump"):
+        dumped = voices_result.model_dump()
+    else:
+        dumped = voices_result
+
+    if isinstance(dumped, dict):
+        payload = dumped.get("voices") or dumped.get("data") or []
+    elif isinstance(dumped, list):
+        payload = dumped
+    else:
+        payload = []
+
+    if not payload:
+        return False
+
+    seen_voice_ids = set()
+    for item in payload:
+        if hasattr(item, "model_dump"):
+            item = item.model_dump()
+
+        if not isinstance(item, dict):
+            continue
+
+        voice_id = item.get("voice_id") or item.get("id")
+        if not voice_id:
+            continue
+
+        labels = item.get("labels") or {}
+        languages = []
+        label_language = (labels.get("language") or "").strip()
+        if label_language:
+            languages.append(
+                {
+                    "language_id": label_language.lower().replace(" ", "_"),
+                    "name": label_language,
+                }
+            )
+
+        for lang in item.get("verified_languages") or []:
+            lang_id = (lang.get("language") or lang.get("language_id") or "").strip()
+            if not lang_id:
+                continue
+            languages.append(
+                {
+                    "language_id": lang_id.lower().replace(" ", "_"),
+                    "name": (lang.get("name") or lang_id).strip(),
+                }
+            )
+
+        model_obj, _ = ProviderTTSModel.objects.update_or_create(
+            provider=ProviderTTSModel.Providers.ELEVENLABS,
+            external_id=voice_id,
+            defaults={
+                "name": item.get("name") or voice_id,
+                "description": item.get("description") or "",
+                "can_do_text_to_speech": True,
+                "is_active": True,
+                "raw_payload": item,
+            },
+        )
+        model_obj.languages.all().delete()
+        deduped_languages = {}
+        for lang in languages:
+            language_id = (lang.get("language_id") or "").strip()
+            if not language_id:
+                continue
+            deduped_languages[language_id] = _language_label(
+                language_id,
+                lang.get("name"),
+            )
+
+        for language_id, language_name in deduped_languages.items():
+            ProviderTTSModelLanguage.objects.create(
+                tts_model=model_obj,
+                language_id=language_id,
+                name=language_name,
+            )
+        seen_voice_ids.add(voice_id)
+
+    if seen_voice_ids:
+        ProviderTTSModel.objects.filter(
+            provider=ProviderTTSModel.Providers.ELEVENLABS
+        ).exclude(external_id__in=seen_voice_ids).update(is_active=False)
+
+    return bool(seen_voice_ids)
+
+
+def ensure_provider_models(provider):
+    provider_models = ProviderTTSModel.objects.filter(provider=provider, is_active=True)
+    if provider == ProviderTTSModel.Providers.ELEVENLABS:
+        non_static_exists = provider_models.exclude(raw_payload__source="static").exists()
+        if non_static_exists:
+            return
+
+        # Never seed static voices for ElevenLabs; source of truth is remote API.
+        try:
+            _sync_elevenlabs_models_to_db()
+        except Exception:
+            pass
+        return
+
+    if provider_models.exists():
+        return
+
+    try:
+        if _seed_static_provider_models(provider):
+            return
+    except Exception:
+        # If static seed fails, keep DB unchanged.
+        pass
+
+    _seed_static_provider_models(provider)
+
+
+def get_voice_models_for_provider(tts_provider):
+    provider = tts_provider or ProviderTTSModel.Providers.ELEVENLABS
+    ensure_provider_models(provider)
+
+    provider_models = (
+        ProviderTTSModel.objects.filter(provider=provider, is_active=True)
+        .order_by("name")
+        .values_list("external_id", "name")
+    )
+
+    options = [("", _("--- Izberite glasovni model ---"))]
+    options.extend(list(provider_models))
+    return options
 
 
 @login_required(login_url="/admin/login/")
@@ -106,42 +326,9 @@ def video_create(request):
     """View for creating a new video with title, scenario, and prompt."""
     # Get TTS provider from settings
     tts_provider = django_settings.TTS_PROVIDER
-
-    # Voice models based on TTS provider
-    if tts_provider == "elevenlabs":
-        VOICE_MODELS = [
-            ("", _("--- Izberite glasovni model ---")),
-            ("21m00Tcm4TlvDq8ikWAM", "Rachel - Calm and composed"),
-            ("AZnzlk1XvdvUeBnXmlld", "Domi - Strong and authoritative"),
-            ("EXAVITQu4vr4xnSDxMaL", "Bella - Soft and warm"),
-            ("ErXwobaYiN019PkySvjV", "Antoni - Well-rounded and versatile"),
-            ("MF3mGyEYCl7XYWbV9V6O", "Elli - Emotional and expressive"),
-            ("TxGEqnHWrfWFTfGW9XjX", "Josh - Deep and authoritative"),
-            ("VR6AewLTigWG4xSOukaG", "Arnold - Crisp and clear"),
-            ("pNInz6obpgDQGcFmaJgB", "Adam - Deep and resonant"),
-            ("yoZ06aMxZJJ28mfd3POQ", "Sam - Dynamic and raspy"),
-        ]
-    elif tts_provider == "gemini":
-        VOICE_MODELS = [
-            ("", _("--- Izberite glasovni model ---")),
-            ("Puck", "Puck - Neutral and balanced"),
-            ("Charon", "Charon - Male, authoritative"),
-            ("Kore", "Kore - Warm, storytelling"),
-            ("Fenrir", "Fenrir - Deep male"),
-            ("Aoede", "Aoede - Female, energetic"),
-        ]
-    else:  # openai
-        VOICE_MODELS = [
-            ("", _("--- Izberite glasovni model ---")),
-            ("alloy", "Alloy - Neutral and balanced"),
-            ("echo", "Echo - Male, clear and expressive"),
-            ("fable", "Fable - British accent, warm"),
-            ("onyx", "Onyx - Deep and authoritative"),
-            ("nova", "Nova - Female, energetic"),
-            ("shimmer", "Shimmer - Female, soft and warm"),
-        ]
+    voice_models = get_voice_models_for_provider(tts_provider)
     if request.method == "POST":
-        form = VideoCreateForm(request.POST, request.FILES, voice_models=VOICE_MODELS)
+        form = VideoCreateForm(request.POST, request.FILES, voice_models=voice_models)
         if form.is_valid():
             video = form.save(commit=False)
             video.user = request.user
@@ -173,7 +360,7 @@ def video_create(request):
         else:
             messages.error(request, _("Napaka pri ustvarjanju videa."))
     else:
-        form = VideoCreateForm(voice_models=VOICE_MODELS)
+        form = VideoCreateForm(voice_models=voice_models)
 
     return render(request, "agent/video_create.html", {"form": form})
 
@@ -603,6 +790,8 @@ def video_detail(request, video_id):
     - Final rendered video (if available)
     """
     video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    tts_provider = django_settings.TTS_PROVIDER
+    voice_models = get_voice_models_for_provider(tts_provider)
 
     # Get all video segments ordered by order
     segments = video.segments.all().order_by("order")
@@ -621,6 +810,8 @@ def video_detail(request, video_id):
     context = {
         "video": video,
         "segments": segments,
+        "tts_provider": tts_provider,
+        "voice_models": voice_models,
         "user_logos": request.user.logos.all().order_by("-created_at"),
         "total_segments": total_segments,
         "completed_segments": completed_segments,
@@ -729,6 +920,148 @@ def generate_voice(request, video_id):
     return redirect("video_detail", video_id=video_id)
 
 
+@ajax_login_required
+def set_video_voice_model(request, video_id):
+    if request.method != "POST":
+        return JsonResponse({"error": _("Method not allowed")}, status=405)
+
+    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    tts_provider = django_settings.TTS_PROVIDER
+    voice_models = get_voice_models_for_provider(tts_provider)
+    allowed_voice_models = {value for value, _ in voice_models if value}
+    voice_model_labels = dict(voice_models)
+
+    try:
+        data = json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": _("Invalid JSON payload")}, status=400)
+
+    voice_model = (data.get("voice_model") or "").strip()
+
+    if voice_model and voice_model not in allowed_voice_models:
+        return JsonResponse({"error": _("Invalid voice model")}, status=400)
+
+    video.voice_model = voice_model or None
+    video.save()
+
+    return JsonResponse(
+        {
+            "success": True,
+            "voice_model": video.voice_model,
+            "voice_model_label": voice_model_labels.get(
+                video.voice_model or "", _("--- Izberite glasovni model ---")
+            ),
+        }
+    )
+
+
+@ajax_login_required
+def elevenlabs_voice_sample_audio(request, video_id):
+    if request.method != "GET":
+        return JsonResponse({"error": _("Method not allowed")}, status=405)
+
+    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+
+    if django_settings.TTS_PROVIDER != "elevenlabs":
+        return JsonResponse(
+            {"error": _("Voice samples are only available for ElevenLabs")},
+            status=400,
+        )
+
+    voice_id = (request.GET.get("voice_id") or video.voice_model or "").strip()
+    if not voice_id:
+        return JsonResponse({"error": _("Voice model is required")}, status=400)
+
+    if not django_settings.ELEVENLABS_API_KEY:
+        return JsonResponse(
+            {"error": _("ELEVENLABS_API_KEY is not configured")}, status=500
+        )
+
+    try:
+        headers = {"xi-api-key": django_settings.ELEVENLABS_API_KEY}
+        sample_voice_id = voice_id
+        sample_id = None
+        preview_url = None
+
+        # Legacy compatibility: if a model ID (e.g. eleven_v3) is provided,
+        # resolve a compatible voice with available samples.
+        is_likely_model_id = voice_id.startswith("eleven_")
+
+        if is_likely_model_id:
+            voices_response = requests.get(
+                "https://api.elevenlabs.io/v1/voices",
+                headers=headers,
+                timeout=20,
+            )
+            voices_response.raise_for_status()
+            voices_payload = voices_response.json()
+            voices = voices_payload.get("voices") or []
+
+            for item in voices:
+                compatible_model_ids = item.get("high_quality_base_model_ids") or []
+                samples = item.get("samples") or []
+                if voice_id not in compatible_model_ids or not samples:
+                    continue
+                first_sample = samples[0]
+                sample_voice_id = item.get("voice_id") or item.get("voiceId")
+                sample_id = first_sample.get("sample_id") or first_sample.get("id")
+                if sample_voice_id and sample_id:
+                    break
+
+            if not sample_voice_id or not sample_id:
+                return JsonResponse(
+                    {"error": _("No voice samples available for this model")},
+                    status=404,
+                )
+        else:
+            voice_response = requests.get(
+                f"https://api.elevenlabs.io/v1/voices/{voice_id}",
+                headers=headers,
+                timeout=20,
+            )
+            voice_response.raise_for_status()
+            voice_data = voice_response.json()
+            preview_url = voice_data.get("preview_url")
+            samples = voice_data.get("samples") or []
+            if not samples:
+                if preview_url:
+                    preview_response = requests.get(preview_url, timeout=30)
+                    preview_response.raise_for_status()
+                    content_type = preview_response.headers.get(
+                        "content-type", "audio/mpeg"
+                    )
+                    return HttpResponse(preview_response.content, content_type=content_type)
+
+                return JsonResponse(
+                    {"error": _("No voice samples available for this model")},
+                    status=404,
+                )
+
+            first_sample = samples[0]
+            sample_id = first_sample.get("sample_id") or first_sample.get("id")
+            if not sample_id:
+                return JsonResponse(
+                    {"error": _("No sample ID found for this voice")},
+                    status=404,
+                )
+
+        audio_response = requests.get(
+            f"https://api.elevenlabs.io/v1/voices/{sample_voice_id}/samples/{sample_id}/audio",
+            headers=headers,
+            timeout=30,
+        )
+        audio_response.raise_for_status()
+
+        content_type = audio_response.headers.get("content-type", "audio/mpeg")
+        return HttpResponse(audio_response.content, content_type=content_type)
+
+    except requests.RequestException as exc:
+        return JsonResponse(
+            {"error": _("Error loading voice sample: %(error)s") % {"error": str(exc)}},
+            status=502,
+        )
+
+
 @login_required(login_url="/admin/login/")
 def regenerate_segments(request, video_id):
     """
@@ -821,6 +1154,7 @@ def set_subtitle_style(request, video_id):
         stroke_weight = data.get("stroke_weight", 3)
         shadow = data.get("shadow", 1)
         vertical_position = data.get("vertical_position", 10)
+        max_words_per_screen = data.get("max_words_per_screen")
 
         video.subtitle_font_size = int(font_size)
         video.subtitle_font_family = font_family
@@ -828,6 +1162,10 @@ def set_subtitle_style(request, video_id):
         video.subtitle_stroke_weight = int(stroke_weight)
         video.subtitle_shadow = int(shadow)
         video.subtitle_vertical_position = int(vertical_position)
+        if max_words_per_screen in (None, "", 0, "0"):
+            video.subtitle_max_words_per_screen = None
+        else:
+            video.subtitle_max_words_per_screen = max(1, min(15, int(max_words_per_screen)))
         video.save()
 
         return JsonResponse(
@@ -839,6 +1177,7 @@ def set_subtitle_style(request, video_id):
                 "stroke_weight": stroke_weight,
                 "shadow": shadow,
                 "vertical_position": vertical_position,
+                "max_words_per_screen": video.subtitle_max_words_per_screen,
             }
         )
 

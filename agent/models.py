@@ -92,6 +92,9 @@ class GenVideo(models.Model):
     subtitle_vertical_position = models.IntegerField(
         default=10, help_text="Vertical position from bottom in percentage (0-50)"
     )
+    subtitle_max_words_per_screen = models.IntegerField(
+        null=True, blank=True, help_text="Maximum number of words displayed on screen at once"
+    )
     final_file = models.FileField(
         upload_to="final_videos/",
         null=True,
@@ -168,7 +171,7 @@ Vrni seznam v JSON formatu.
 End time zadnjega segmenta je enak dolžini videa, torej je enak koncu zadnjega podnapisa. Segmenti naj bodo zaporedni in se ne bodo prekrivali. V podnapisih so časovni žigi v formatu HH:MM:SS,MMM. 
 Primer za časovno kodo v SRT formatu:
 00:00:38,200 --> 00:00:41,610 pomeni start: "38.20", end: "41.61"
-Za vsak segment mi določi starttime in endtime Vrni mi samo json seznam objektov v obliki, kjer so časovni žigi v sekundah.
+Za vsak segment mi določi starttime in endtime. Vrni mi samo json seznam objektov v obliki, kjer so časovni žigi v sekundah.
 Odgovor naj vsebuje samo seznam slovarjev, brez dodatnega besedila ali pojasnil ali kode ki nastavi vsebino v spremenljivko!
 Spodaj je primer kako naj bo format odgovora:
 [{{"start": "0.00", "end": "2.37", "text": "besedilo", "keywords": ["keyword_eng_1", "keyword_eng_2"]}}, {{"start": "2.38", "end": "66.45", "text": "besedilo", "keywords": ["keyword_eng_1", "keyword_eng_2"]}}]
@@ -179,6 +182,57 @@ Scenarij:
 Transkript:
 {self.srt_content}
 """
+
+
+class ProviderTTSModel(models.Model):
+    class Providers(models.TextChoices):
+        ELEVENLABS = "elevenlabs", "ElevenLabs"
+        OPENAI = "openai", "OpenAI"
+        GEMINI = "gemini", "Gemini"
+
+    provider = models.CharField(max_length=30, choices=Providers.choices)
+    external_id = models.CharField(max_length=120)
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
+    can_do_text_to_speech = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
+    raw_payload = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["provider", "external_id"],
+                name="uniq_provider_tts_model",
+            )
+        ]
+        ordering = ["provider", "name"]
+
+    def __str__(self):
+        return f"{self.provider}:{self.external_id} ({self.name})"
+
+
+class ProviderTTSModelLanguage(models.Model):
+    tts_model = models.ForeignKey(
+        ProviderTTSModel,
+        on_delete=models.CASCADE,
+        related_name="languages",
+    )
+    language_id = models.CharField(max_length=30)
+    name = models.CharField(max_length=120)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tts_model", "language_id"],
+                name="uniq_tts_model_language",
+            )
+        ]
+        ordering = ["tts_model", "name"]
+
+    def __str__(self):
+        return f"{self.tts_model.external_id}:{self.language_id}"
 
 
 class VideoSegment(models.Model):

@@ -13,9 +13,19 @@ urlpatterns = [
     ),
     path("videos/<int:video_id>/", views.video_detail, name="video_detail"),
     path(
+        "videos/<int:video_id>/set-voice-model/",
+        views.set_video_voice_model,
+        name="set_video_voice_model",
+    ),
+    path(
         "videos/<int:video_id>/generate-voice/",
         views.generate_voice,
         name="generate_voice",
+    ),
+    path(
+        "videos/<int:video_id>/voice-sample-audio/",
+        views.elevenlabs_voice_sample_audio,
+        name="elevenlabs_voice_sample_audio",
     ),
     path("videos/<int:video_id>/render/", views.render_video, name="render_video"),
     path(
