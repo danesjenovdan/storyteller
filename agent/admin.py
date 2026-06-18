@@ -3,7 +3,7 @@ import json
 from django.contrib import admin
 from django.utils.html import format_html
 
-from agent.models import GenVideo, UsersLogo, VideoSegment
+from agent.models import GenVideo, ProviderTTSModel, UsersLogo, VideoSegment
 
 
 class VideoSegmentsInline(admin.TabularInline):
@@ -50,3 +50,18 @@ class UsersLogoAdmin(admin.ModelAdmin):
     list_display = ("id", "user", "created_at")
     search_fields = ("user__username", "logo_file")
     list_filter = ("created_at",)
+
+
+@admin.register(ProviderTTSModel)
+class ProviderTTSModelAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "provider",
+        "external_id",
+        "name",
+        "can_do_text_to_speech",
+        "is_active",
+        "created_at",
+    )
+    search_fields = ("provider", "external_id", "name")
+    list_filter = ("provider", "is_active", "created_at")

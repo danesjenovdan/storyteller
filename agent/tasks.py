@@ -162,10 +162,28 @@ def generate_voice_file_eleven_labs(video: int) -> None:
         if text_length > 5000:
             logger.warning(f"Long text ({text_length} chars) may consume many credits")
 
-        # Use voice_model from video or default (Rachel voice)
-        voice_id = video.voice_model or "21m00Tcm4TlvDq8ikWAM"
+        # Backward compatible handling:
+        # - old records stored ElevenLabs voice IDs in video.voice_model
+        # - new records store ElevenLabs model IDs (e.g. eleven_v3)
+        configured_default_voice = getattr(
+            settings,
+            "ELEVENLABS_DEFAULT_VOICE_ID",
+            "21m00Tcm4TlvDq8ikWAM",
+        )
+        selected_value = (video.voice_model or "").strip()
+        if selected_value.startswith("eleven_"):
+            voice_id = configured_default_voice
+            model_id = selected_value
+        else:
+            voice_id = selected_value or configured_default_voice
+            model_id = "eleven_v3"
 
-        logger.info(f"Generating voice for video {video.id} with voice {voice_id}")
+        logger.info(
+            "Generating voice for video %s with voice %s and model %s",
+            video.id,
+            voice_id,
+            model_id,
+        )
 
         # Initialize ElevenLabs client
         client = ElevenLabs(api_key=settings.ELEVENLABS_API_KEY)
@@ -174,7 +192,7 @@ def generate_voice_file_eleven_labs(video: int) -> None:
         audio_generator = client.text_to_speech.convert(
             voice_id=voice_id,
             text=video.scenario,
-            model_id="eleven_v3",
+            model_id=model_id,
             language_code=(video.language or "sl").split("-")[0],
         )
 
@@ -594,6 +612,18 @@ def generate_srt_file(video: GenVideo) -> None:
                 time.sleep(2)
                 gemini_file = client.files.get(name=gemini_file.name)
 
+        if video.subtitle_max_words_per_screen:
+            logger.info(
+                f"Using max_words_per_screen={video.subtitle_max_words_per_screen} for video {video.id}"
+            )
+            subtitle_limit_prompt = f"""
+Omeji število besed na zaslonu na največ {video.subtitle_max_words_per_screen}.
+Če je v enem segmentu več besed, jih razdeli v več delov, da bo na zaslonu hkrati največ {video.subtitle_max_words_per_screen} besed.
+Razdeli smiselno, po stavkih ali pomišljajih, ne pa naključno v sredini stavka.
+            """
+        else:
+            subtitle_limit_prompt = ""
+
         contents = [
             Content(
                 role="user",
@@ -601,9 +631,10 @@ def generate_srt_file(video: GenVideo) -> None:
                     Part.from_uri(
                         file_uri=gemini_file.uri, mime_type=gemini_file.mime_type
                     ),
-                    Part.from_text(text="""
-Vrni miiii samo vsebino SRT datoteke za podnapise iz priloženega zvočnega posnetka, brez dodatnih pojasnil ali besedila.
+                    Part.from_text(text=f"""
+Vrni mi samo vsebino SRT datoteke za podnapise iz priloženega zvočnega posnetka, brez dodatnih pojasnil ali besedila.
 Zgeneriraj podnapise in mi vrni vsebino za SRT datoteko.
+{subtitle_limit_prompt}
 Vsebuje naj tudi časovne kode, ki naj bodo vse v formatu HH:MM:SS,mmm --> HH:MM:SS,mmm.
 Spodaj je primer za enkratno referenco:
 1
