@@ -3,12 +3,11 @@
 # This file is distributed under the same license as the PACKAGE package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 #
-#, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-03 16:29+0000\n"
+"POT-Creation-Date: 2026-06-10 09:30+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -19,39 +18,40 @@ msgstr ""
 "Plural-Forms: nplurals=4; plural=(n%100==1 ? 0 : n%100==2 ? 1 : n%100==3 || "
 "n%100==4 ? 2 : 3);\n"
 
-#: agent/forms.py:18 agent/forms.py:60
+#: agent/forms.py:18 agent/forms.py:63
 msgid "Glasovni model"
 msgstr ""
 
-#: agent/forms.py:33
+#: agent/forms.py:35
 msgid "Vnesite naslov videa"
 msgstr ""
 
-#: agent/forms.py:39
+#: agent/forms.py:42
 msgid "Opišite scenarij videa"
 msgstr ""
 
-#: agent/forms.py:47
+#: agent/forms.py:50
 msgid "Vnesite prompt za LLM"
 msgstr ""
 
-#: agent/forms.py:57
+#: agent/forms.py:60
 msgid "Naslov"
 msgstr ""
 
-#: agent/forms.py:58 templates/agent/video_detail.html:231
+#: agent/forms.py:61 templates/agent/video_create.html:67
+#: templates/agent/video_detail.html:231
 msgid "Scenarij"
 msgstr ""
 
-#: agent/forms.py:59
+#: agent/forms.py:62
 msgid "Navodila za LLM"
 msgstr ""
 
-#: agent/forms.py:61 templates/base.html:19
+#: agent/forms.py:64 templates/base.html:19
 msgid "Jezik"
 msgstr ""
 
-#: agent/forms.py:62
+#: agent/forms.py:65
 msgid "Naložite glasovno datoteko"
 msgstr ""
 
@@ -143,12 +143,12 @@ msgstr ""
 msgid "Zgoraj desno"
 msgstr ""
 
-#: agent/tasks.py:214
+#: agent/tasks.py:215
 #, python-format
 msgid "Napaka pri ustvarjanju zvočne datoteke (ElevenLabs): %(error)s"
 msgstr ""
 
-#: agent/tasks.py:288
+#: agent/tasks.py:289
 #, python-format
 msgid "Napaka pri ustvarjanju zvočne datoteke (OpenAI): %(error)s"
 msgstr ""
@@ -177,7 +177,7 @@ msgid ""
 "Neveljavni časi segmenta %(segment)s: začetek %(start)s >= konec %(end)s"
 msgstr ""
 
-#: agent/tasks.py:567
+#: agent/tasks.py:568
 #, python-format
 msgid "Napaka pri generiranju segmentov: %(error)s"
 msgstr ""
@@ -192,7 +192,7 @@ msgstr ""
 msgid "Napaka pri generiranju SRT datoteke: %(error)s"
 msgstr ""
 
-#: agent/tasks.py:1548
+#: agent/tasks.py:1538
 #, python-format
 msgid "Napaka pri renderiranju končnega videa: %(error)s"
 msgstr ""
@@ -201,8 +201,8 @@ msgstr ""
 msgid "Authentication required"
 msgstr ""
 
-#: agent/views.py:70 agent/views.py:296 agent/views.py:429 agent/views.py:834
-#: agent/views.py:879 agent/views.py:919 agent/views.py:955
+#: agent/views.py:70 agent/views.py:296 agent/views.py:433 agent/views.py:812
+#: agent/views.py:857 agent/views.py:897 agent/views.py:933
 msgid "Method not allowed"
 msgstr ""
 
@@ -244,46 +244,46 @@ msgstr ""
 msgid "No file provided"
 msgstr ""
 
-#: agent/views.py:313
+#: agent/views.py:314
 msgid "File must be a video or image"
 msgstr ""
 
-#: agent/views.py:339
+#: agent/views.py:341
 msgid "Image uploaded successfully"
 msgstr ""
 
-#: agent/views.py:375
+#: agent/views.py:377
 #, python-format
 msgid "Could not analyze video: %(error)s"
 msgstr ""
 
-#: agent/views.py:389
+#: agent/views.py:392
 msgid "No video stream found"
 msgstr ""
 
-#: agent/views.py:403
+#: agent/views.py:407
 msgid "Video uploaded successfully"
 msgstr ""
 
-#: agent/views.py:413
+#: agent/views.py:417
 #, python-format
 msgid "Error uploading file: %(error)s"
 msgstr ""
 
-#: agent/views.py:500
+#: agent/views.py:469
 msgid "video_url is required"
 msgstr ""
 
-#: agent/views.py:612
+#: agent/views.py:581
 msgid "Video URL uspešno shranjen."
 msgstr ""
 
-#: agent/views.py:619
+#: agent/views.py:588
 #, python-format
 msgid "Error saving video: %(error)s"
 msgstr ""
 
-#: agent/views.py:688
+#: agent/views.py:657
 #, python-format
 msgid ""
 "Ne moreš renderirati videa - manjka izbrani video klip (%(selected)s/"
@@ -294,56 +294,56 @@ msgid_plural ""
 msgstr[0] ""
 msgstr[1] ""
 
-#: agent/views.py:699
+#: agent/views.py:669
 msgid "Ne moreš renderirati videa - manjka zvočna datoteka"
 msgstr ""
 
-#: agent/views.py:706
+#: agent/views.py:677
 msgid "Renderiranje videa se je začelo! To lahko traja nekaj minut."
 msgstr ""
 
-#: agent/views.py:725
+#: agent/views.py:697
 msgid "Ne moreš generirati zvoka - manjka vsebinski skript"
 msgstr ""
 
-#: agent/views.py:731
+#: agent/views.py:705
 msgid ""
 "Ne moreš generirati zvoka - manjka glasovni model. Uredi skript in izberi "
 "glas."
 msgstr ""
 
-#: agent/views.py:748
+#: agent/views.py:724
 #, python-format
 msgid ""
 "Generiranje zvočnega posnetka se je začelo (%(provider)s)! Posnetek bo kmalu "
 "na voljo."
 msgstr ""
 
-#: agent/views.py:773
+#: agent/views.py:750
 msgid "Ne moreš generirati segmentov - manjka vsebinski skript"
 msgstr ""
 
-#: agent/views.py:783
+#: agent/views.py:760
 msgid "Segmenti se ponovno generirajo..."
 msgstr ""
 
-#: agent/views.py:804
+#: agent/views.py:781
 msgid "Ne moreš generirati podnapisov - manjka zvočna datoteka"
 msgstr ""
 
-#: agent/views.py:818
+#: agent/views.py:796
 msgid "Generiranje podnapisov se je začelo! Podnapisi bodo kmalu na voljo."
 msgstr ""
 
-#: agent/views.py:883
+#: agent/views.py:861
 msgid "No logo file provided"
 msgstr ""
 
-#: agent/views.py:887
+#: agent/views.py:865
 msgid "Logo must be an image"
 msgstr ""
 
-#: agent/views.py:967
+#: agent/views.py:945
 msgid "Invalid logo position"
 msgstr ""
 
@@ -487,17 +487,17 @@ msgid "Zamenjaj"
 msgstr ""
 
 #: templates/agent/includes/video_carousel.html:177
-#: templates/agent/video_detail.html:595
+#: templates/agent/video_detail.html:587
 msgid "Shranjujem nastavitev..."
 msgstr ""
 
 #: templates/agent/includes/video_carousel.html:178
-#: templates/agent/video_detail.html:596
+#: templates/agent/video_detail.html:588
 msgid "Način uspešno posodobljen!"
 msgstr ""
 
 #: templates/agent/includes/video_carousel.html:179
-#: templates/agent/video_detail.html:597
+#: templates/agent/video_detail.html:589
 msgid "Napaka pri shranjevanju načina:"
 msgstr ""
 
@@ -529,6 +529,41 @@ msgstr ""
 msgid "Blur & Crop"
 msgstr ""
 
+#: templates/agent/video_create.html:4 templates/agent/video_create.html:39
+msgid "Ustvari nov video"
+msgstr ""
+
+#: templates/agent/video_create.html:72
+msgid "Naloži zvočni posnetek"
+msgstr ""
+
+#: templates/agent/video_create.html:79
+msgid "Vpiši scenarij videa"
+msgstr ""
+
+#: templates/agent/video_create.html:87
+msgid "Optimiziraj z AI (zapri)"
+msgstr ""
+
+#: templates/agent/video_create.html:87
+msgid "Optimiziraj z AI (odpri)"
+msgstr ""
+
+#: templates/agent/video_create.html:148
+msgid "Prekliči"
+msgstr ""
+
+#: templates/agent/video_create.html:149
+msgid "Ustvari video"
+msgstr ""
+
+#: templates/agent/video_create.html:203
+msgid ""
+"Preoblikuj to besedilo, da bo primerno kot scenarij za kratek vertikalni "
+"video. Pripravi golo besedilo za govorca, brez opomb, označb in dodatnih "
+"komentarjev."
+msgstr ""
+
 #: templates/agent/video_detail.html:4 templates/agent/videos.html:48
 msgid "Podrobnosti"
 msgstr ""
@@ -545,7 +580,7 @@ msgstr ""
 msgid "Generiranje ..."
 msgstr ""
 
-#: templates/agent/video_detail.html:163 templates/agent/video_detail.html:581
+#: templates/agent/video_detail.html:163 templates/agent/video_detail.html:573
 msgid "Generiraj video"
 msgstr ""
 
@@ -711,92 +746,92 @@ msgstr ""
 msgid "Vhod"
 msgstr ""
 
-#: templates/agent/video_detail.html:521 templates/agent/video_detail.html:532
-#: templates/agent/video_detail.html:545
+#: templates/agent/video_detail.html:521 templates/agent/video_detail.html:529
+#: templates/agent/video_detail.html:540
 msgid "Brez"
 msgstr ""
 
-#: templates/agent/video_detail.html:530
+#: templates/agent/video_detail.html:527
 msgid "Vmes"
 msgstr ""
 
-#: templates/agent/video_detail.html:543
+#: templates/agent/video_detail.html:538
 msgid "Izhod"
 msgstr ""
 
-#: templates/agent/video_detail.html:570
+#: templates/agent/video_detail.html:562
 msgid "Ni stavkov. Dodaj vsebinski skript, da se samodejno ustvarijo stavki."
 msgstr ""
 
-#: templates/agent/video_detail.html:592
+#: templates/agent/video_detail.html:584
 msgid "Ali si prepričan? Vsi obstoječi segmenti bodo izbrisani!"
 msgstr ""
 
-#: templates/agent/video_detail.html:593
+#: templates/agent/video_detail.html:585
 msgid "Ali si prepričan? Obstoječi podnapisi bodo izbrisani!"
 msgstr ""
 
-#: templates/agent/video_detail.html:594
+#: templates/agent/video_detail.html:586
 msgid "Napaka: Video/Slika URL ni najden"
 msgstr ""
 
-#: templates/agent/video_detail.html:598
+#: templates/agent/video_detail.html:590
 msgid "Failed to save selected logo"
 msgstr ""
 
-#: templates/agent/video_detail.html:599
+#: templates/agent/video_detail.html:591
 msgid "Napaka pri shranjevanju izbranega logotipa"
 msgstr ""
 
-#: templates/agent/video_detail.html:600
+#: templates/agent/video_detail.html:592
 msgid "Logo nastavitve so shranjene!"
 msgstr ""
 
-#: templates/agent/video_detail.html:601
+#: templates/agent/video_detail.html:593
 msgid "Failed to save logo settings"
 msgstr ""
 
-#: templates/agent/video_detail.html:602
+#: templates/agent/video_detail.html:594
 msgid "Napaka pri shranjevanju logo nastavitev"
 msgstr ""
 
-#: templates/agent/video_detail.html:603
+#: templates/agent/video_detail.html:595
 msgid "Najprej izberi datoteko logotipa"
 msgstr ""
 
-#: templates/agent/video_detail.html:604
+#: templates/agent/video_detail.html:596
 msgid "Upload failed"
 msgstr ""
 
-#: templates/agent/video_detail.html:605
+#: templates/agent/video_detail.html:597
 msgid "Napaka pri uploadu logotipa:"
 msgstr ""
 
-#: templates/agent/video_detail.html:606
+#: templates/agent/video_detail.html:598
 msgid "Failed to save subtitle settings"
 msgstr ""
 
-#: templates/agent/video_detail.html:607
+#: templates/agent/video_detail.html:599
 msgid "Nastavitve podnapisov so shranjene!"
 msgstr ""
 
-#: templates/agent/video_detail.html:608
+#: templates/agent/video_detail.html:600
 msgid "Napaka pri shranjevanju nastavitev"
 msgstr ""
 
-#: templates/agent/video_detail.html:609
+#: templates/agent/video_detail.html:601
 msgid "Shranjujem animacijo..."
 msgstr ""
 
-#: templates/agent/video_detail.html:610
+#: templates/agent/video_detail.html:602
 msgid "Animacija uspešno shranjena."
 msgstr ""
 
-#: templates/agent/video_detail.html:611
+#: templates/agent/video_detail.html:603
 msgid "Napaka:"
 msgstr ""
 
-#: templates/agent/video_detail.html:612
+#: templates/agent/video_detail.html:604
 msgid "Napaka pri shranjevanju animacije:"
 msgstr ""
 
