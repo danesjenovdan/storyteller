@@ -93,7 +93,9 @@ class GenVideo(models.Model):
         default=10, help_text="Vertical position from bottom in percentage (0-50)"
     )
     subtitle_max_words_per_screen = models.IntegerField(
-        null=True, blank=True, help_text="Maximum number of words displayed on screen at once"
+        null=True,
+        blank=True,
+        help_text="Maximum number of words displayed on screen at once",
     )
     final_file = models.FileField(
         upload_to="final_videos/",

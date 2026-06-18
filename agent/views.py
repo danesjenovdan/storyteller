@@ -5,7 +5,6 @@ import tempfile
 from functools import wraps
 
 import requests
-
 from django.conf import settings as django_settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -14,8 +13,8 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext as _
 from django.utils.translation import ngettext
-from PIL import Image
 from elevenlabs import ElevenLabs
+from PIL import Image
 
 from agent.content_apis import (
     resolve_sources,
@@ -88,11 +87,19 @@ def _seed_static_provider_models(provider):
         ],
         "openai": [
             {"id": "alloy", "name": "Alloy - Neutral and balanced", "languages": []},
-            {"id": "echo", "name": "Echo - Male, clear and expressive", "languages": []},
+            {
+                "id": "echo",
+                "name": "Echo - Male, clear and expressive",
+                "languages": [],
+            },
             {"id": "fable", "name": "Fable - British accent, warm", "languages": []},
             {"id": "onyx", "name": "Onyx - Deep and authoritative", "languages": []},
             {"id": "nova", "name": "Nova - Female, energetic", "languages": []},
-            {"id": "shimmer", "name": "Shimmer - Female, soft and warm", "languages": []},
+            {
+                "id": "shimmer",
+                "name": "Shimmer - Female, soft and warm",
+                "languages": [],
+            },
         ],
     }
 
@@ -230,7 +237,9 @@ def _sync_elevenlabs_models_to_db():
 def ensure_provider_models(provider):
     provider_models = ProviderTTSModel.objects.filter(provider=provider, is_active=True)
     if provider == ProviderTTSModel.Providers.ELEVENLABS:
-        non_static_exists = provider_models.exclude(raw_payload__source="static").exists()
+        non_static_exists = provider_models.exclude(
+            raw_payload__source="static"
+        ).exists()
         if non_static_exists:
             return
 
@@ -1030,7 +1039,9 @@ def elevenlabs_voice_sample_audio(request, video_id):
                     content_type = preview_response.headers.get(
                         "content-type", "audio/mpeg"
                     )
-                    return HttpResponse(preview_response.content, content_type=content_type)
+                    return HttpResponse(
+                        preview_response.content, content_type=content_type
+                    )
 
                 return JsonResponse(
                     {"error": _("No voice samples available for this model")},
@@ -1165,7 +1176,9 @@ def set_subtitle_style(request, video_id):
         if max_words_per_screen in (None, "", 0, "0"):
             video.subtitle_max_words_per_screen = None
         else:
-            video.subtitle_max_words_per_screen = max(1, min(15, int(max_words_per_screen)))
+            video.subtitle_max_words_per_screen = max(
+                1, min(15, int(max_words_per_screen))
+            )
         video.save()
 
         return JsonResponse(

@@ -3,7 +3,7 @@ import json
 from django.contrib import admin
 from django.utils.html import format_html
 
-from agent.models import GenVideo, UsersLogo, VideoSegment, ProviderTTSModel
+from agent.models import GenVideo, ProviderTTSModel, UsersLogo, VideoSegment
 
 
 class VideoSegmentsInline(admin.TabularInline):
