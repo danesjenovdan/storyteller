@@ -864,7 +864,9 @@ def render_final_video(video: GenVideo) -> None:
                 logger.info(
                     f"Processing clip {i+1}/{segments.count()}: {duration:.2f}s from URL (dimensions: {width}x{height}, is_image: {is_image}, mode: {horizontal_mode}, animation_in: {animation_mode['in']}, animation_mid: {animation_mode['mid']}, animation_out: {animation_mode['out']})"
                 )
-                video.progress = f"Processing clip {i+1}/{segments.count()}: {duration:.2f}s"
+                video.progress = (
+                    f"Processing clip {i+1}/{segments.count()}: {duration:.2f}s"
+                )
                 video.save()
 
                 if is_image:

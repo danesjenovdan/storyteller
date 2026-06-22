@@ -4,7 +4,6 @@ from typing import Any
 
 import requests
 
-
 FULL_HD_DIMS: set[tuple[int, int]] = {(1920, 1080), (1080, 1920)}
 
 
