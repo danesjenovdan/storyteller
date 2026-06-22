@@ -804,6 +804,7 @@ def render_final_video(video: GenVideo) -> None:
 
     try:
         video.status = GenVideo.Statuses.RENDERING
+        video.progress = "Initializing rendering process"
         video.save()
 
         # Get all segments with video URLs
@@ -863,6 +864,8 @@ def render_final_video(video: GenVideo) -> None:
                 logger.info(
                     f"Processing clip {i+1}/{segments.count()}: {duration:.2f}s from URL (dimensions: {width}x{height}, is_image: {is_image}, mode: {horizontal_mode}, animation_in: {animation_mode['in']}, animation_mid: {animation_mode['mid']}, animation_out: {animation_mode['out']})"
                 )
+                video.progress = f"Processing clip {i+1}/{segments.count()}: {duration:.2f}s"
+                video.save()
 
                 if is_image:
                     # Handle image: download and convert to video
@@ -1308,6 +1311,9 @@ def render_final_video(video: GenVideo) -> None:
             concatenated_file = temp_path / "concatenated.mp4"
             print("Concatenating clips...")
 
+            video.progress = "Concatenating clips."
+            video.save()
+
             cmd = [
                 "ffmpeg",
                 "-f",
@@ -1389,6 +1395,9 @@ def render_final_video(video: GenVideo) -> None:
                     "-i",
                     voice_file,  # Input 2: Voice audio file (narration)
                 ]
+
+                video.progress = "Preparing final video with audio and subtitles."
+                video.save()
 
                 use_logo_overlay = bool(logo_file)
                 if use_logo_overlay:
@@ -1536,6 +1545,10 @@ def render_final_video(video: GenVideo) -> None:
                         logger.error(
                             f"Final FFmpeg stderr tail before timeout:\n{stderr_preview}"
                         )
+                    video.status = GenVideo.Statuses.FAILED
+                    video.error_type = GenVideo.ErrorTypes.TIMEOUT
+                    video.progress = ""
+                    video.save()
                     raise RuntimeError(
                         f"FFmpeg final render timed out after {elapsed:.1f}s"
                     )
@@ -1558,6 +1571,7 @@ def render_final_video(video: GenVideo) -> None:
                     video.final_file.save(filename, ContentFile(f.read()), save=False)
 
                 video.status = GenVideo.Statuses.COMPLETED
+                video.progress = ""
                 video.save()
 
                 print(f"Video {video} rendered successfully!")
