@@ -365,13 +365,21 @@ def video_create(request):
                 return redirect("video_detail", video_id=video.id)
             else:
                 messages.success(request, _("Video mora vsebovati scenario!"))
-                return render(request, "agent/video_create.html", {"form": form})
+                return render(
+                    request,
+                    "agent/video_create.html",
+                    {"form": form, "tts_provider": tts_provider},
+                )
         else:
             messages.error(request, _("Napaka pri ustvarjanju videa."))
     else:
         form = VideoCreateForm(voice_models=voice_models)
 
-    return render(request, "agent/video_create.html", {"form": form})
+    return render(
+        request,
+        "agent/video_create.html",
+        {"form": form, "tts_provider": tts_provider},
+    )
 
 
 @ajax_login_required
@@ -978,6 +986,113 @@ def elevenlabs_voice_sample_audio(request, video_id):
         )
 
     voice_id = (request.GET.get("voice_id") or video.voice_model or "").strip()
+    if not voice_id:
+        return JsonResponse({"error": _("Voice model is required")}, status=400)
+
+    if not django_settings.ELEVENLABS_API_KEY:
+        return JsonResponse(
+            {"error": _("ELEVENLABS_API_KEY is not configured")}, status=500
+        )
+
+    try:
+        headers = {"xi-api-key": django_settings.ELEVENLABS_API_KEY}
+        sample_voice_id = voice_id
+        sample_id = None
+        preview_url = None
+
+        # Legacy compatibility: if a model ID (e.g. eleven_v3) is provided,
+        # resolve a compatible voice with available samples.
+        is_likely_model_id = voice_id.startswith("eleven_")
+
+        if is_likely_model_id:
+            voices_response = requests.get(
+                "https://api.elevenlabs.io/v1/voices",
+                headers=headers,
+                timeout=20,
+            )
+            voices_response.raise_for_status()
+            voices_payload = voices_response.json()
+            voices = voices_payload.get("voices") or []
+
+            for item in voices:
+                compatible_model_ids = item.get("high_quality_base_model_ids") or []
+                samples = item.get("samples") or []
+                if voice_id not in compatible_model_ids or not samples:
+                    continue
+                first_sample = samples[0]
+                sample_voice_id = item.get("voice_id") or item.get("voiceId")
+                sample_id = first_sample.get("sample_id") or first_sample.get("id")
+                if sample_voice_id and sample_id:
+                    break
+
+            if not sample_voice_id or not sample_id:
+                return JsonResponse(
+                    {"error": _("No voice samples available for this model")},
+                    status=404,
+                )
+        else:
+            voice_response = requests.get(
+                f"https://api.elevenlabs.io/v1/voices/{voice_id}",
+                headers=headers,
+                timeout=20,
+            )
+            voice_response.raise_for_status()
+            voice_data = voice_response.json()
+            preview_url = voice_data.get("preview_url")
+            samples = voice_data.get("samples") or []
+            if not samples:
+                if preview_url:
+                    preview_response = requests.get(preview_url, timeout=30)
+                    preview_response.raise_for_status()
+                    content_type = preview_response.headers.get(
+                        "content-type", "audio/mpeg"
+                    )
+                    return HttpResponse(
+                        preview_response.content, content_type=content_type
+                    )
+
+                return JsonResponse(
+                    {"error": _("No voice samples available for this model")},
+                    status=404,
+                )
+
+            first_sample = samples[0]
+            sample_id = first_sample.get("sample_id") or first_sample.get("id")
+            if not sample_id:
+                return JsonResponse(
+                    {"error": _("No sample ID found for this voice")},
+                    status=404,
+                )
+
+        audio_response = requests.get(
+            f"https://api.elevenlabs.io/v1/voices/{sample_voice_id}/samples/{sample_id}/audio",
+            headers=headers,
+            timeout=30,
+        )
+        audio_response.raise_for_status()
+
+        content_type = audio_response.headers.get("content-type", "audio/mpeg")
+        return HttpResponse(audio_response.content, content_type=content_type)
+
+    except requests.RequestException as exc:
+        return JsonResponse(
+            {"error": _("Error loading voice sample: %(error)s") % {"error": str(exc)}},
+            status=502,
+        )
+
+
+@ajax_login_required
+def elevenlabs_voice_sample_audio_create(request):
+    if request.method != "GET":
+        return JsonResponse({"error": _("Method not allowed")}, status=405)
+
+    if django_settings.TTS_PROVIDER != "elevenlabs":
+        return JsonResponse(
+            {"error": _("Voice samples are only available for ElevenLabs")},
+            status=400,
+        )
+
+    voice_id = (request.GET.get("voice_id") or "").strip()
     if not voice_id:
         return JsonResponse({"error": _("Voice model is required")}, status=400)
 
