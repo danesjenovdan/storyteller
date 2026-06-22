@@ -27,6 +27,11 @@ urlpatterns = [
         views.elevenlabs_voice_sample_audio,
         name="elevenlabs_voice_sample_audio",
     ),
+    path(
+        "videos/voice-sample-audio/",
+        views.elevenlabs_voice_sample_audio_create,
+        name="elevenlabs_voice_sample_audio_create",
+    ),
     path("videos/<int:video_id>/render/", views.render_video, name="render_video"),
     path(
         "videos/<int:video_id>/regenerate-segments/",

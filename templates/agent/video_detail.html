@@ -154,7 +154,7 @@
                     </div>
                     <div class="col-md-6 text-end">
                         {% if video.status == 'GENERATING_VOICE' or video.status == 'GENERATING_SUBTITLES' or video.status == 'GENERATING_SEGMENTS' or video.status == 'RENDERING' or video.status == 'PROCESSING' %}
-                            <div class="text-muted">{% trans "Generiranje ..." %}</div>
+                            <div class="text-muted">{% trans "Generiranje ..." %} {{ video.progress }}</div>
                             <div class="spinner-border text-primary me-2" role="status" style="width: 1.5rem; height: 1.5rem;"></div>
                         {% elif completed_segments == total_segments and total_segments > 0 and video.voice_file %}
                             <form method="post" action="{% url 'render_video' video.id %}" style="margin: 0;">

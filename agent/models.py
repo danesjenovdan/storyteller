@@ -32,6 +32,7 @@ class GenVideo(models.Model):
             "Napaka pri generiranju segmentov"
         )
         RENDERING = "RENDERING", _("Napaka pri renderiranju videa")
+        TIMEOUT = "TIMEOUT", _("Timeout pri renderiranju videa")
 
     class LogoPositions(models.TextChoices):
         TOP_LEFT = "top_left", _("Zgoraj levo")
@@ -115,6 +116,11 @@ class GenVideo(models.Model):
     )
     error_details = models.TextField(
         blank=True, null=True, help_text="Error details if task failed"
+    )
+    progress = models.CharField(
+        max_length=255,
+        default="",
+        help_text="Optional field to store progress details for long-running tasks",
     )
     logo = models.ForeignKey(
         "UsersLogo",

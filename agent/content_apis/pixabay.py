@@ -4,6 +4,8 @@ from typing import Any
 
 import requests
 
+FULL_HD_DIMS: set[tuple[int, int]] = {(1920, 1080), (1080, 1920)}
+
 
 def search_videos(
     query: str, page: int, api_key: str, min_duration: float
@@ -109,9 +111,39 @@ def search_images(
 
 
 def _pick_video_variant(videos: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
-    """Pick the highest-quality available Pixabay video variant."""
-    for key in ("large", "medium", "small", "tiny"):
+    """Prefer Full HD variant; otherwise return the largest available variant."""
+    if not videos:
+        return None
+
+    fallback_with_url: dict[str, Any] | None = None
+    candidates: list[tuple[bool, int, int, dict[str, Any]]] = []
+
+    for index, key in enumerate(("large", "medium", "small", "tiny")):
         variant = videos.get(key)
-        if variant and variant.get("url"):
-            return variant
-    return None
+        if not variant:
+            continue
+
+        url = variant.get("url")
+        if not url:
+            continue
+
+        if fallback_with_url is None:
+            fallback_with_url = variant
+
+        width = variant.get("width")
+        height = variant.get("height")
+        if not isinstance(width, int) or not isinstance(height, int):
+            continue
+        if width <= 0 or height <= 0:
+            continue
+
+        area = width * height
+        is_full_hd = (width, height) in FULL_HD_DIMS
+        # Earlier keys win ties to keep deterministic behavior.
+        tie_breaker = -index
+        candidates.append((is_full_hd, area, tie_breaker, variant))
+
+    if candidates:
+        return max(candidates, key=lambda item: (item[0], item[1], item[2]))[3]
+
+    return fallback_with_url

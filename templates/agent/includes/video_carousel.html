@@ -183,7 +183,8 @@
       horizontalModeAria: '{% trans "Horizontal mode" %}',
       crop: '{% trans "Crop" %}',
       blur: '{% trans "Blur" %}',
-      blurAndCrop: '{% trans "Blur & Crop" %}'
+      blurAndCrop: '{% trans "Blur & Crop" %}',
+      animations: '{% trans "Animacije" %}'
     };
 
     const el = document.currentScript.previousElementSibling;
@@ -575,6 +576,9 @@
           <a href="#" class="btn btn-sm btn-outline-secondary toggle-select-video">
             <i class="bi bi-arrow-repeat"></i> ${i18n.replace}
           </a>
+          <a href="#" class="btn btn-sm btn-outline-dark toggle-animation-settings">
+            <i class="bi bi-magic"></i> ${i18n.animations}
+          </a>
         </div>
         ${modeButtonsHTML}
       `;
@@ -591,6 +595,23 @@
           container.style.display = 'none';
         }
       });
+
+      const newAnimationToggleBtn = rightCol.querySelector('.toggle-animation-settings');
+      if (newAnimationToggleBtn) {
+        newAnimationToggleBtn.addEventListener('click', function(event) {
+          event.preventDefault();
+          const container = segmentCard.querySelector('.select-animation-container');
+          if (!container) {
+            return;
+          }
+          if (container.style.display === 'none') {
+            container.style.display = '';
+            container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          } else {
+            container.style.display = 'none';
+          }
+        });
+      }
 
       // Attach mode button events for horizontal videos/images
       if (isHorizontal) {
