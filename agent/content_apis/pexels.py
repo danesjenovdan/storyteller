@@ -5,6 +5,9 @@ from typing import Any
 import requests
 
 
+FULL_HD_DIMS: set[tuple[int, int]] = {(1920, 1080), (1080, 1920)}
+
+
 def search_videos(
     query: str, page: int, api_key: str, min_duration: float
 ) -> list[dict[str, Any]]:
@@ -118,14 +121,33 @@ def search_images(
 def _pick_preferred_video_file(
     video_files: list[dict[str, Any]],
 ) -> dict[str, Any] | None:
-    """Prefer portrait files; fallback to the first available file."""
+    """Prefer Full HD video; otherwise return the largest available file."""
     if not video_files:
         return None
 
-    fallback = video_files[0]
+    fallback_with_url: dict[str, Any] | None = None
+    candidates: list[tuple[bool, int, dict[str, Any]]] = []
+
     for file_obj in video_files:
-        width = file_obj.get("width") or 0
-        height = file_obj.get("height") or 0
-        if width < height:
-            return file_obj
-    return fallback
+        link = file_obj.get("link")
+        if not link:
+            continue
+
+        if fallback_with_url is None:
+            fallback_with_url = file_obj
+
+        width = file_obj.get("width")
+        height = file_obj.get("height")
+        if not isinstance(width, int) or not isinstance(height, int):
+            continue
+        if width <= 0 or height <= 0:
+            continue
+
+        area = width * height
+        is_full_hd = (width, height) in FULL_HD_DIMS
+        candidates.append((is_full_hd, area, file_obj))
+
+    if candidates:
+        return max(candidates, key=lambda item: (item[0], item[1]))[2]
+
+    return fallback_with_url
