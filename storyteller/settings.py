@@ -33,12 +33,8 @@ SECRET_KEY = os.getenv(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DJANGO_DEBUG", "True") == "True"
 
-ALLOWED_HOSTS: List[str] = [
-    os.getenv("DOMAIN_NAME", "localhost"),
-]
-CSRF_TRUSTED_ORIGINS = [
-    os.getenv("DJANGO_BASE_URL", "http://localhost"),
-]
+ALLOWED_HOSTS: List[str] = os.getenv("DOMAIN_NAME", "localhost").split(",")
+CSRF_TRUSTED_ORIGINS = os.getenv("DJANGO_BASE_URL", "http://localhost").split(",")
 
 
 # Application definition
