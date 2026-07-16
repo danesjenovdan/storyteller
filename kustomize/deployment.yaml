@@ -84,8 +84,6 @@ spec:
           env:
             - name: DJANGO_STATIC_ROOT
               value: '/storage/static'
-            - name: DJANGO_STATIC_URL_BASE
-              value: "https://files.storyteller.lb.djnd.si/static/"
           resources:
             requests:
               memory: 400Mi
@@ -109,8 +107,6 @@ spec:
           env:
             - name: DJANGO_STATIC_ROOT
               value: '/storage/static'
-            - name: DJANGO_STATIC_URL_BASE
-              value: "https://files.storyteller.lb.djnd.si/static/"
           envFrom:
             - secretRef:
                 name: storyteller-credentials
