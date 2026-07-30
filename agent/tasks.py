@@ -8,6 +8,7 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 from django.utils.translation import gettext as _
 from elevenlabs.client import ElevenLabs
+from elevenlabs import VoiceSettings
 from google import genai
 from google.genai.types import Content, Part
 from huey.contrib.djhuey import db_task
@@ -194,6 +195,13 @@ def generate_voice_file_eleven_labs(video: int) -> None:
             text=video.scenario,
             model_id=model_id,
             language_code=(video.language or "sl").split("-")[0],
+            voice_settings=VoiceSettings(
+                stability=0.0,
+                similarity_boost=1.0,
+                style=0.0,
+                use_speaker_boost=True,
+                speed=1.2,
+            )
         )
 
         # Collect audio chunks into bytes
@@ -206,6 +214,10 @@ def generate_voice_file_eleven_labs(video: int) -> None:
         try:
             with get_temporary_file_path(video.voice_file) as temp_audio_path:
                 duration = get_audio_duration(temp_audio_path)
+                if duration > settings.MAX_VOICE_DURATION_SECONDS:
+                    raise ValueError(
+                        f"Voice file duration {duration:.2f}s exceeds maximum allowed {settings.MAX_VOICE_DURATION_SECONDS}s"
+                    )
                 video.voice_duration = duration
                 logger.info(f"Voice file duration: {duration:.2f} seconds")
         except Exception as e:

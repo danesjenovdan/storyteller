@@ -201,6 +201,8 @@ DEFAULT_PROMPT = """"Pripravi mi text iz scenarija, ki je podan spodaj, tako da 
 Izpis naj bo formatiran kot navaden text brez dodatnih oznak ali formatiranja.
 """
 
+MAX_VOICE_DURATION_SECONDS = int(os.getenv("MAX_VOICE_DURATION_SECONDS", 60*5))  # 5 minutes default
+
 # TTS Provider Settings
 TTS_PROVIDER = os.getenv(
     "TTS_PROVIDER", "gemini"
@@ -220,3 +222,4 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 
 # OpenAI API Settings
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+

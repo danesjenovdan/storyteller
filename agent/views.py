@@ -1274,20 +1274,23 @@ def set_subtitle_style(request, video_id):
 
     try:
         data = json.loads(request.body)
-        font_size = data.get("font_size", 12)
+        font_size = data.get("font_size", 20)
         font_family = data.get("font_family", "Montserrat")
-        font_weight = data.get("font_weight", "900")
-        stroke_weight = data.get("stroke_weight", 3)
-        shadow = data.get("shadow", 1)
-        vertical_position = data.get("vertical_position", 10)
+        font_weight = data.get("font_weight", "700")
+        stroke_weight = data.get("stroke_weight", 2)
+        shadow = data.get("shadow", 0)
+        vertical_position = data.get("vertical_position", 15)
         max_words_per_screen = data.get("max_words_per_screen")
 
-        video.subtitle_font_size = int(font_size)
+        video.subtitle_font_size = max(15, min(30, int(font_size)))
         video.subtitle_font_family = font_family
-        video.subtitle_font_weight = str(font_weight)
-        video.subtitle_stroke_weight = int(stroke_weight)
-        video.subtitle_shadow = int(shadow)
-        video.subtitle_vertical_position = int(vertical_position)
+        normalized_font_weight = str(font_weight)
+        if normalized_font_weight not in {"400", "700", "900"}:
+            normalized_font_weight = "700"
+        video.subtitle_font_weight = normalized_font_weight
+        video.subtitle_stroke_weight = max(0, min(6, int(stroke_weight)))
+        video.subtitle_shadow = max(0, min(3, int(shadow)))
+        video.subtitle_vertical_position = max(0, min(50, int(vertical_position)))
         if max_words_per_screen in (None, "", 0, "0"):
             video.subtitle_max_words_per_screen = None
         else:
@@ -1299,12 +1302,12 @@ def set_subtitle_style(request, video_id):
         return JsonResponse(
             {
                 "success": True,
-                "font_size": font_size,
+                "font_size": video.subtitle_font_size,
                 "font_family": font_family,
-                "font_weight": font_weight,
-                "stroke_weight": stroke_weight,
-                "shadow": shadow,
-                "vertical_position": vertical_position,
+                "font_weight": video.subtitle_font_weight,
+                "stroke_weight": video.subtitle_stroke_weight,
+                "shadow": video.subtitle_shadow,
+                "vertical_position": video.subtitle_vertical_position,
                 "max_words_per_screen": video.subtitle_max_words_per_screen,
             }
         )

@@ -76,22 +76,22 @@ class GenVideo(models.Model):
         help_text="Selected subtitle style for video rendering",
     )
     subtitle_font_size = models.IntegerField(
-        default=12, help_text="Font size for subtitles (in pixels)"
+        default=20, help_text="Font size for subtitles (in pixels)"
     )
     subtitle_font_family = models.CharField(
         max_length=50, default="Montserrat", help_text="Font family for subtitles"
     )
     subtitle_font_weight = models.CharField(
-        max_length=20, default="900", help_text="Font weight for subtitles"
+        max_length=20, default="700", help_text="Font weight for subtitles"
     )
     subtitle_stroke_weight = models.IntegerField(
-        default=3, help_text="Stroke weight for subtitles (in pixels)"
+        default=2, help_text="Stroke weight for subtitles (in pixels)"
     )
     subtitle_shadow = models.IntegerField(
-        default=1, help_text="Shadow intensity for subtitles"
+        default=0, help_text="Shadow intensity for subtitles"
     )
     subtitle_vertical_position = models.IntegerField(
-        default=10, help_text="Vertical position from bottom in percentage (0-50)"
+        default=15, help_text="Vertical position from bottom in percentage (0-50)"
     )
     subtitle_max_words_per_screen = models.IntegerField(
         null=True,
