@@ -501,6 +501,8 @@ def get_video_segments(video_instance: GenVideo) -> None:
         video_instance.status = GenVideo.Statuses.GENERATING_SEGMENTS
         video_instance.save()
 
+        video_instance.segments.all().delete()  # Clear existing segments if any
+
         # prompt the model for the minutes
         model = init_chat_model("gemini-3-flash-preview", model_provider="google_genai")
         logger.info(
@@ -682,8 +684,7 @@ our final approach into Coruscant.
         logger.info(f"✓ SRT file generated for video {video.id}: {filename}")
 
         # Automatically generate video segments if video has none
-        if not video.segments.exists():
-            get_video_segments(video)
+        get_video_segments(video)
 
     except Exception as e:
         logger.error(f"✗ Error generating SRT file for video {video.id}: {str(e)}")
