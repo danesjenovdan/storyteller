@@ -1,8 +1,10 @@
 import json
 import logging
 import os
+import re
 import sys
 import time
+from datetime import timedelta
 
 from django.conf import settings
 from django.core.files.base import ContentFile
@@ -29,7 +31,7 @@ logging.basicConfig(
 )
 
 
-def validate_srt_content(srt_content: str) -> tuple[bool, str]:
+def validate_srt_content(srt_content: str, video: GenVideo) -> tuple[bool, str]:
     """
     Validate SRT subtitle content before saving.
 
@@ -38,6 +40,7 @@ def validate_srt_content(srt_content: str) -> tuple[bool, str]:
     - Contains valid subtitle blocks (number, timecode, text)
     - Timecodes are in correct format
     - No missing or empty subtitle entries
+    - Last subtitle end is near the end of the video duration
 
     Args:
         srt_content: The SRT file content string
@@ -48,6 +51,16 @@ def validate_srt_content(srt_content: str) -> tuple[bool, str]:
     if not srt_content or not srt_content.strip():
         return False, "SRT content is empty"
 
+    def _parse_srt_timestamp(value: str) -> timedelta:
+        """Parse SRT timestamp (HH:MM:SS,mmm or HH:MM:SS.mmm) into timedelta."""
+        normalized = value.replace(",", ".")
+        hours, minutes, seconds = normalized.split(":")
+        return timedelta(
+            hours=int(hours),
+            minutes=int(minutes),
+            seconds=float(seconds),
+        )
+
     lines = srt_content.strip().split("\n")
 
     # Basic structure check - should have at least 3 lines (number, timecode, text)
@@ -56,6 +69,7 @@ def validate_srt_content(srt_content: str) -> tuple[bool, str]:
 
     # Track subtitle blocks
     subtitle_count = 0
+    last_subtitle_end = None
     i = 0
 
     while i < len(lines):
@@ -98,8 +112,6 @@ def validate_srt_content(srt_content: str) -> tuple[bool, str]:
         end_time = parts[1].strip()
 
         # Check timecode pattern (HH:MM:SS,mmm)
-        import re
-
         timecode_pattern = r"^\d{2}:\d{2}:\d{2}[,\.]\d{1,3}$"
         if not re.match(timecode_pattern, start_time):
             return (
@@ -111,6 +123,20 @@ def validate_srt_content(srt_content: str) -> tuple[bool, str]:
                 False,
                 f"Subtitle {subtitle_num}: Invalid end time format: {end_time}",
             )
+
+        try:
+            start_td = _parse_srt_timestamp(start_time)
+            end_td = _parse_srt_timestamp(end_time)
+        except ValueError:
+            return False, f"Subtitle {subtitle_num}: Could not parse timecode"
+
+        if end_td <= start_td:
+            return (
+                False,
+                f"Subtitle {subtitle_num}: End time must be greater than start time",
+            )
+
+        last_subtitle_end = end_td
 
         i += 1
         if i >= len(lines):
@@ -131,6 +157,27 @@ def validate_srt_content(srt_content: str) -> tuple[bool, str]:
     # Final check - should have at least one subtitle
     if subtitle_count == 0:
         return False, "No valid subtitles found in SRT content"
+
+    video_duration_seconds = getattr(video, "duration", None) or getattr(
+        video, "voice_duration", None
+    )
+    if video_duration_seconds:
+        allowed_early_end_seconds = float(
+            getattr(settings, "SRT_LAST_SUBTITLE_ALLOWED_EARLY_END_SECONDS", 2)
+        )
+        min_last_end = timedelta(
+            seconds=max(float(video_duration_seconds) - allowed_early_end_seconds, 0)
+        )
+        if last_subtitle_end and last_subtitle_end <= min_last_end:
+            return (
+                False,
+                (
+                    "Last subtitle ends too early: "
+                    f"{last_subtitle_end.total_seconds():.3f}s <= "
+                    f"{min_last_end.total_seconds():.3f}s "
+                    "(video_duration - allowed_early_end_seconds)"
+                ),
+            )
 
     logger.info(f"✓ SRT validation passed: {subtitle_count} subtitles validated")
     return True, f"Valid SRT with {subtitle_count} subtitles"
@@ -667,7 +714,7 @@ our final approach into Coruscant.
         srt_content = response.text.strip("`").strip("srt")
         logger.info(f"SRT content generated for video {video.id}:\n{srt_content}")
         # Validate SRT content before saving
-        is_valid, validation_message = validate_srt_content(srt_content)
+        is_valid, validation_message = validate_srt_content(srt_content, video)
         if not is_valid:
             raise ValueError(
                 _("Neveljavna SRT vsebina: %(message)s")
