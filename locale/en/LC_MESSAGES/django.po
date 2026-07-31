@@ -27,7 +27,7 @@ msgstr "Enter video title"
 
 #: agent/forms.py:42
 msgid "Opišite scenarij videa"
-msgstr "Describe the video scenario"
+msgstr "Input text for video narration or paste text from a press release. Use AI Ehance button to transform it."
 
 #: agent/forms.py:50
 msgid "Vnesite prompt za LLM"
@@ -40,7 +40,7 @@ msgstr "Title"
 #: agent/forms.py:61 templates/agent/video_create.html:67
 #: templates/agent/video_detail.html:231
 msgid "Scenarij"
-msgstr "Scenario"
+msgstr "Video narration text"
 
 #: agent/forms.py:62
 msgid "Navodila za LLM"
@@ -596,11 +596,11 @@ msgstr "Enter video scenario"
 
 #: templates/agent/video_create.html:87
 msgid "Optimiziraj z AI (zapri)"
-msgstr "Optimize with AI (close)"
+msgstr "AI Enhance (close)"
 
 #: templates/agent/video_create.html:87
 msgid "Optimiziraj z AI (odpri)"
-msgstr "Optimize with AI (open)"
+msgstr "AI Enhance (open)"
 
 #: templates/agent/video_create.html:114 templates/agent/video_detail.html:297
 msgid "Sample izbranega modela"
