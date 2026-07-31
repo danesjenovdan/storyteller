@@ -157,9 +157,9 @@
                             <div class="text-muted">{% trans "Generiranje ..." %} {{ video.progress }}</div>
                             <div class="spinner-border text-primary me-2" role="status" style="width: 1.5rem; height: 1.5rem;"></div>
                         {% elif completed_segments == total_segments and total_segments > 0 and video.voice_file %}
-                            <form method="post" action="{% url 'render_video' video.id %}" style="margin: 0;">
+                            <form method="post" action="{% url 'render_video' video.id %}" style="margin: 0;" onsubmit="return onGenerateSubmit(this);">
                                 {% csrf_token %}
-                                <button type="submit" class="btn btn-lg btn-success">
+                                <button type="submit" class="btn btn-lg btn-success js-generate-button">
                                     <i class="bi bi-film"></i> {% trans "Generiraj video" %}
                                 </button>
                             </form>
@@ -594,11 +594,15 @@
 
         <div class="row my-5">
             <div class="col-md-12 text-center">
-                <form method="post" action="{% url 'render_video' video.id %}" style="margin: 0;">
+                <form method="post" action="{% url 'render_video' video.id %}" style="margin: 0;" onsubmit="return onGenerateSubmit(this);">
                     {% csrf_token %}
-                    <button type="submit" id="generateVideoBottomBtn" onclick="this.disabled=true;" class="btn btn-lg btn-success" {% if completed_segments == total_segments and total_segments > 0 and video.voice_file %}{% else %}disabled{% endif %}>
+                    {% if video.status == 'GENERATING_VOICE' or video.status == 'GENERATING_SUBTITLES' or video.status == 'GENERATING_SEGMENTS' or video.status == 'RENDERING' or video.status == 'PROCESSING' %}
+                    <!-- don't show button -->
+                    {% else %}
+                    <button type="submit" id="generateVideoBottomBtn" class="btn btn-lg btn-success js-generate-button" {% if completed_segments == total_segments and total_segments > 0 and video.voice_file %}{% else %}disabled{% endif %}>
                         <i class="bi bi-film"></i> {% trans "Generiraj video" %}
                     </button>
+                    {% endif %}
                 </form>
             </div>
         </div>
@@ -638,6 +642,18 @@
             errorPrefix: '{% trans "Napaka:" %}',
             animationSaveErrorPrefix: '{% trans "Napaka pri shranjevanju animacije:" %}'
         };
+
+        function onGenerateButtonClick(button) {
+            button.disabled = true;
+            button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> {% trans "Generiranje ..." %}';
+        }
+
+        function onGenerateSubmit(form) {
+            const buttons = document.querySelectorAll('.js-generate-button');
+            buttons.forEach(button => onGenerateButtonClick(button));
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            return true;
+        }
 
         // Auto-reload page every 15 seconds if video is being processed
         const videoStatus = '{{ video.status }}';
