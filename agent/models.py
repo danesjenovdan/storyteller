@@ -283,3 +283,22 @@ class UsersLogo(models.Model):
 
     def __str__(self):
         return f"Logo {self.id} for User {self.user.username}"
+
+
+class TipkoRequest(models.Model):
+    video = models.ForeignKey(
+        GenVideo, related_name="tipko_requests", on_delete=models.CASCADE
+    )
+    tipko_task_id = models.CharField(
+        max_length=255, help_text="Task ID returned by Tipko API"
+    )
+    status = models.CharField(
+        max_length=50,
+        default="PENDING",
+        help_text="Current status of the Tipko request",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"TipkoRequest {self.tipko_task_id} for Video {self.video.id}"

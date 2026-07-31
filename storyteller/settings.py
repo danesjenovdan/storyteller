@@ -226,3 +226,7 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 # OpenAI API Settings
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
+TIPKO_API_ENDPOINT = os.getenv("TIPKO_API_ENDPOINT", "")
+TIPKO_API_USERNAME = os.getenv("TIPKO_API_USERNAME", "")
+TIPKO_API_PASSWORD = os.getenv("TIPKO_API_PASSWORD", "")
+

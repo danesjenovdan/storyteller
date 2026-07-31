@@ -10,17 +10,19 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 from django.utils.translation import gettext as _
 from elevenlabs.client import ElevenLabs
+from agent.task_utils.tipko_source import Api
 from elevenlabs import VoiceSettings
 from google import genai
 from google.genai.types import Content, Part
-from huey.contrib.djhuey import db_task
+from huey.contrib.djhuey import db_task, db_periodic_task
+from huey import crontab
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage
 from openai import OpenAI
 
-from agent.models import GenVideo, VideoSegment
+from agent.models import GenVideo, VideoSegment, TipkoRequest
 from agent.utils import ensure_google_api_key, get_temporary_file_path
-from agent.video_rendering import FFmpegTimeoutError, FinalVideoRenderer
+from agent.task_utils.video_rendering import FFmpegTimeoutError, FinalVideoRenderer
 
 # Configure logging for Huey tasks
 logger = logging.getLogger(__name__)
@@ -29,6 +31,12 @@ logging.basicConfig(
     format="[%(asctime)s] %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
     stream=sys.stdout,
+)
+
+tipko_api = Api(
+    endpoint=settings.TIPKO_API_ENDPOINT,
+    username=settings.TIPKO_API_USERNAME,
+    password=settings.TIPKO_API_PASSWORD,
 )
 
 
@@ -179,6 +187,16 @@ def validate_srt_content(srt_content: str, video: GenVideo) -> tuple[bool, str]:
                     "(video_duration - allowed_early_end_seconds)"
                 ),
             )
+        elif last_subtitle_end:
+            if last_subtitle_end > timedelta(seconds=video_duration_seconds):
+                return (
+                    False,
+                    (
+                        "Last subtitle ends after video duration: "
+                        f"{last_subtitle_end.total_seconds():.3f}s > "
+                        f"{video_duration_seconds:.3f}s"
+                    ),
+                )
 
     logger.info(f"✓ SRT validation passed: {subtitle_count} subtitles validated")
     return True, f"Valid SRT with {subtitle_count} subtitles"
@@ -666,73 +684,76 @@ def generate_srt_file(video: GenVideo) -> None:
         if not video.voice_file:
             raise ValueError(f"Video {video.id} has no voice_file to generate SRT from")
 
-        client = genai.Client()
-        with get_temporary_file_path(video.voice_file) as voice_file:
-            logger.info(f"Uploading voice file for video {video.id}: {voice_file}")
-            gemini_file = client.files.upload(file=voice_file)
-            while gemini_file.state.name == "PROCESSING":
-                time.sleep(2)
-                gemini_file = client.files.get(name=gemini_file.name)
+        if video.language == "sl":
+            request_transcription(video)
 
-        if video.subtitle_max_words_per_screen:
-            logger.info(
-                f"Using max_words_per_screen={video.subtitle_max_words_per_screen} for video {video.id}"
-            )
-            subtitle_limit_prompt = f"""
-Omeji število besed na zaslonu na največ {video.subtitle_max_words_per_screen}.
-Če je v enem segmentu več besed, jih razdeli v več delov, da bo na zaslonu hkrati največ {video.subtitle_max_words_per_screen} besed.
-Razdeli smiselno, po stavkih ali pomišljajih, ne pa naključno v sredini stavka.
-            """
         else:
-            subtitle_limit_prompt = ""
+            client = genai.Client()
+            with get_temporary_file_path(video.voice_file) as voice_file:
+                logger.info(f"Uploading voice file for video {video.id}: {voice_file}")
+                gemini_file = client.files.upload(file=voice_file)
+                while gemini_file.state.name == "PROCESSING":
+                    time.sleep(2)
+                    gemini_file = client.files.get(name=gemini_file.name)
 
-        contents = [
-            Content(
-                role="user",
-                parts=[
-                    Part.from_uri(
-                        file_uri=gemini_file.uri, mime_type=gemini_file.mime_type
-                    ),
-                    Part.from_text(text=f"""
-Vrni mi samo vsebino SRT datoteke za podnapise iz priloženega zvočnega posnetka, brez dodatnih pojasnil ali besedila.
-Zgeneriraj podnapise in mi vrni vsebino za SRT datoteko.
-{subtitle_limit_prompt}
-Vsebuje naj tudi časovne kode, ki naj bodo vse v formatu HH:MM:SS,mmm --> HH:MM:SS,mmm.
-Spodaj je primer za enkratno referenco:
-1
-00:02:16,612 --> 00:02:19,376
-Senator, we're making
-our final approach into Coruscant.
-"""),
-                ],
+            if video.subtitle_max_words_per_screen:
+                logger.info(
+                    f"Using max_words_per_screen={video.subtitle_max_words_per_screen} for video {video.id}"
+                )
+                subtitle_limit_prompt = f"""
+    Omeji število besed na zaslonu na največ {video.subtitle_max_words_per_screen}.
+    Če je v enem segmentu več besed, jih razdeli v več delov, da bo na zaslonu hkrati največ {video.subtitle_max_words_per_screen} besed.
+    Razdeli smiselno, po stavkih ali pomišljajih, ne pa naključno v sredini stavka.
+                """
+            else:
+                subtitle_limit_prompt = ""
+
+            contents = [
+                Content(
+                    role="user",
+                    parts=[
+                        Part.from_uri(
+                            file_uri=gemini_file.uri, mime_type=gemini_file.mime_type
+                        ),
+                        Part.from_text(text=f"""
+    Vrni mi samo vsebino SRT datoteke za podnapise iz priloženega zvočnega posnetka, brez dodatnih pojasnil ali besedila.
+    Zgeneriraj podnapise in mi vrni vsebino za SRT datoteko. Bodi pozoren, da bo vsebina SRT datoteke pravilno formatirana in bo vsebovala TOČNE časovne kode za vsak podnapis.
+    {subtitle_limit_prompt}
+    Vsebuje naj tudi časovne kode, ki naj bodo vse v formatu HH:MM:SS,mmm --> HH:MM:SS,mmm.
+    Spodaj je primer za enkratno referenco:
+    1
+    00:02:16,612 --> 00:02:19,376
+    Senator, we're making
+    our final approach into Coruscant.
+    """),
+                    ],
+                )
+            ]
+            response = client.models.generate_content(
+                model="gemini-3-flash-preview",
+                contents=contents,
             )
-        ]
-        response = client.models.generate_content(
-            model="gemini-3-flash-preview",
-            contents=contents,
-        )
-        filename = f"srt_{video.id}.srt"
-        srt_content = response.text.strip("`").strip("srt")
-        logger.info(f"SRT content generated for video {video.id}:\n{srt_content}")
-        # Validate SRT content before saving
-        is_valid, validation_message = validate_srt_content(srt_content, video)
-        if not is_valid:
-            raise ValueError(
-                _("Neveljavna SRT vsebina: %(message)s")
-                % {"message": validation_message}
-            )
+            filename = f"srt_{video.id}.srt"
+            srt_content = response.text.strip("`").strip("srt")
+            logger.info(f"SRT content generated for video {video.id}:\n{srt_content}")
+            # Validate SRT content before saving
+            is_valid, validation_message = validate_srt_content(srt_content, video)
+            if not is_valid:
+                raise ValueError(
+                    f"{_('Neveljavna SRT vsebina')}: {validation_message}"
+                )
 
-        logger.info(f"SRT validation result: {validation_message}")
+            logger.info(f"SRT validation result: {validation_message}")
 
-        video.srt_content = srt_content
-        video.srt_file.save(filename, ContentFile(srt_content), save=False)
-        video.status = GenVideo.Statuses.SUBTITLES_READY
-        video.save()
+            video.srt_content = srt_content
+            video.srt_file.save(filename, ContentFile(srt_content), save=False)
+            video.status = GenVideo.Statuses.SUBTITLES_READY
+            video.save()
 
-        logger.info(f"✓ SRT file generated for video {video.id}: {filename}")
+            logger.info(f"✓ SRT file generated for video {video.id}: {filename}")
 
-        # Automatically generate video segments if video has none
-        get_video_segments(video)
+            # Automatically generate video segments if video has none
+            get_video_segments(video)
 
     except Exception as e:
         logger.error(f"✗ Error generating SRT file for video {video.id}: {str(e)}")
@@ -742,7 +763,7 @@ our final approach into Coruscant.
             "error": str(e)
         }
         video.save()
-        raise
+        #raise
 
 
 @db_task()
@@ -779,3 +800,49 @@ def render_final_video(video: GenVideo) -> None:
         }
         video.save()
         raise
+
+
+@db_task()
+def request_transcription(video: GenVideo) -> None:
+    # if there's no sound file, eject
+    if video.voice_file is None:
+        raise ValueError("Can't transcribe without a sound file.")
+
+    # Uporabi context manager za S3 kompatibilnost
+    with get_temporary_file_path(video.voice_file) as temp_path:
+        task_id = tipko_api.upload(temp_path)
+        TipkoRequest.objects.create(video=video, tipko_task_id=task_id)
+        logger.info("File successfully uploaded.")
+
+
+@db_periodic_task(crontab(minute="*/1"))
+def check_status_and_download_transcription() -> None:
+    waiting_tipkos = TipkoRequest.objects.filter(
+        tipko_task_id__isnull=False,
+        status="PENDING",
+    )
+
+    for tipko_instance in waiting_tipkos:
+        status_response = tipko_api.get_status(tipko_instance.tipko_task_id)
+        logger.info(f"Checking status for {tipko_instance.id}: {status_response['status']}")
+        if status_response["status"] == "done":
+            logger.info(f"checking transcription for {tipko_instance.id}")
+            srt_response = tipko_api.get_transcription_file(tipko_instance.tipko_task_id)
+            if srt_response.status_code != 200:
+                logger.error(f"Failed to download transcription for {tipko_instance.id}: {srt_response.status_code}")
+                continue
+            srt_content = srt_response.content.decode("utf-8")
+            video = tipko_instance.video
+            video.srt_content = srt_content
+            video.save()
+            filename = f"transcript_{tipko_instance.tipko_task_id}.srt"
+            video.srt_file.save(
+                filename,
+                ContentFile(srt_content),
+                save=False,
+            )
+            tipko_instance.status = "DONE"
+            tipko_instance.save()
+            logger.info("Transcription downloaded and saved.")
+            # Automatically generate video segments if video has none
+            get_video_segments(video)

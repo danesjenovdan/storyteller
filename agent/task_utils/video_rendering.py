@@ -6,6 +6,7 @@ VideoSegment clips into a single final video with audio, subtitles and an
 optional logo overlay.
 """
 
+import json
 import logging
 import subprocess
 import tempfile
@@ -55,6 +56,11 @@ class FinalVideoRenderer:
         "yuv420p",
     ]
 
+    # Maximum allowed drift (seconds) between the concatenated video's actual
+    # duration and voice_duration before we bother rescaling the video
+    # timeline to match.
+    DURATION_SYNC_THRESHOLD_SECONDS = 0.05
+
     def __init__(self, video: GenVideo):
         self.video = video
 
@@ -85,6 +91,7 @@ class FinalVideoRenderer:
 
             clip_files = self._prepare_clips(segments, temp_path)
             concatenated_file = self._concatenate_clips(clip_files, temp_path)
+            concatenated_file = self._sync_video_duration(concatenated_file, temp_path)
             final_output = self._compose_final_output(concatenated_file, temp_path)
             self._save_final_file(final_output)
 
@@ -368,6 +375,91 @@ class FinalVideoRenderer:
         ]
         self._run_ffmpeg(cmd, error_context="concatenation")
         return concatenated_file
+
+    """
+    Tole probi tud izklopit
+    """
+    def _sync_video_duration(self, concatenated_file: Path, temp_path: Path) -> Path:
+        """
+        Rescale the concatenated (silent) video so its duration exactly matches
+        voice_duration.
+
+        Each clip is cut independently with "-t duration" (see
+        _build_clip_command); ffmpeg can't output a partial frame, so this
+        tends to yield a slightly *shorter* clip than requested. These small,
+        one-directional rounding errors accumulate across segments, so on
+        longer videos (more segments) the concatenated video timeline can end
+        up noticeably shorter than the voice track. Since subtitles are
+        burned onto this video's own timeline while their timestamps were
+        computed against the voice track, that drift shows up as subtitles
+        progressively lagging behind the narration - worse the longer the
+        video is.
+
+        We fix this by measuring the actual concatenated duration and
+        rescaling it (via setpts) to exactly match voice_duration before
+        subtitles are burned in.
+        """
+        target_duration = self.video.voice_duration
+        if not target_duration:
+            return concatenated_file
+
+        actual_duration = self._probe_duration(concatenated_file)
+        if actual_duration <= 0:
+            return concatenated_file
+
+        drift = target_duration - actual_duration
+        if abs(drift) < self.DURATION_SYNC_THRESHOLD_SECONDS:
+            return concatenated_file
+
+        logger.info(
+            f"Concatenated video duration ({actual_duration:.3f}s) drifted from "
+            f"voice duration ({target_duration:.3f}s) by {drift:+.3f}s for video "
+            f"{self.video.id}; rescaling video timeline to match."
+        )
+        self.video.progress = "Synchronizing video and audio timing."
+        self.video.save()
+
+        speed_factor = target_duration / actual_duration
+        synced_file = temp_path / "concatenated_synced.mp4"
+        cmd = [
+            "ffmpeg",
+            "-i",
+            str(concatenated_file),
+            "-vf",
+            f"setpts={speed_factor:.6f}*PTS",
+            "-r",
+            "60",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "medium",
+            "-crf",
+            "23",
+            "-pix_fmt",
+            "yuv420p",
+            "-an",
+            "-y",
+            str(synced_file),
+        ]
+        self._run_ffmpeg(cmd, error_context="duration sync")
+        return synced_file
+
+    def _probe_duration(self, file_path: Path) -> float:
+        """Return the media duration (seconds) of a local file via ffprobe."""
+        cmd = [
+            "ffprobe",
+            "-v",
+            "quiet",
+            "-print_format",
+            "json",
+            "-show_format",
+            str(file_path),
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"ffprobe failed: {result.stderr}")
+        data = json.loads(result.stdout)
+        return float(data["format"]["duration"])
 
     # ------------------------------------------------------------------
     # Final composition (audio + subtitles + logo)
