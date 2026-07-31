@@ -3,7 +3,13 @@ import json
 from django.contrib import admin
 from django.utils.html import format_html
 
-from agent.models import GenVideo, ProviderTTSModel, UsersLogo, VideoSegment
+from agent.models import (
+    GenVideo,
+    ProviderTTSModel,
+    TipkoRequest,
+    UsersLogo,
+    VideoSegment,
+)
 
 
 class VideoSegmentsInline(admin.TabularInline):
@@ -65,3 +71,10 @@ class ProviderTTSModelAdmin(admin.ModelAdmin):
     )
     search_fields = ("provider", "external_id", "name")
     list_filter = ("provider", "is_active", "created_at")
+
+
+@admin.register(TipkoRequest)
+class TipkoRequestAdmin(admin.ModelAdmin):
+    list_display = ("id", "video", "tipko_task_id", "status", "created_at")
+    search_fields = ("video__title", "tipko_task_id")
+    list_filter = ("status", "created_at")

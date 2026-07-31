@@ -13,12 +13,15 @@ from elevenlabs import VoiceSettings
 from elevenlabs.client import ElevenLabs
 from google import genai
 from google.genai.types import Content, Part
-from huey.contrib.djhuey import db_task
+from huey import crontab
+from huey.contrib.djhuey import db_periodic_task, db_task
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage
 from openai import OpenAI
 
-from agent.models import GenVideo, VideoSegment
+from agent.models import GenVideo, TipkoRequest, VideoSegment
+from agent.task_utils.tipko_source import Api
+from agent.task_utils.video_rendering import FFmpegTimeoutError, FinalVideoRenderer
 from agent.utils import ensure_google_api_key, get_temporary_file_path
 
 # Configure logging for Huey tasks
@@ -28,6 +31,12 @@ logging.basicConfig(
     format="[%(asctime)s] %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
     stream=sys.stdout,
+)
+
+tipko_api = Api(
+    endpoint=settings.TIPKO_API_ENDPOINT,
+    username=settings.TIPKO_API_USERNAME,
+    password=settings.TIPKO_API_PASSWORD,
 )
 
 
@@ -178,6 +187,16 @@ def validate_srt_content(srt_content: str, video: GenVideo) -> tuple[bool, str]:
                     "(video_duration - allowed_early_end_seconds)"
                 ),
             )
+        elif last_subtitle_end:
+            if last_subtitle_end > timedelta(seconds=video_duration_seconds):
+                return (
+                    False,
+                    (
+                        "Last subtitle ends after video duration: "
+                        f"{last_subtitle_end.total_seconds():.3f}s > "
+                        f"{video_duration_seconds:.3f}s"
+                    ),
+                )
 
     logger.info(f"✓ SRT validation passed: {subtitle_count} subtitles validated")
     return True, f"Valid SRT with {subtitle_count} subtitles"
@@ -665,73 +684,74 @@ def generate_srt_file(video: GenVideo) -> None:
         if not video.voice_file:
             raise ValueError(f"Video {video.id} has no voice_file to generate SRT from")
 
-        client = genai.Client()
-        with get_temporary_file_path(video.voice_file) as voice_file:
-            logger.info(f"Uploading voice file for video {video.id}: {voice_file}")
-            gemini_file = client.files.upload(file=voice_file)
-            while gemini_file.state.name == "PROCESSING":
-                time.sleep(2)
-                gemini_file = client.files.get(name=gemini_file.name)
+        if video.language == "sl":
+            request_transcription(video)
 
-        if video.subtitle_max_words_per_screen:
-            logger.info(
-                f"Using max_words_per_screen={video.subtitle_max_words_per_screen} for video {video.id}"
-            )
-            subtitle_limit_prompt = f"""
-Omeji število besed na zaslonu na največ {video.subtitle_max_words_per_screen}.
-Če je v enem segmentu več besed, jih razdeli v več delov, da bo na zaslonu hkrati največ {video.subtitle_max_words_per_screen} besed.
-Razdeli smiselno, po stavkih ali pomišljajih, ne pa naključno v sredini stavka.
-            """
         else:
-            subtitle_limit_prompt = ""
+            client = genai.Client()
+            with get_temporary_file_path(video.voice_file) as voice_file:
+                logger.info(f"Uploading voice file for video {video.id}: {voice_file}")
+                gemini_file = client.files.upload(file=voice_file)
+                while gemini_file.state.name == "PROCESSING":
+                    time.sleep(2)
+                    gemini_file = client.files.get(name=gemini_file.name)
 
-        contents = [
-            Content(
-                role="user",
-                parts=[
-                    Part.from_uri(
-                        file_uri=gemini_file.uri, mime_type=gemini_file.mime_type
-                    ),
-                    Part.from_text(text=f"""
-Vrni mi samo vsebino SRT datoteke za podnapise iz priloženega zvočnega posnetka, brez dodatnih pojasnil ali besedila.
-Zgeneriraj podnapise in mi vrni vsebino za SRT datoteko.
-{subtitle_limit_prompt}
-Vsebuje naj tudi časovne kode, ki naj bodo vse v formatu HH:MM:SS,mmm --> HH:MM:SS,mmm.
-Spodaj je primer za enkratno referenco:
-1
-00:02:16,612 --> 00:02:19,376
-Senator, we're making
-our final approach into Coruscant.
-"""),
-                ],
+            if video.subtitle_max_words_per_screen:
+                logger.info(
+                    f"Using max_words_per_screen={video.subtitle_max_words_per_screen} for video {video.id}"
+                )
+                subtitle_limit_prompt = f"""
+    Omeji število besed na zaslonu na največ {video.subtitle_max_words_per_screen}.
+    Če je v enem segmentu več besed, jih razdeli v več delov, da bo na zaslonu hkrati največ {video.subtitle_max_words_per_screen} besed.
+    Razdeli smiselno, po stavkih ali pomišljajih, ne pa naključno v sredini stavka.
+                """
+            else:
+                subtitle_limit_prompt = ""
+
+            contents = [
+                Content(
+                    role="user",
+                    parts=[
+                        Part.from_uri(
+                            file_uri=gemini_file.uri, mime_type=gemini_file.mime_type
+                        ),
+                        Part.from_text(text=f"""
+    Vrni mi samo vsebino SRT datoteke za podnapise iz priloženega zvočnega posnetka, brez dodatnih pojasnil ali besedila.
+    Zgeneriraj podnapise in mi vrni vsebino za SRT datoteko. Bodi pozoren, da bo vsebina SRT datoteke pravilno formatirana in bo vsebovala TOČNE časovne kode za vsak podnapis.
+    {subtitle_limit_prompt}
+    Vsebuje naj tudi časovne kode, ki naj bodo vse v formatu HH:MM:SS,mmm --> HH:MM:SS,mmm.
+    Spodaj je primer za enkratno referenco:
+    1
+    00:02:16,612 --> 00:02:19,376
+    Senator, we're making
+    our final approach into Coruscant.
+    """),
+                    ],
+                )
+            ]
+            response = client.models.generate_content(
+                model="gemini-3-flash-preview",
+                contents=contents,
             )
-        ]
-        response = client.models.generate_content(
-            model="gemini-3-flash-preview",
-            contents=contents,
-        )
-        filename = f"srt_{video.id}.srt"
-        srt_content = response.text.strip("`").strip("srt")
-        logger.info(f"SRT content generated for video {video.id}:\n{srt_content}")
-        # Validate SRT content before saving
-        is_valid, validation_message = validate_srt_content(srt_content, video)
-        if not is_valid:
-            raise ValueError(
-                _("Neveljavna SRT vsebina: %(message)s")
-                % {"message": validation_message}
-            )
+            filename = f"srt_{video.id}.srt"
+            srt_content = response.text.strip("`").strip("srt")
+            logger.info(f"SRT content generated for video {video.id}:\n{srt_content}")
+            # Validate SRT content before saving
+            is_valid, validation_message = validate_srt_content(srt_content, video)
+            if not is_valid:
+                raise ValueError(f"{_('Neveljavna SRT vsebina')}: {validation_message}")
 
-        logger.info(f"SRT validation result: {validation_message}")
+            logger.info(f"SRT validation result: {validation_message}")
 
-        video.srt_content = srt_content
-        video.srt_file.save(filename, ContentFile(srt_content), save=False)
-        video.status = GenVideo.Statuses.SUBTITLES_READY
-        video.save()
+            video.srt_content = srt_content
+            video.srt_file.save(filename, ContentFile(srt_content), save=False)
+            video.status = GenVideo.Statuses.SUBTITLES_READY
+            video.save()
 
-        logger.info(f"✓ SRT file generated for video {video.id}: {filename}")
+            logger.info(f"✓ SRT file generated for video {video.id}: {filename}")
 
-        # Automatically generate video segments if video has none
-        get_video_segments(video)
+            # Automatically generate video segments if video has none
+            get_video_segments(video)
 
     except Exception as e:
         logger.error(f"✗ Error generating SRT file for video {video.id}: {str(e)}")
@@ -741,7 +761,7 @@ our final approach into Coruscant.
             "error": str(e)
         }
         video.save()
-        raise
+        # raise
 
 
 @db_task()
@@ -760,886 +780,17 @@ def render_final_video(video: GenVideo) -> None:
     Args:
         video: GenVideo instance
     """
-    import subprocess
-    import tempfile
-    from pathlib import Path
-
-    from agent.utils import (
-        get_temporary_file,
-        get_temporary_file_from_url,
-        get_temporary_file_path,
-    )
-
-    def _build_entry_animation_filter(animation: str, clip_duration: float):
-        safe_duration = max(float(clip_duration or 0.0), 0.1)
-        animation = (animation or "none").strip().lower()
-        entry_duration = min(0.6, safe_duration / 2)
-
-        if animation == "fade":
-            return f"fade=t=in:st=0:d={entry_duration:.3f}"
-        return None
-
-    def _build_mid_animation_filter(animation: str, clip_duration: float):
-        safe_duration = max(float(clip_duration or 0.0), 0.1)
-        animation = (animation or "none").strip().lower()
-
-        if animation == "zoom_in":
-            return (
-                f"scale=iw*(1+0.10*t/{safe_duration:.3f}):"
-                f"ih*(1+0.10*t/{safe_duration:.3f}):eval=frame,"
-                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
-            )
-        if animation == "zoom_out":
-            return (
-                f"scale=iw*(1.20-0.10*t/{safe_duration:.3f}):"
-                f"ih*(1.20-0.10*t/{safe_duration:.3f}):eval=frame,"
-                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
-            )
-        if animation == "subtle_pan_lr":
-            return (
-                # Uniform overscan gives enough travel distance to avoid visible step movement.
-                "scale=iw*1.30:ih*1.30:eval=frame,"
-                f"crop=1080:1920:'(iw-1080)*min(t/{safe_duration:.3f}\\,1)':(ih-1920)/2"
-            )
-        if animation == "subtle_pan_ud":
-            return (
-                # Uniform overscan gives enough travel distance to avoid visible step movement.
-                "scale=iw*1.30:ih*1.30:eval=frame,"
-                f"crop=1080:1920:(iw-1080)/2:'(ih-1920)*min(t/{safe_duration:.3f}\\,1)'"
-            )
-        return None
-
-    def _build_exit_animation_filter(animation: str, clip_duration: float):
-        safe_duration = max(float(clip_duration or 0.0), 0.1)
-        animation = (animation or "none").strip().lower()
-        exit_duration = min(0.6, safe_duration / 2)
-        fade_out_start = max(0.0, safe_duration - exit_duration)
-
-        if animation == "fade":
-            return f"fade=t=out:st={fade_out_start:.3f}:d={exit_duration:.3f}"
-        return None
-
-    def _build_segment_animation_filter(animation, clip_duration: float):
-        if isinstance(animation, dict):
-            animation_in = animation.get("in", "none")
-            animation_mid = animation.get("mid", "none")
-            animation_out = animation.get("out", "none")
-        else:
-            animation_in = "none"
-            animation_mid = (animation or "none").strip().lower()
-            animation_out = "none"
-
-        filters = []
-        entry_filter = _build_entry_animation_filter(animation_in, clip_duration)
-        mid_filter = _build_mid_animation_filter(animation_mid, clip_duration)
-        exit_filter = _build_exit_animation_filter(animation_out, clip_duration)
-
-        if entry_filter:
-            filters.append(entry_filter)
-        if mid_filter:
-            filters.append(mid_filter)
-        if exit_filter:
-            filters.append(exit_filter)
-
-        if not filters:
-            return None
-
-        return ",".join(filters)
-
-    def _append_animation_to_vf(
-        base_filter: str, animation: str, clip_duration: float
-    ) -> str:
-        animation_filter = _build_segment_animation_filter(animation, clip_duration)
-        if not animation_filter:
-            return base_filter
-        return f"{base_filter},{animation_filter}"
-
-    def _append_animation_to_filter_complex(
-        base_filter: str, animation: str, clip_duration: float
-    ) -> str:
-        animation_filter = _build_segment_animation_filter(animation, clip_duration)
-        if not animation_filter:
-            return base_filter
-        return f"{base_filter},{animation_filter}"
-
     try:
-        video.status = GenVideo.Statuses.RENDERING
-        video.progress = "Initializing rendering process"
+        FinalVideoRenderer(video).render()
+    except FFmpegTimeoutError as e:
+        logger.error(f"Error rendering video {video}: {str(e)}")
+        video.status = GenVideo.Statuses.FAILED
+        video.error_type = GenVideo.ErrorTypes.TIMEOUT
+        video.progress = ""
         video.save()
-
-        # Get all segments with video URLs
-        segments = video.segments.filter(video_proposals__0__selected=True).order_by(
-            "order"
-        )
-
-        if not segments.exists():
-            raise ValueError(f"Video {video} has no segments with selected videos")
-
-        if not video.voice_file:
-            raise ValueError(f"Video {video} has no voice file")
-
-        logger.info(f"Starting render for video {video} with {segments.count()} clips")
-
-        # Create temp directory for processing
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-
-            # Step 1: Cut and prepare each clip
-            clip_files = []
-            for i, segment in enumerate(segments):
-                video_url = segment.video_proposals[0].get("video_url")
-                if not video_url:
-                    raise ValueError(f"Segment {segment.id} has no video URL")
-
-                # Check if this is an image instead of video
-                is_image = segment.video_proposals[0].get("is_image", False)
-
-                # Get video dimensions from proposals
-                width = segment.video_proposals[0].get("width")
-                height = segment.video_proposals[0].get("height")
-
-                # Validate dimensions
-                if width is None or height is None:
-                    logger.warning(
-                        f"Segment {segment.id} missing dimensions (width={width}, height={height}), assuming vertical video"
-                    )
-                    width = 1080
-                    height = 1920
-
-                horizontal_mode = segment.video_proposals[0].get(
-                    "horizontal_mode", "crop"
-                )
-                animation_mode = {
-                    "in": segment.video_proposals[0].get("animation_in", "none"),
-                    "mid": segment.video_proposals[0].get(
-                        "animation_mid",
-                        segment.video_proposals[0].get("animation", "none"),
-                    ),
-                    "out": segment.video_proposals[0].get("animation_out", "none"),
-                }
-
-                output_file = temp_path / f"clip_{i:03d}.mp4"
-                duration = segment.duration()
-
-                logger.info(
-                    f"Processing clip {i+1}/{segments.count()}: {duration:.2f}s from URL (dimensions: {width}x{height}, is_image: {is_image}, mode: {horizontal_mode}, animation_in: {animation_mode['in']}, animation_mid: {animation_mode['mid']}, animation_out: {animation_mode['out']})"
-                )
-                video.progress = (
-                    f"Processing clip {i+1}/{segments.count()}: {duration:.2f}s"
-                )
-                video.save()
-
-                if is_image:
-                    # Handle image: download and convert to video
-                    with get_temporary_file(video_url) as input_file:
-                        # Determine if image is horizontal and needs special processing
-                        is_horizontal = width > height
-
-                        logger.info(f"Converting image to video: {width}x{height}")
-
-                        if is_horizontal:
-                            target_aspect = 9 / 16  # width/height for vertical video
-
-                            if horizontal_mode == "crop":
-                                # Mode 1: Pure crop - extract center portion
-                                logger.info(
-                                    f"Horizontal image - CROP mode: {width}x{height} -> 9:16 crop"
-                                )
-
-                                # Create video from image with crop using ffmpeg variables
-                                # crop=ih*9/16:ih:(iw-ih*9/16)/2:0 creates 9:16 aspect ratio centered
-                                cmd = [
-                                    "ffmpeg",
-                                    "-loop",
-                                    "1",
-                                    "-i",
-                                    input_file,
-                                    "-t",
-                                    str(duration),
-                                    "-vf",
-                                    _append_animation_to_vf(
-                                        "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
-                                        animation_mode,
-                                        duration,
-                                    ),
-                                    "-c:v",
-                                    "libx264",
-                                    "-preset",
-                                    "medium",
-                                    "-crf",
-                                    "23",
-                                    "-r",
-                                    "60",
-                                    "-g",
-                                    "60",
-                                    "-pix_fmt",
-                                    "yuv420p",
-                                    "-an",
-                                    "-y",
-                                    str(output_file),
-                                ]
-
-                            elif horizontal_mode == "blur":
-                                # Mode 2: Blur background - scale image to fit width, blur and extend to fill height
-                                logger.info(
-                                    f"Horizontal image - BLUR mode: {width}x{height}"
-                                )
-
-                                # Complex filter for blur
-                                video_filter = _append_animation_to_filter_complex(
-                                    (
-                                        "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
-                                        "[0:v]scale=1080:-1:force_original_aspect_ratio=decrease[main];"
-                                        "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
-                                    ),
-                                    animation_mode,
-                                    duration,
-                                )
-
-                                cmd = [
-                                    "ffmpeg",
-                                    "-loop",
-                                    "1",
-                                    "-i",
-                                    input_file,
-                                    "-t",
-                                    str(duration),
-                                    "-filter_complex",
-                                    video_filter,
-                                    "-c:v",
-                                    "libx264",
-                                    "-preset",
-                                    "medium",
-                                    "-crf",
-                                    "23",
-                                    "-r",
-                                    "60",
-                                    "-g",
-                                    "60",
-                                    "-pix_fmt",
-                                    "yuv420p",
-                                    "-an",
-                                    "-y",
-                                    str(output_file),
-                                ]
-
-                            elif horizontal_mode == "blur_crop":
-                                # Mode 3: Blur & Crop - crop to square (width = height), then blur for top/bottom
-                                logger.info(
-                                    f"Horizontal image - BLUR&CROP mode: {width}x{height} -> square crop + blur"
-                                )
-
-                                # Complex filter - use ffmpeg variables (iw/ih) for dynamic dimensions
-                                # ih = input height, iw = input width
-                                # crop=ih:ih:(iw-ih)/2:0 makes square crop centered horizontally
-                                video_filter = _append_animation_to_filter_complex(
-                                    (
-                                        "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
-                                        "[0:v]crop=ih:ih:(iw-ih)/2:0,scale=1080:-1:force_original_aspect_ratio=decrease[main];"
-                                        "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
-                                    ),
-                                    animation_mode,
-                                    duration,
-                                )
-
-                                cmd = [
-                                    "ffmpeg",
-                                    "-loop",
-                                    "1",
-                                    "-i",
-                                    input_file,
-                                    "-t",
-                                    str(duration),
-                                    "-filter_complex",
-                                    video_filter,
-                                    "-c:v",
-                                    "libx264",
-                                    "-preset",
-                                    "medium",
-                                    "-crf",
-                                    "23",
-                                    "-r",
-                                    "60",
-                                    "-g",
-                                    "60",
-                                    "-pix_fmt",
-                                    "yuv420p",
-                                    "-an",
-                                    "-y",
-                                    str(output_file),
-                                ]
-                            else:
-                                # Default to crop if unknown mode
-                                logger.info(
-                                    f"Horizontal image - DEFAULT CROP mode: {width}x{height}"
-                                )
-
-                                cmd = [
-                                    "ffmpeg",
-                                    "-loop",
-                                    "1",
-                                    "-i",
-                                    input_file,
-                                    "-t",
-                                    str(duration),
-                                    "-vf",
-                                    _append_animation_to_vf(
-                                        "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
-                                        animation_mode,
-                                        duration,
-                                    ),
-                                    "-c:v",
-                                    "libx264",
-                                    "-preset",
-                                    "medium",
-                                    "-crf",
-                                    "23",
-                                    "-r",
-                                    "60",
-                                    "-g",
-                                    "60",
-                                    "-pix_fmt",
-                                    "yuv420p",
-                                    "-an",
-                                    "-y",
-                                    str(output_file),
-                                ]
-                        else:
-                            # For vertical image, use existing approach (scale and pad)
-                            logger.info(
-                                f"Vertical image - scaling with padding if needed"
-                            )
-
-                            cmd = [
-                                "ffmpeg",
-                                "-loop",
-                                "1",
-                                "-i",
-                                input_file,
-                                "-t",
-                                str(duration),
-                                "-vf",
-                                _append_animation_to_vf(
-                                    "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
-                                    animation_mode,
-                                    duration,
-                                ),
-                                "-c:v",
-                                "libx264",
-                                "-preset",
-                                "medium",
-                                "-crf",
-                                "23",
-                                "-r",
-                                "60",
-                                "-g",
-                                "60",
-                                "-pix_fmt",
-                                "yuv420p",
-                                "-an",
-                                "-y",
-                                str(output_file),
-                            ]
-
-                        logger.info(f"Running FFmpeg command: {' '.join(cmd)}")
-                        result = subprocess.run(cmd, capture_output=True, text=True)
-                        if result.returncode != 0:
-                            logger.error(f"FFmpeg stderr: {result.stderr}")
-                            raise RuntimeError(
-                                f"FFmpeg image to video conversion failed for clip {i}: {result.stderr}"
-                            )
-
-                        logger.info(
-                            f"Successfully created video from image {i}: {output_file}"
-                        )
-                        clip_files.append(output_file)
-                else:
-                    # Handle video (existing code)
-                    with get_temporary_file(video_url) as input_file:
-                        # Determine if video is horizontal and needs special processing
-                        is_horizontal = width > height
-
-                        if is_horizontal:
-                            target_aspect = 9 / 16  # width/height for vertical video
-
-                            if horizontal_mode == "crop":
-                                # Mode 1: Pure crop - extract center portion
-                                logger.info(
-                                    f"Horizontal video - CROP mode: {width}x{height} -> 9:16 crop"
-                                )
-
-                                # Simple filter with ffmpeg variables
-                                # crop=ih*9/16:ih:(iw-ih*9/16)/2:0 creates 9:16 aspect ratio centered
-                                cmd = [
-                                    "ffmpeg",
-                                    "-i",
-                                    input_file,
-                                    "-t",
-                                    str(duration),
-                                    "-vf",
-                                    _append_animation_to_vf(
-                                        "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
-                                        animation_mode,
-                                        duration,
-                                    ),
-                                    "-c:v",
-                                    "libx264",
-                                    "-preset",
-                                    "medium",
-                                    "-crf",
-                                    "23",
-                                    "-r",
-                                    "60",
-                                    "-g",
-                                    "60",
-                                    "-pix_fmt",
-                                    "yuv420p",
-                                    "-an",
-                                    "-y",
-                                    str(output_file),
-                                ]
-
-                            elif horizontal_mode == "blur":
-                                # Mode 2: Blur background - scale video to fit width, blur and extend to fill height
-                                logger.info(
-                                    f"Horizontal video - BLUR mode: {width}x{height}"
-                                )
-
-                                # Complex filter, must use -filter_complex
-                                video_filter = _append_animation_to_filter_complex(
-                                    (
-                                        "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
-                                        "[0:v]scale=1080:-1:force_original_aspect_ratio=decrease[main];"
-                                        "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
-                                    ),
-                                    animation_mode,
-                                    duration,
-                                )
-
-                                cmd = [
-                                    "ffmpeg",
-                                    "-i",
-                                    input_file,
-                                    "-t",
-                                    str(duration),
-                                    "-filter_complex",
-                                    video_filter,
-                                    "-c:v",
-                                    "libx264",
-                                    "-preset",
-                                    "medium",
-                                    "-crf",
-                                    "23",
-                                    "-r",
-                                    "60",
-                                    "-g",
-                                    "60",
-                                    "-pix_fmt",
-                                    "yuv420p",
-                                    "-an",
-                                    "-y",
-                                    str(output_file),
-                                ]
-
-                            elif horizontal_mode == "blur_crop":
-                                # Mode 3: Blur & Crop - crop to square (width = height), then blur for top/bottom
-                                logger.info(
-                                    f"Horizontal video - BLUR&CROP mode: {width}x{height} -> square crop + blur"
-                                )
-
-                                # Complex filter with ffmpeg variables (iw/ih)
-                                # crop=ih:ih:(iw-ih)/2:0 makes square crop centered horizontally
-                                video_filter = _append_animation_to_filter_complex(
-                                    (
-                                        "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
-                                        "[0:v]crop=ih:ih:(iw-ih)/2:0,scale=1080:-1:force_original_aspect_ratio=decrease[main];"
-                                        "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
-                                    ),
-                                    animation_mode,
-                                    duration,
-                                )
-
-                                cmd = [
-                                    "ffmpeg",
-                                    "-i",
-                                    input_file,
-                                    "-t",
-                                    str(duration),
-                                    "-filter_complex",
-                                    video_filter,
-                                    "-c:v",
-                                    "libx264",
-                                    "-preset",
-                                    "medium",
-                                    "-crf",
-                                    "23",
-                                    "-r",
-                                    "60",
-                                    "-g",
-                                    "60",
-                                    "-pix_fmt",
-                                    "yuv420p",
-                                    "-an",
-                                    "-y",
-                                    str(output_file),
-                                ]
-                            else:
-                                # Default to crop if unknown mode
-                                logger.info(
-                                    f"Horizontal video - DEFAULT CROP mode: {width}x{height}"
-                                )
-
-                                cmd = [
-                                    "ffmpeg",
-                                    "-i",
-                                    input_file,
-                                    "-t",
-                                    str(duration),
-                                    "-vf",
-                                    _append_animation_to_vf(
-                                        "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
-                                        animation_mode,
-                                        duration,
-                                    ),
-                                    "-c:v",
-                                    "libx264",
-                                    "-preset",
-                                    "medium",
-                                    "-crf",
-                                    "23",
-                                    "-r",
-                                    "60",
-                                    "-g",
-                                    "60",
-                                    "-pix_fmt",
-                                    "yuv420p",
-                                    "-an",
-                                    "-y",
-                                    str(output_file),
-                                ]
-                        else:
-                            # For vertical video, use existing approach (scale and pad)
-                            logger.info(
-                                f"Vertical video - scaling with padding if needed"
-                            )
-
-                            cmd = [
-                                "ffmpeg",
-                                "-i",
-                                input_file,
-                                "-t",
-                                str(duration),
-                                "-vf",
-                                _append_animation_to_vf(
-                                    "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
-                                    animation_mode,
-                                    duration,
-                                ),
-                                "-c:v",
-                                "libx264",
-                                "-preset",
-                                "medium",
-                                "-crf",
-                                "23",
-                                "-r",
-                                "60",
-                                "-g",
-                                "60",
-                                "-pix_fmt",
-                                "yuv420p",
-                                "-an",
-                                "-y",
-                                str(output_file),
-                            ]
-
-                        logger.info(f"Running FFmpeg command: {' '.join(cmd)}")
-                        result = subprocess.run(cmd, capture_output=True, text=True)
-                        if result.returncode != 0:
-                            logger.error(f"FFmpeg stderr: {result.stderr}")
-                            raise RuntimeError(
-                                f"FFmpeg clip processing failed for clip {i}: {result.stderr}"
-                            )
-
-                        logger.info(f"Successfully created clip {i}: {output_file}")
-                        clip_files.append(output_file)
-
-            # Step 2: Create concat file
-            concat_file = temp_path / "concat.txt"
-            with open(concat_file, "w") as f:
-                for clip in clip_files:
-                    f.write(f"file '{clip}'\n")
-
-            # Step 3: Concatenate all clips
-            concatenated_file = temp_path / "concatenated.mp4"
-            print("Concatenating clips...")
-
-            video.progress = "Concatenating clips."
-            video.save()
-
-            cmd = [
-                "ffmpeg",
-                "-f",
-                "concat",  # Use concat demuxer (reads from concat.txt file)
-                "-safe",
-                "0",  # Allow absolute file paths in concat.txt
-                "-i",
-                str(concat_file),  # Input: concat.txt with list of video files
-                "-fflags",
-                "+genpts",  # Regenerate continuous timestamps across clip boundaries
-                "-vsync",
-                "cfr",  # Normalize to constant frame rate to avoid 1-frame drops
-                "-r",
-                "60",
-                "-c:v",
-                "libx264",
-                "-preset",
-                "medium",
-                "-crf",
-                "23",
-                "-pix_fmt",
-                "yuv420p",
-                "-an",
-                "-y",  # Overwrite output file without asking
-                str(concatenated_file),  # Output: single concatenated video
-            ]
-
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            if result.returncode != 0:
-                raise RuntimeError(f"FFmpeg concatenation failed: {result.stderr}")
-
-            # Step 4: Add audio and subtitles (if available)
-            final_output = temp_path / "final.mp4"
-            logger.info(f"Adding audio and subtitles for video {video.id}...")
-            from contextlib import ExitStack
-
-            def _escape_ffmpeg_filter_path(path_value: str) -> str:
-                return (
-                    path_value.replace("\\", "\\\\")
-                    .replace(":", "\\:")
-                    .replace("'", "\\'")
-                )
-
-            with ExitStack() as stack:
-                logger.info(
-                    f"Preparing temporary media files for final render (video {video.id})"
-                )
-                logger.info(f"Preparing voice file: {video.voice_file.name}")
-                voice_file = stack.enter_context(
-                    get_temporary_file_path(video.voice_file)
-                )
-                logger.info(f"Voice file ready: {voice_file}")
-
-                srt_file = None
-                if video.srt_file:
-                    logger.info(f"Preparing subtitle file: {video.srt_file.name}")
-                    srt_file = stack.enter_context(
-                        get_temporary_file_path(video.srt_file)
-                    )
-                    logger.info(f"Subtitle file ready: {srt_file}")
-
-                logo_file = None
-                if video.logo and video.logo.logo_file:
-                    try:
-                        logger.info(f"Preparing logo file: {video.logo.logo_file.name}")
-                        logo_file = stack.enter_context(
-                            get_temporary_file_path(video.logo.logo_file)
-                        )
-                        logger.info(f"Logo file ready: {logo_file}")
-                    except Exception as logo_error:
-                        logger.warning(
-                            f"Could not load logo for video {video.id}, rendering without logo: {logo_error}"
-                        )
-
-                cmd = [
-                    "ffmpeg",
-                    "-i",
-                    str(concatenated_file),  # Input 1: Concatenated video (no audio)
-                    "-i",
-                    voice_file,  # Input 2: Voice audio file (narration)
-                ]
-
-                video.progress = "Preparing final video with audio and subtitles."
-                video.save()
-
-                use_logo_overlay = bool(logo_file)
-                if use_logo_overlay:
-                    # Loop logo image so overlay is available for entire output timeline.
-                    cmd.extend(["-stream_loop", "-1", "-i", logo_file])  # Input 3
-
-                # Build subtitle style if subtitles are enabled
-                subtitle_filter = None
-                if srt_file:
-                    font_size = video.subtitle_font_size or 12
-                    font_family = video.subtitle_font_family or "Montserrat"
-                    font_weight = video.subtitle_font_weight or "900"
-                    stroke_weight = video.subtitle_stroke_weight or 3
-                    shadow = video.subtitle_shadow or 1
-                    vertical_position = video.subtitle_vertical_position or 10
-
-                    bold = 1 if int(font_weight) >= 700 else 0
-                    max_margin_v = 300
-                    margin_v = int((vertical_position / 100) * max_margin_v)
-                    style = f"FontName={font_family},FontSize={font_size},Bold={bold},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline={stroke_weight},Shadow={shadow},MarginV={margin_v}"
-                    escaped_srt = _escape_ffmpeg_filter_path(srt_file)
-                    subtitle_filter = f"subtitles='{escaped_srt}':force_style='{style}'"
-
-                # Add logo overlay if logo is selected; otherwise preserve existing behavior
-                if subtitle_filter and use_logo_overlay:
-                    logo_position = getattr(video, "logo_position", "top_right")
-                    logo_size_percent = max(
-                        5, min(40, int(getattr(video, "logo_size_percent", 15) or 15))
-                    )
-                    logo_width = int(1080 * (logo_size_percent / 100.0))
-                    logo_x = (
-                        "24" if logo_position == "top_left" else "main_w-overlay_w-24"
-                    )
-                    logo_y = "24"
-
-                    filter_complex = (
-                        f"[0:v]{subtitle_filter}[vsub];"
-                        f"[2:v]scale={logo_width}:-1[logo];"
-                        f"[vsub][logo]overlay={logo_x}:{logo_y}:format=auto:eof_action=repeat:shortest=0[vout]"
-                    )
-
-                    cmd.extend(
-                        [
-                            "-filter_complex",
-                            filter_complex,
-                            "-map",
-                            "[vout]",
-                            "-map",
-                            "1:a:0",
-                            "-c:v",
-                            "libx264",
-                            "-preset",
-                            "medium",
-                            "-crf",
-                            "23",
-                        ]
-                    )
-                elif subtitle_filter:
-                    cmd.extend(
-                        [
-                            "-vf",
-                            subtitle_filter,
-                            "-map",
-                            "0:v:0",
-                            "-map",
-                            "1:a:0",
-                            "-c:v",
-                            "libx264",
-                            "-preset",
-                            "medium",
-                            "-crf",
-                            "23",
-                        ]
-                    )
-                elif use_logo_overlay:
-                    logo_position = getattr(video, "logo_position", "top_right")
-                    logo_size_percent = max(
-                        5, min(40, int(getattr(video, "logo_size_percent", 15) or 15))
-                    )
-                    logo_width = int(1080 * (logo_size_percent / 100.0))
-                    logo_x = (
-                        "24" if logo_position == "top_left" else "main_w-overlay_w-24"
-                    )
-                    logo_y = "24"
-
-                    filter_complex = (
-                        f"[2:v]scale={logo_width}:-1[logo];"
-                        f"[0:v][logo]overlay={logo_x}:{logo_y}:format=auto:eof_action=repeat:shortest=0[vout]"
-                    )
-                    cmd.extend(
-                        [
-                            "-filter_complex",
-                            filter_complex,
-                            "-map",
-                            "[vout]",
-                            "-map",
-                            "1:a:0",
-                            "-c:v",
-                            "libx264",
-                            "-preset",
-                            "medium",
-                            "-crf",
-                            "23",
-                        ]
-                    )
-                else:
-                    # No subtitles/logo - keep original fast path.
-                    cmd.extend(["-c:v", "copy", "-map", "0:v:0", "-map", "1:a:0"])
-
-                cmd.extend(
-                    [
-                        "-c:a",
-                        "aac",
-                        "-b:a",
-                        "192k",
-                        "-shortest",
-                        "-y",
-                        str(final_output),
-                    ]
-                )
-
-                ffmpeg_timeout = int(
-                    getattr(settings, "FFMPEG_FINAL_RENDER_TIMEOUT_SECONDS", 300)
-                )
-                logger.info(
-                    f"Running final FFmpeg command for video {video.id} (timeout={ffmpeg_timeout}s)"
-                )
-                logger.debug(f"Final FFmpeg command: {' '.join(cmd)}")
-
-                start_time = time.monotonic()
-                try:
-                    result = subprocess.run(
-                        cmd,
-                        capture_output=True,
-                        text=True,
-                        timeout=ffmpeg_timeout,
-                    )
-                except subprocess.TimeoutExpired as timeout_error:
-                    elapsed = time.monotonic() - start_time
-                    stderr_preview = (timeout_error.stderr or "")[-2000:]
-                    logger.error(
-                        f"Final FFmpeg command timed out after {elapsed:.1f}s for video {video.id}"
-                    )
-                    if stderr_preview:
-                        logger.error(
-                            f"Final FFmpeg stderr tail before timeout:\n{stderr_preview}"
-                        )
-                    video.status = GenVideo.Statuses.FAILED
-                    video.error_type = GenVideo.ErrorTypes.TIMEOUT
-                    video.progress = ""
-                    video.save()
-                    raise RuntimeError(
-                        f"FFmpeg final render timed out after {elapsed:.1f}s"
-                    )
-
-                elapsed = time.monotonic() - start_time
-                logger.info(
-                    f"Final FFmpeg command finished in {elapsed:.1f}s for video {video.id}"
-                )
-                if result.returncode != 0:
-                    stderr_tail = (result.stderr or "")[-4000:]
-                    logger.error(
-                        f"FFmpeg final render failed for video {video.id}. stderr tail:\n{stderr_tail}"
-                    )
-                    raise RuntimeError(f"FFmpeg final render failed: {result.stderr}")
-
-                # Step 5: Save to model
-                print("Saving final video to database...")
-                with open(final_output, "rb") as f:
-                    filename = f"final_video_{video.id}.mp4"
-                    video.final_file.save(filename, ContentFile(f.read()), save=False)
-
-                video.status = GenVideo.Statuses.COMPLETED
-                video.progress = ""
-                video.save()
-
-                print(f"Video {video} rendered successfully!")
-
+        raise
     except Exception as e:
-        print(f"Error rendering video {video}: {str(e)}")
+        logger.error(f"Error rendering video {video}: {str(e)}")
         video.status = GenVideo.Statuses.FAILED
         video.error_type = GenVideo.ErrorTypes.RENDERING
         video.error_details = _("Napaka pri renderiranju končnega videa: %(error)s") % {
@@ -1647,3 +798,55 @@ def render_final_video(video: GenVideo) -> None:
         }
         video.save()
         raise
+
+
+@db_task()
+def request_transcription(video: GenVideo) -> None:
+    # if there's no sound file, eject
+    if video.voice_file is None:
+        raise ValueError("Can't transcribe without a sound file.")
+
+    # Uporabi context manager za S3 kompatibilnost
+    with get_temporary_file_path(video.voice_file) as temp_path:
+        task_id = tipko_api.upload(temp_path)
+        TipkoRequest.objects.create(video=video, tipko_task_id=task_id)
+        logger.info("File successfully uploaded.")
+
+
+@db_periodic_task(crontab(minute="*/1"))
+def check_status_and_download_transcription() -> None:
+    waiting_tipkos = TipkoRequest.objects.filter(
+        tipko_task_id__isnull=False,
+        status="PENDING",
+    )
+
+    for tipko_instance in waiting_tipkos:
+        status_response = tipko_api.get_status(tipko_instance.tipko_task_id)
+        logger.info(
+            f"Checking status for {tipko_instance.id}: {status_response['status']}"
+        )
+        if status_response["status"] == "done":
+            logger.info(f"checking transcription for {tipko_instance.id}")
+            srt_response = tipko_api.get_transcription_file(
+                tipko_instance.tipko_task_id
+            )
+            if srt_response.status_code != 200:
+                logger.error(
+                    f"Failed to download transcription for {tipko_instance.id}: {srt_response.status_code}"
+                )
+                continue
+            srt_content = srt_response.content.decode("utf-8")
+            video = tipko_instance.video
+            video.srt_content = srt_content
+            video.save()
+            filename = f"transcript_{tipko_instance.tipko_task_id}.srt"
+            video.srt_file.save(
+                filename,
+                ContentFile(srt_content),
+                save=False,
+            )
+            tipko_instance.status = "DONE"
+            tipko_instance.save()
+            logger.info("Transcription downloaded and saved.")
+            # Automatically generate video segments if video has none
+            get_video_segments(video)

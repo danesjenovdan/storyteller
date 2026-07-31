@@ -604,7 +604,8 @@
           if (!container) {
             return;
           }
-          if (container.style.display === 'none') {
+          if (window.getComputedStyle(container).display === 'none') {
+            container.classList.remove('d-none');
             container.style.display = '';
             container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
           } else {

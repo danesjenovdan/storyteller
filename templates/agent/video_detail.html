@@ -536,7 +536,6 @@
                                     </p>
                                 {% endif %}
                             </div>
-                            {% if segment.video_proposals and segment.video_proposals.0.selected %}
                             <div class="col-md-12 select-animation-container mt-2" style="display: none;">
                                 <div class="card border-0 bg-light">
                                     <div class="card-body py-2">
@@ -573,7 +572,6 @@
                                     </div>
                                 </div>
                             </div>
-                            {% endif %}
                             <div class="col-md-12 select-video-container mt-3" style="{% if segment.video_proposals and segment.video_proposals.0.selected %}display: none;{% endif %}">
                                 {% include "agent/includes/video_carousel.html" with segment=segment %}
                             </div>
