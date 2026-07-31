@@ -303,7 +303,9 @@ class FinalVideoRenderer:
         return None
 
     @classmethod
-    def _segment_animation_filter(cls, animation, clip_duration: float) -> Optional[str]:
+    def _segment_animation_filter(
+        cls, animation, clip_duration: float
+    ) -> Optional[str]:
         if isinstance(animation, dict):
             animation_in = animation.get("in", "none")
             animation_mid = animation.get("mid", "none")
@@ -379,6 +381,7 @@ class FinalVideoRenderer:
     """
     Tole probi tud izklopit
     """
+
     def _sync_video_duration(self, concatenated_file: Path, temp_path: Path) -> Path:
         """
         Rescale the concatenated (silent) video so its duration exactly matches
@@ -625,9 +628,7 @@ class FinalVideoRenderer:
 
     @staticmethod
     def _escape_ffmpeg_filter_path(path_value: str) -> str:
-        return (
-            path_value.replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
-        )
+        return path_value.replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
 
     # ------------------------------------------------------------------
     # Shared ffmpeg execution

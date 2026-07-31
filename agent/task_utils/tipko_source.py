@@ -163,13 +163,12 @@ class Api:
         else:
             raise Exception(f"Request failed with status code {response.status_code}")
 
-
     def get_srt_file(self, task_id: str):
-            response = requests.get(
-                f"{self.endpoint.strip('/')}/api/inference/task/{task_id}/srt",
-                headers=self.token_manager.get_auth_header(),
-            )
-            if response.status_code == requests.codes.ok:
-                return response
-            else:
-                raise Exception(f"Request failed with status code {response.status_code}")
+        response = requests.get(
+            f"{self.endpoint.strip('/')}/api/inference/task/{task_id}/srt",
+            headers=self.token_manager.get_auth_header(),
+        )
+        if response.status_code == requests.codes.ok:
+            return response
+        else:
+            raise Exception(f"Request failed with status code {response.status_code}")

@@ -9,20 +9,20 @@ from datetime import timedelta
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.utils.translation import gettext as _
-from agent.task_utils.tipko_source import Api
 from elevenlabs import VoiceSettings
 from elevenlabs.client import ElevenLabs
 from google import genai
 from google.genai.types import Content, Part
-from huey.contrib.djhuey import db_task, db_periodic_task
 from huey import crontab
+from huey.contrib.djhuey import db_periodic_task, db_task
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage
 from openai import OpenAI
 
-from agent.models import GenVideo, VideoSegment, TipkoRequest
-from agent.utils import ensure_google_api_key, get_temporary_file_path
+from agent.models import GenVideo, TipkoRequest, VideoSegment
+from agent.task_utils.tipko_source import Api
 from agent.task_utils.video_rendering import FFmpegTimeoutError, FinalVideoRenderer
+from agent.utils import ensure_google_api_key, get_temporary_file_path
 
 # Configure logging for Huey tasks
 logger = logging.getLogger(__name__)
@@ -739,9 +739,7 @@ def generate_srt_file(video: GenVideo) -> None:
             # Validate SRT content before saving
             is_valid, validation_message = validate_srt_content(srt_content, video)
             if not is_valid:
-                raise ValueError(
-                    f"{_('Neveljavna SRT vsebina')}: {validation_message}"
-                )
+                raise ValueError(f"{_('Neveljavna SRT vsebina')}: {validation_message}")
 
             logger.info(f"SRT validation result: {validation_message}")
 
@@ -763,7 +761,7 @@ def generate_srt_file(video: GenVideo) -> None:
             "error": str(e)
         }
         video.save()
-        #raise
+        # raise
 
 
 @db_task()
@@ -824,12 +822,18 @@ def check_status_and_download_transcription() -> None:
 
     for tipko_instance in waiting_tipkos:
         status_response = tipko_api.get_status(tipko_instance.tipko_task_id)
-        logger.info(f"Checking status for {tipko_instance.id}: {status_response['status']}")
+        logger.info(
+            f"Checking status for {tipko_instance.id}: {status_response['status']}"
+        )
         if status_response["status"] == "done":
             logger.info(f"checking transcription for {tipko_instance.id}")
-            srt_response = tipko_api.get_transcription_file(tipko_instance.tipko_task_id)
+            srt_response = tipko_api.get_transcription_file(
+                tipko_instance.tipko_task_id
+            )
             if srt_response.status_code != 200:
-                logger.error(f"Failed to download transcription for {tipko_instance.id}: {srt_response.status_code}")
+                logger.error(
+                    f"Failed to download transcription for {tipko_instance.id}: {srt_response.status_code}"
+                )
                 continue
             srt_content = srt_response.content.decode("utf-8")
             video = tipko_instance.video
