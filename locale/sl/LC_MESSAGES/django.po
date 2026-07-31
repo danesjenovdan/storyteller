@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-07-31 11:27+0000\n"
+"POT-Creation-Date: 2026-07-31 11:56+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -585,67 +585,84 @@ msgstr ""
 msgid "Vpiši scenarij videa"
 msgstr ""
 
-#: templates/agent/video_create.html:80
+#: templates/agent/video_create.html:81
 msgid ""
 "Dovoljenih je največ 3000 znakov. Za skrajšanje besedila uporabite "
 "Optimiziraj z AI."
 msgstr ""
 
-#: templates/agent/video_create.html:88
-msgid "Optimiziraj z AI (zapri)"
+#: templates/agent/video_create.html:88 templates/agent/video_create.html:165
+msgid "Optimiziraj z AI"
 msgstr ""
 
-#: templates/agent/video_create.html:88
-msgid "Optimiziraj z AI (odpri)"
-msgstr ""
-
-#: templates/agent/video_create.html:115 templates/agent/video_detail.html:297
+#: templates/agent/video_create.html:102 templates/agent/video_detail.html:297
 msgid "Sample izbranega modela"
 msgstr ""
 
-#: templates/agent/video_create.html:117 templates/agent/video_detail.html:273
+#: templates/agent/video_create.html:104 templates/agent/video_detail.html:273
 #: templates/agent/video_detail.html:299
 msgid "Vaš brskalnik ne podpira predvajanja zvoka."
 msgstr ""
 
-#: templates/agent/video_create.html:119 templates/agent/video_create.html:182
+#: templates/agent/video_create.html:106 templates/agent/video_create.html:197
 #: templates/agent/video_detail.html:301 templates/agent/video_detail.html:625
 msgid "Izberi model za predvajanje sample-a."
 msgstr ""
 
-#: templates/agent/video_create.html:159
+#: templates/agent/video_create.html:146 templates/agent/video_create.html:181
 msgid "Prekliči"
 msgstr ""
 
-#: templates/agent/video_create.html:160
+#: templates/agent/video_create.html:147
 msgid "Ustvari video"
 msgstr ""
 
-#: templates/agent/video_create.html:165
+#: templates/agent/video_create.html:152
 msgid "Ustvarjam video ..."
 msgstr ""
 
-#: templates/agent/video_create.html:180 templates/agent/video_detail.html:623
+#: templates/agent/video_create.html:166
+msgid "Zapri"
+msgstr ""
+
+#: templates/agent/video_create.html:170
+msgid "Kako želite spremeniti besedilo?"
+msgstr ""
+
+#: templates/agent/video_create.html:178 templates/agent/video_create.html:363
+#: templates/agent/video_create.html:379
+msgid "Potrdi"
+msgstr ""
+
+#: templates/agent/video_create.html:195 templates/agent/video_detail.html:623
 msgid "Nalaganje sample-a..."
 msgstr ""
 
-#: templates/agent/video_create.html:181 templates/agent/video_detail.html:624
+#: templates/agent/video_create.html:196 templates/agent/video_detail.html:624
 msgid "Za ta model ni razpoložljivega sample-a."
 msgstr ""
 
-#: templates/agent/video_create.html:183 templates/agent/video_detail.html:626
+#: templates/agent/video_create.html:198 templates/agent/video_detail.html:626
 msgid "Napaka pri nalaganju sample-a"
 msgstr ""
 
-#: templates/agent/video_create.html:214 templates/agent/video_detail.html:825
+#: templates/agent/video_create.html:229 templates/agent/video_detail.html:825
 msgid "Sample predvajanje ni na voljo za izbranega ponudnika."
 msgstr ""
 
-#: templates/agent/video_create.html:298
+#: templates/agent/video_create.html:304
 msgid ""
 "Preoblikuj to besedilo, da bo primerno kot scenarij za kratek vertikalni "
 "video. Pripravi golo besedilo za govorca, brez opomb, označb in dodatnih "
 "komentarjev."
+msgstr ""
+
+#: templates/agent/video_create.html:361
+msgid "✓ Scenarij posodobljen!"
+msgstr ""
+
+#: templates/agent/video_create.html:378
+msgid "Modificiram..."
 msgstr ""
 
 #: templates/agent/video_detail.html:4 templates/agent/videos.html:48
