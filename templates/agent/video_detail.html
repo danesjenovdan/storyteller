@@ -157,9 +157,9 @@
                             <div class="text-muted">{% trans "Generiranje ..." %} {{ video.progress }}</div>
                             <div class="spinner-border text-primary me-2" role="status" style="width: 1.5rem; height: 1.5rem;"></div>
                         {% elif completed_segments == total_segments and total_segments > 0 and video.voice_file %}
-                            <form method="post" action="{% url 'render_video' video.id %}" style="margin: 0;">
+                            <form method="post" action="{% url 'render_video' video.id %}" style="margin: 0;" onsubmit="return onGenerateSubmit(this);">
                                 {% csrf_token %}
-                                <button type="submit" class="btn btn-lg btn-success">
+                                <button type="submit" class="btn btn-lg btn-success js-generate-button">
                                     <i class="bi bi-film"></i> {% trans "Generiraj video" %}
                                 </button>
                             </form>
@@ -256,7 +256,7 @@
                         </div>
                         <div class="d-flex align-items-center">
                             <i class="bi bi-arrow-clockwise"></i>
-                            <form method="post" action="{% url 'generate_voice' video.id %}" style="margin: 0;">
+                            <form method="post" action="{% url 'generate_voice' video.id %}" style="margin: 0;" onsubmit="return confirm(i18n.confirmRegenerateAudio);">
                                 {% csrf_token %}
                                 <button type="submit" class="btn btn-sm btn-link" {% if not video.scenario %}disabled{% endif %}>
                                     {% trans "Generiraj ponovno" %}
@@ -348,28 +348,28 @@
                                         </select>
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label">{% trans "Velikost" %}: <span id="fontSizeValue">{{ video.subtitle_font_size|default:12 }}</span>px</label>
-                                        <input type="range" class="form-range" min="10" max="20" value="{{ video.subtitle_font_size|default:12 }}" id="fontSize" oninput="updateSubtitlePreview()">
+                                        <label class="form-label">{% trans "Velikost" %}: <span id="fontSizeValue">{{ video.subtitle_font_size|default:20 }}</span>px</label>
+                                        <input type="range" class="form-range" min="15" max="30" value="{{ video.subtitle_font_size|default:20 }}" id="fontSize" oninput="updateSubtitlePreview()">
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label">{% trans "Stroke" %}: <span id="strokeValue">{{ video.subtitle_stroke_weight|default:3 }}</span>px</label>
-                                        <input type="range" class="form-range" min="0" max="6" value="{{ video.subtitle_stroke_weight|default:3 }}" id="strokeWeight" oninput="updateSubtitlePreview()">
+                                        <label class="form-label">{% trans "Stroke" %}: <span id="strokeValue">{{ video.subtitle_stroke_weight|default:2 }}</span>px</label>
+                                        <input type="range" class="form-range" min="0" max="6" value="{{ video.subtitle_stroke_weight|default:2 }}" id="strokeWeight" oninput="updateSubtitlePreview()">
                                     </div>
                                     <div class="col-md-12">
                                         <label class="form-label">{% trans "Font Weight" %}</label>
                                         <select class="form-select" id="fontWeight" onchange="updateSubtitlePreview()">
                                             <option value="400" {% if video.subtitle_font_weight == '400' %}selected{% endif %}>{% trans "Normal" %} (400)</option>
-                                            <option value="700" {% if video.subtitle_font_weight == '700' %}selected{% endif %}>{% trans "Bold" %} (700)</option>
-                                            <option value="900" {% if video.subtitle_font_weight == '900' or not video.subtitle_font_weight %}selected{% endif %}>{% trans "Heavy" %} (900)</option>
+                                            <option value="700" {% if video.subtitle_font_weight == '700' or not video.subtitle_font_weight %}selected{% endif %}>{% trans "Bold" %} (700)</option>
+                                            <option value="900" {% if video.subtitle_font_weight == '900' %}selected{% endif %}>{% trans "Heavy" %} (900)</option>
                                         </select>
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label">{% trans "Shadow" %}: <span id="shadowValue">{{ video.subtitle_shadow|default:1 }}</span></label>
-                                        <input type="range" class="form-range" min="0" max="3" value="{{ video.subtitle_shadow|default:1 }}" id="shadow" oninput="updateSubtitlePreview()">
+                                        <label class="form-label">{% trans "Shadow" %}: <span id="shadowValue">{{ video.subtitle_shadow|default:0 }}</span></label>
+                                        <input type="range" class="form-range" min="0" max="3" value="{{ video.subtitle_shadow|default:0 }}" id="shadow" oninput="updateSubtitlePreview()">
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label">{% trans "Višina" %}: <span id="verticalPositionValue">{{ video.subtitle_vertical_position|default:10 }}</span>%</label>
-                                        <input type="range" class="form-range" min="0" max="50" value="{{ video.subtitle_vertical_position|default:10 }}" id="verticalPosition" oninput="updateSubtitlePreview()">
+                                        <label class="form-label">{% trans "Višina" %}: <span id="verticalPositionValue">{{ video.subtitle_vertical_position|default:15 }}</span>%</label>
+                                        <input type="range" class="form-range" min="0" max="50" value="{{ video.subtitle_vertical_position|default:15 }}" id="verticalPosition" oninput="updateSubtitlePreview()">
                                     </div>
                                     <div class="col-md-12">
                                         <label class="form-label">{% trans "Maksimalno besed na zaslonu" %}: <span id="maxWordsPerScreenValue">{% if video.subtitle_max_words_per_screen %}{{ video.subtitle_max_words_per_screen }}{% else %}{% trans "Nedefinirano" %}{% endif %}</span></label>
@@ -594,11 +594,15 @@
 
         <div class="row my-5">
             <div class="col-md-12 text-center">
-                <form method="post" action="{% url 'render_video' video.id %}" style="margin: 0;">
+                <form method="post" action="{% url 'render_video' video.id %}" style="margin: 0;" onsubmit="return onGenerateSubmit(this);">
                     {% csrf_token %}
-                    <button type="submit" id="generateVideoBottomBtn" class="btn btn-lg btn-success" {% if completed_segments == total_segments and total_segments > 0 and video.voice_file %}{% else %}disabled{% endif %}>
+                    {% if video.status == 'GENERATING_VOICE' or video.status == 'GENERATING_SUBTITLES' or video.status == 'GENERATING_SEGMENTS' or video.status == 'RENDERING' or video.status == 'PROCESSING' %}
+                    <!-- don't show button -->
+                    {% else %}
+                    <button type="submit" id="generateVideoBottomBtn" class="btn btn-lg btn-success js-generate-button" {% if completed_segments == total_segments and total_segments > 0 and video.voice_file %}{% else %}disabled{% endif %}>
                         <i class="bi bi-film"></i> {% trans "Generiraj video" %}
                     </button>
+                    {% endif %}
                 </form>
             </div>
         </div>
@@ -610,6 +614,7 @@
         const i18n = {
             confirmRegenerateSegments: '{% trans "Ali si prepričan? Vsi obstoječi segmenti bodo izbrisani!" %}',
             confirmRegenerateSrt: '{% trans "Ali si prepričan? Obstoječi podnapisi bodo izbrisani!" %}',
+            confirmRegenerateAudio: '{% trans "Previdno. Ob regeneraciji bodo na novo ustvarjeni tudi segmenti." %}',
             missingMediaUrl: '{% trans "Napaka: Video/Slika URL ni najden" %}',
             savingSetting: '{% trans "Shranjujem nastavitev..." %}',
             savingVoiceModel: '{% trans "Shranjujem glasovni model..." %}',
@@ -637,6 +642,18 @@
             errorPrefix: '{% trans "Napaka:" %}',
             animationSaveErrorPrefix: '{% trans "Napaka pri shranjevanju animacije:" %}'
         };
+
+        function onGenerateButtonClick(button) {
+            button.disabled = true;
+            button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> {% trans "Generiranje ..." %}';
+        }
+
+        function onGenerateSubmit(form) {
+            const buttons = document.querySelectorAll('.js-generate-button');
+            buttons.forEach(button => onGenerateButtonClick(button));
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            return true;
+        }
 
         // Auto-reload page every 15 seconds if video is being processed
         const videoStatus = '{{ video.status }}';
