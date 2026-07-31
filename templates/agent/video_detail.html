@@ -256,7 +256,7 @@
                         </div>
                         <div class="d-flex align-items-center">
                             <i class="bi bi-arrow-clockwise"></i>
-                            <form method="post" action="{% url 'generate_voice' video.id %}" style="margin: 0;">
+                            <form method="post" action="{% url 'generate_voice' video.id %}" style="margin: 0;" onsubmit="return confirm(i18n.confirmRegenerateAudio);">
                                 {% csrf_token %}
                                 <button type="submit" class="btn btn-sm btn-link" {% if not video.scenario %}disabled{% endif %}>
                                     {% trans "Generiraj ponovno" %}
@@ -596,7 +596,7 @@
             <div class="col-md-12 text-center">
                 <form method="post" action="{% url 'render_video' video.id %}" style="margin: 0;">
                     {% csrf_token %}
-                    <button type="submit" id="generateVideoBottomBtn" class="btn btn-lg btn-success" {% if completed_segments == total_segments and total_segments > 0 and video.voice_file %}{% else %}disabled{% endif %}>
+                    <button type="submit" id="generateVideoBottomBtn" onclick="this.disabled=true;" class="btn btn-lg btn-success" {% if completed_segments == total_segments and total_segments > 0 and video.voice_file %}{% else %}disabled{% endif %}>
                         <i class="bi bi-film"></i> {% trans "Generiraj video" %}
                     </button>
                 </form>
@@ -610,6 +610,7 @@
         const i18n = {
             confirmRegenerateSegments: '{% trans "Ali si prepričan? Vsi obstoječi segmenti bodo izbrisani!" %}',
             confirmRegenerateSrt: '{% trans "Ali si prepričan? Obstoječi podnapisi bodo izbrisani!" %}',
+            confirmRegenerateAudio: '{% trans "Previdno. Ob regeneraciji bodo na novo ustvarjeni tudi segmenti." %}',
             missingMediaUrl: '{% trans "Napaka: Video/Slika URL ni najden" %}',
             savingSetting: '{% trans "Shranjujem nastavitev..." %}',
             savingVoiceModel: '{% trans "Shranjujem glasovni model..." %}',

@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-22 12:27+0000\n"
+"POT-Creation-Date: 2026-07-31 10:45+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -147,56 +147,56 @@ msgstr ""
 msgid "Zgoraj desno"
 msgstr ""
 
-#: agent/tasks.py:233
+#: agent/tasks.py:292
 #, python-format
 msgid "Napaka pri ustvarjanju zvočne datoteke (ElevenLabs): %(error)s"
 msgstr ""
 
-#: agent/tasks.py:307
+#: agent/tasks.py:366
 #, python-format
 msgid "Napaka pri ustvarjanju zvočne datoteke (OpenAI): %(error)s"
 msgstr ""
 
-#: agent/tasks.py:471
+#: agent/tasks.py:530
 msgid "V odgovoru ni zvočnih podatkov"
 msgstr ""
 
-#: agent/tasks.py:508
+#: agent/tasks.py:569
 msgid ""
 "Gemini je blokiral vsebino. Vsebina morda krši Gemini politiko. Poskusite "
 "preformulirati prompt ali scenarij."
 msgstr ""
 
-#: agent/tasks.py:522
+#: agent/tasks.py:583
 msgid "Gemini je vrnil prazen odgovor. Poskusite preformulirati prompt."
 msgstr ""
 
-#: agent/tasks.py:537
+#: agent/tasks.py:598
 msgid "Nepričakovan format odgovora modela za video segmente"
 msgstr ""
 
-#: agent/tasks.py:549
+#: agent/tasks.py:610
 #, python-format
 msgid ""
 "Neveljavni časi segmenta %(segment)s: začetek %(start)s >= konec %(end)s"
 msgstr ""
 
-#: agent/tasks.py:586
+#: agent/tasks.py:647
 #, python-format
 msgid "Napaka pri generiranju segmentov: %(error)s"
 msgstr ""
 
-#: agent/tasks.py:659
+#: agent/tasks.py:720
 #, python-format
 msgid "Neveljavna SRT vsebina: %(message)s"
 msgstr ""
 
-#: agent/tasks.py:680
+#: agent/tasks.py:740
 #, python-format
 msgid "Napaka pri generiranju SRT datoteke: %(error)s"
 msgstr ""
 
-#: agent/tasks.py:1583
+#: agent/tasks.py:1645
 #, python-format
 msgid "Napaka pri renderiranju končnega videa: %(error)s"
 msgstr ""
@@ -211,7 +211,7 @@ msgstr ""
 
 #: agent/views.py:299 agent/views.py:500 agent/views.py:637 agent/views.py:943
 #: agent/views.py:978 agent/views.py:1087 agent/views.py:1271
-#: agent/views.py:1324 agent/views.py:1364 agent/views.py:1400
+#: agent/views.py:1327 agent/views.py:1367 agent/views.py:1403
 msgid "Method not allowed"
 msgstr ""
 
@@ -374,23 +374,23 @@ msgstr ""
 msgid "Generiranje podnapisov se je začelo! Podnapisi bodo kmalu na voljo."
 msgstr ""
 
-#: agent/views.py:1328
+#: agent/views.py:1331
 msgid "No logo file provided"
 msgstr ""
 
-#: agent/views.py:1332
+#: agent/views.py:1335
 msgid "Logo must be an image"
 msgstr ""
 
-#: agent/views.py:1412
+#: agent/views.py:1415
 msgid "Invalid logo position"
 msgstr ""
 
-#: storyteller/settings.py:142
+#: storyteller/settings.py:138
 msgid "Slovenian"
 msgstr ""
 
-#: storyteller/settings.py:143
+#: storyteller/settings.py:139
 msgid "English"
 msgstr ""
 
@@ -526,17 +526,17 @@ msgid "Zamenjaj"
 msgstr ""
 
 #: templates/agent/includes/video_carousel.html:177
-#: templates/agent/video_detail.html:614
+#: templates/agent/video_detail.html:615
 msgid "Shranjujem nastavitev..."
 msgstr ""
 
 #: templates/agent/includes/video_carousel.html:178
-#: templates/agent/video_detail.html:622
+#: templates/agent/video_detail.html:623
 msgid "Način uspešno posodobljen!"
 msgstr ""
 
 #: templates/agent/includes/video_carousel.html:179
-#: templates/agent/video_detail.html:623
+#: templates/agent/video_detail.html:624
 msgid "Napaka pri shranjevanju načina:"
 msgstr ""
 
@@ -603,7 +603,7 @@ msgid "Vaš brskalnik ne podpira predvajanja zvoka."
 msgstr ""
 
 #: templates/agent/video_create.html:118 templates/agent/video_create.html:181
-#: templates/agent/video_detail.html:301 templates/agent/video_detail.html:620
+#: templates/agent/video_detail.html:301 templates/agent/video_detail.html:621
 msgid "Izberi model za predvajanje sample-a."
 msgstr ""
 
@@ -619,19 +619,19 @@ msgstr ""
 msgid "Ustvarjam video ..."
 msgstr ""
 
-#: templates/agent/video_create.html:179 templates/agent/video_detail.html:618
+#: templates/agent/video_create.html:179 templates/agent/video_detail.html:619
 msgid "Nalaganje sample-a..."
 msgstr ""
 
-#: templates/agent/video_create.html:180 templates/agent/video_detail.html:619
+#: templates/agent/video_create.html:180 templates/agent/video_detail.html:620
 msgid "Za ta model ni razpoložljivega sample-a."
 msgstr ""
 
-#: templates/agent/video_create.html:182 templates/agent/video_detail.html:621
+#: templates/agent/video_create.html:182 templates/agent/video_detail.html:622
 msgid "Napaka pri nalaganju sample-a"
 msgstr ""
 
-#: templates/agent/video_create.html:213 templates/agent/video_detail.html:808
+#: templates/agent/video_create.html:213 templates/agent/video_detail.html:809
 msgid "Sample predvajanje ni na voljo za izbranega ponudnika."
 msgstr ""
 
@@ -758,7 +758,7 @@ msgid "Maksimalno besed na zaslonu"
 msgstr ""
 
 #: templates/agent/video_detail.html:375 templates/agent/video_detail.html:377
-#: templates/agent/video_detail.html:664
+#: templates/agent/video_detail.html:665
 msgid "Nedefinirano"
 msgstr ""
 
@@ -852,78 +852,82 @@ msgid "Ali si prepričan? Obstoječi podnapisi bodo izbrisani!"
 msgstr ""
 
 #: templates/agent/video_detail.html:613
+msgid "Previdno. Ob regeneraciji bodo na novo ustvarjeni tudi segmenti."
+msgstr ""
+
+#: templates/agent/video_detail.html:614
 msgid "Napaka: Video/Slika URL ni najden"
 msgstr ""
 
-#: templates/agent/video_detail.html:615
+#: templates/agent/video_detail.html:616
 msgid "Shranjujem glasovni model..."
 msgstr ""
 
-#: templates/agent/video_detail.html:616
+#: templates/agent/video_detail.html:617
 msgid "Glasovni model je shranjen."
 msgstr ""
 
-#: templates/agent/video_detail.html:617
+#: templates/agent/video_detail.html:618
 msgid "Napaka pri shranjevanju glasovnega modela"
 msgstr ""
 
-#: templates/agent/video_detail.html:624
+#: templates/agent/video_detail.html:625
 msgid "Failed to save selected logo"
 msgstr ""
 
-#: templates/agent/video_detail.html:625
+#: templates/agent/video_detail.html:626
 msgid "Napaka pri shranjevanju izbranega logotipa"
 msgstr ""
 
-#: templates/agent/video_detail.html:626
+#: templates/agent/video_detail.html:627
 msgid "Logo nastavitve so shranjene!"
 msgstr ""
 
-#: templates/agent/video_detail.html:627
+#: templates/agent/video_detail.html:628
 msgid "Failed to save logo settings"
 msgstr ""
 
-#: templates/agent/video_detail.html:628
+#: templates/agent/video_detail.html:629
 msgid "Napaka pri shranjevanju logo nastavitev"
 msgstr ""
 
-#: templates/agent/video_detail.html:629
+#: templates/agent/video_detail.html:630
 msgid "Najprej izberi datoteko logotipa"
 msgstr ""
 
-#: templates/agent/video_detail.html:630
+#: templates/agent/video_detail.html:631
 msgid "Upload failed"
 msgstr ""
 
-#: templates/agent/video_detail.html:631
+#: templates/agent/video_detail.html:632
 msgid "Napaka pri uploadu logotipa:"
 msgstr ""
 
-#: templates/agent/video_detail.html:632
+#: templates/agent/video_detail.html:633
 msgid "Failed to save subtitle settings"
 msgstr ""
 
-#: templates/agent/video_detail.html:633
+#: templates/agent/video_detail.html:634
 msgid "Nastavitve podnapisov so shranjene!"
 msgstr ""
 
-#: templates/agent/video_detail.html:634
+#: templates/agent/video_detail.html:635
 msgid "Napaka pri shranjevanju nastavitev"
 msgstr ""
 
-#: templates/agent/video_detail.html:635
+#: templates/agent/video_detail.html:636
 msgid "Shranjujem animacijo..."
 msgstr ""
 
-#: templates/agent/video_detail.html:636
+#: templates/agent/video_detail.html:637
 msgid "Animacija uspešno shranjena."
 msgstr ""
 
-#: templates/agent/video_detail.html:637
+#: templates/agent/video_detail.html:638
 msgid "Napaka:"
 msgstr ""
 
-#: templates/agent/video_detail.html:638
+#: templates/agent/video_detail.html:639
 msgid "Napaka pri shranjevanju animacije:"
 msgstr ""
 
