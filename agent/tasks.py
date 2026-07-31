@@ -9,9 +9,9 @@ from datetime import timedelta
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.utils.translation import gettext as _
-from elevenlabs.client import ElevenLabs
 from agent.task_utils.tipko_source import Api
 from elevenlabs import VoiceSettings
+from elevenlabs.client import ElevenLabs
 from google import genai
 from google.genai.types import Content, Part
 from huey.contrib.djhuey import db_task, db_periodic_task
@@ -267,7 +267,7 @@ def generate_voice_file_eleven_labs(video: int) -> None:
                 style=0.0,
                 use_speaker_boost=True,
                 speed=1.2,
-            )
+            ),
         )
 
         # Collect audio chunks into bytes

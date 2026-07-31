@@ -201,7 +201,9 @@ DEFAULT_PROMPT = """"Pripravi mi text iz scenarija, ki je podan spodaj, tako da 
 Izpis naj bo formatiran kot navaden text brez dodatnih oznak ali formatiranja.
 """
 
-MAX_VOICE_DURATION_SECONDS = int(os.getenv("MAX_VOICE_DURATION_SECONDS", 60*5))  # 5 minutes default
+MAX_VOICE_DURATION_SECONDS = int(
+    os.getenv("MAX_VOICE_DURATION_SECONDS", 60 * 5)
+)  # 5 minutes default
 SRT_LAST_SUBTITLE_ALLOWED_EARLY_END_SECONDS = float(
     os.getenv("SRT_LAST_SUBTITLE_ALLOWED_EARLY_END_SECONDS", 2)
 )
@@ -229,4 +231,3 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 TIPKO_API_ENDPOINT = os.getenv("TIPKO_API_ENDPOINT", "")
 TIPKO_API_USERNAME = os.getenv("TIPKO_API_USERNAME", "")
 TIPKO_API_PASSWORD = os.getenv("TIPKO_API_PASSWORD", "")
-
