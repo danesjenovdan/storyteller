@@ -31,13 +31,13 @@
       <!-- Videos Tab -->
       <div class="tab-pane fade show active" id="videos-{{ segment.id }}" role="tabpanel">
         <div class="row query-row">
-          <div class="col-12 mb-3">
+          <form class="col-12 mb-3 search-videos-form" onsubmit="return false;">
             <div class="small">{% trans "Ključne besede:" %}</div>
             <div class="input-group">
               <input name="query" id="query-videos-{{ segment.id }}" class="form-control" value="{{ segment.query }}">
-              <button class="btn btn-outline-primary search-videos-btn" type="button">{% trans "Išči videe" %}</button>
+              <button class="btn btn-outline-primary" type="submit">{% trans "Išči videe" %}</button>
             </div>
-          </div>
+          </form>
           <div class="col-12 mb-3">
             <div class="small">{% trans "Viri:" %}</div>
             <div class="d-flex flex-wrap gap-2">
@@ -99,13 +99,13 @@
       <!-- Images Tab -->
       <div class="tab-pane fade" id="images-{{ segment.id }}" role="tabpanel">
         <div class="row query-row">
-          <div class="col-12 mb-3">
+          <form class="col-12 mb-3 search-images-form" onsubmit="return false;">
             <div class="small">{% trans "Ključne besede:" %}</div>
             <div class="input-group">
               <input name="query" id="query-images-{{ segment.id }}" class="form-control" value="{{ segment.query }}">
-              <button class="btn btn-outline-primary search-images-btn" type="button">{% trans "Išči slike" %}</button>
+              <button class="btn btn-outline-primary" type="submit">{% trans "Išči slike" %}</button>
             </div>
-          </div>
+          </form>
           <div class="col-12 mb-3">
             <div class="small">{% trans "Viri:" %}</div>
             <div class="d-flex flex-wrap gap-2">
@@ -192,18 +192,18 @@
 
     // Videos tab elements
     const searchVideosInput = el.querySelector(`#query-videos-${segmentId}`);
-    const searchVideosButton = el.querySelector('.search-videos-btn');
+    const searchVideosForm = el.querySelector('.search-videos-form');
     const videosAlertBox = el.querySelector('.videos-alert');
     const videosResultsDiv = el.querySelector('.videos-results');
     const videoPreviewTemplate = videosResultsDiv.querySelector('.video-preview-template');
 
     // Images tab elements
     const searchImagesInput = el.querySelector(`#query-images-${segmentId}`);
-    const searchImagesButton = el.querySelector('.search-images-btn');
+    const searchImagesForm = el.querySelector('.search-images-form');
     const imagesAlertBox = el.querySelector('.images-alert');
     const imagesResultsDiv = el.querySelector('.images-results');
     const imagePreviewTemplate = imagesResultsDiv.querySelector('.image-preview-template');
-    
+
     const searchVideosUrl = "{% url 'search_videos' segment.id %}";
     const searchImagesUrl = `/video-segments/${segmentId}/search-images/`;
     const saveUrl = "{% url 'save_selected_video' segment.id %}";
@@ -741,8 +741,15 @@
       }
     }
 
-    searchVideosButton.addEventListener('click', () => searchVideos(1));
-    searchImagesButton.addEventListener('click', () => searchImages(1));
+    searchVideosForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      searchVideos(1);
+    });
+
+    searchImagesForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      searchImages(1);
+    });
 
     // Add upload card to images tab by default
     imagesResultsDiv.innerHTML = '';

@@ -230,15 +230,6 @@
                         <div>
                             <i class="bi bi-journal-text"></i> {% trans "Scenarij" %}
                         </div>
-                        <div class="d-flex align-items-center">
-                            <i class="bi bi-arrow-clockwise"></i>
-                            <form method="post" action="{% url 'regenerate_segments' video.id %}" style="margin: 0;" onsubmit="return confirm(i18n.confirmRegenerateSegments);">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-sm btn-link" {% if not video.scenario %}disabled{% endif %}>
-                                    {% trans "Generiraj ponovno" %}
-                                </button>
-                            </form>
-                        </div>
                     </h5>
                     <div class="card flex-grow-1">
                         <div class="card-body">
@@ -454,7 +445,20 @@
         <!-- Video Segments -->
         <div class="row mb-4">
             <div class="col-md-12">
-                <h3>{% trans "Video segmenti" %} ({{ total_segments }})</h3>
+                <h3 class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        {% trans "Video segmenti" %} ({{ total_segments }})
+                    </div>
+                    <div class="d-flex align-items-center fs-5">
+                        <i class="bi bi-arrow-clockwise"></i>
+                        <form method="post" action="{% url 'regenerate_segments' video.id %}" style="margin: 0;" onsubmit="return confirm(i18n.confirmRegenerateSegments);">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-link" {% if not video.scenario %}disabled{% endif %}>
+                                {% trans "Generiraj ponovno" %}
+                            </button>
+                        </form>
+                    </div>
+                </h3>
             </div>
         </div>
 
@@ -469,23 +473,22 @@
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-8">
-                                <h5 class="card-title">
-                                    #{{ segment.order }}
-                                    {% if segment.video_proposals and segment.video_proposals.0.selected %}
-                                        <span class="badge bg-success">✓</span>
-                                    {% else %}
-                                        <span class="badge bg-danger">✗</span>
-                                    {% endif %}
+                                <h5 class="card-title d-flex">
+                                    <div>
+                                        #{{ segment.order }}
+                                        {% if segment.video_proposals and segment.video_proposals.0.selected %}
+                                            <span class="badge bg-success">✓</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">✗</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="ms-3 text-muted small">
+                                        <i class="bi bi-clock"></i>
+                                        {{ segment.start_time|floatformat:1 }}s - {{ segment.end_time|floatformat:1 }}s
+                                        ({% trans "trajanje" %}: {{ segment.duration|floatformat:1 }}s)
+                                    </div>
                                 </h5>
                                 <p class="card-text">{{ segment.text }}</p>
-                                <p class="text-muted mb-1">
-                                    <i class="bi bi-clock"></i>
-                                    {{ segment.start_time|floatformat:1 }}s - {{ segment.end_time|floatformat:1 }}s
-                                    ({% trans "trajanje" %}: {{ segment.duration|floatformat:1 }}s)
-                                </p>
-                                <p class="text-muted mb-1">
-                                    <i class="bi bi-search"></i> {% trans "Ključne besede" %}: {{ segment.query }}
-                                </p>
 
                                 {% if not segment.video_proposals or not segment.video_proposals.0.selected %}
                                 <a href="#" class="btn btn-sm btn-primary mt-2 toggle-select-video">
