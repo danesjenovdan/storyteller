@@ -270,22 +270,20 @@
             }
         });
 
-        // Clear scenario when switching to audio tab
         const audioTab = document.getElementById('audio-tab');
         const scenarioTab = document.getElementById('scenario-tab');
         const scenarioField = document.getElementById('{{ form.scenario.id_for_label }}');
         const audioFileInput = document.getElementById('{{ form.voice_file.id_for_label }}');
         const voiceModelSelect = document.getElementById('{{ form.voice_model.id_for_label }}');
 
+        let selectedTab = 'scenario'; // Default selected tab
+
         audioTab.addEventListener('shown.bs.tab', function() {
-            scenarioField.value = '';
-            scenarioField.disabled = true;
+            selectedTab = 'audio';
         });
 
         scenarioTab.addEventListener('shown.bs.tab', function() {
-            scenarioField.disabled = false;
-            audioFileInput.value = '';
-            document.getElementById('audioPreview').style.display = 'none';
+            selectedTab = 'scenario';
         });
 
         if (voiceModelSelect) {
@@ -305,10 +303,21 @@
             }
         });
 
-        document.getElementById('createVideoForm').addEventListener('submit', function() {
+        document.getElementById('createVideoForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
             const overlay = document.getElementById('submitOverlay');
             overlay.style.display = 'flex';
             document.getElementById('submitBtn').disabled = true;
+
+            // Clear the other field based on the selected tab
+            if (selectedTab === 'scenario') {
+                audioFileInput.value = '';
+            } else if (selectedTab === 'audio') {
+                scenarioField.value = '';
+            }
+
+            this.submit();
         });
 
         document.getElementById('modifyScenarioBtn').addEventListener('click', async function() {
