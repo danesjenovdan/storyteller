@@ -159,10 +159,12 @@
       defaultSourceName: '{% trans "Pexels" %}',
       uploadVideo: '{% trans "Naloži video" %}',
       uploadImage: '{% trans "Naloži sliko" %}',
-      clickToChooseFile: '{% trans "Klikni za izbiro datoteke" %}',
+      uploadVideoOrImage: '{% trans "Naloži video ali sliko" %}',
+      clickOrDropToReplace: '{% trans "Klikni ali spusti datoteko" %}',
       uploadMore: '{% trans "Naloži več" %}',
       invalidVideoType: '{% trans "Prosim naloži samo videe!" %}',
       invalidImageType: '{% trans "Prosim naloži samo slike!" %}',
+      invalidMediaType: '{% trans "Prosim naloži video ali sliko!" %}',
       uploadingVideo: '{% trans "Nalagam video..." %}',
       uploadingImage: '{% trans "Nalagam sliko..." %}',
       uploadSuccessVideo: '{% trans "Video uspešno naložen!" %}',
@@ -241,24 +243,102 @@
       return selected.length ? selected : ['pexels', 'pixabay'];
     }
 
-    function createUploadCard(isVideo = true) {
-      const uploadCard = document.createElement('div');
-      uploadCard.className = 'video-preview border rounded position-relative overflow-hidden bg-light d-flex align-items-center justify-content-center';
-      uploadCard.style.cursor = 'pointer';
-      uploadCard.style.minHeight = '200px';
+    function getSegmentCard() {
+      return el.closest('.segment-card');
+    }
 
-      uploadCard.innerHTML = `
-        <div class="text-center p-3">
-          <i class="bi bi-cloud-upload fs-1 text-primary"></i>
-          <div class="mt-2 fw-bold">${isVideo ? i18n.uploadVideo : i18n.uploadImage}</div>
-          <small class="text-muted">${i18n.clickToChooseFile}</small>
-        </div>
-        <input type="file" accept="${isVideo ? 'video/*' : 'image/*'}" style="display: none;" class="upload-input">
-      `;
+    function getSegmentPreviewElements() {
+      const segmentCard = getSegmentCard();
+      if (!segmentCard) {
+        return {};
+      }
+      const previewCol = segmentCard.querySelector('.segment-preview-col');
+      const dropzone = segmentCard.querySelector(`.segment-media-dropzone[data-segment-id="${segmentId}"]`);
+      const input = dropzone ? dropzone.querySelector('.segment-media-input') : null;
+      const actions = segmentCard.querySelector('.segment-preview-actions');
+      return { segmentCard, previewCol, dropzone, input, actions };
+    }
 
-      const fileInput = uploadCard.querySelector('.upload-input');
+    function renderSegmentPreview(video = null) {
+      const { dropzone, actions } = getSegmentPreviewElements();
+      if (!dropzone) {
+        return;
+      }
 
-      uploadCard.addEventListener('click', () => {
+      const inputHtml = '<input type="file" accept="video/*,image/*" class="segment-media-input d-none">';
+      let mediaHtml = '';
+      let actionsHtml = '';
+
+      if (video && video.video_url) {
+        dropzone.dataset.hasMedia = '1';
+        if (video.is_image) {
+          mediaHtml = `<img src="${video.video_url}" class="video-preview w-100" alt="${i18n.selectedImageAlt}">`;
+        } else {
+          mediaHtml = `<video controls class="video-preview"><source src="${video.video_url}" type="video/mp4">${i18n.browserNoVideoSupport}</video>`;
+        }
+        mediaHtml += `<span class="segment-replace-hint">${i18n.clickOrDropToReplace}</span>`;
+
+        const sourceLabel = formatSourceName(video.source || 'pexels');
+        actionsHtml = `${video.url ? `<a href="${video.url}" class="btn btn-sm btn-outline-info" target="_blank"><i class="bi bi-box-arrow-up-right"></i> ${sourceLabel}</a>` : ''}
+          <a href="#" class="btn btn-sm btn-outline-secondary toggle-select-video">
+            <i class="bi bi-arrow-repeat"></i> ${i18n.replace}
+          </a>`;
+      } else {
+        dropzone.dataset.hasMedia = '0';
+        mediaHtml = `<div class="segment-media-empty"><i class="bi bi-cloud-upload"></i><div class="fw-semibold">${i18n.uploadVideoOrImage}</div><small>${i18n.clickOrDropToReplace}</small></div>`;
+      }
+
+      dropzone.innerHTML = inputHtml + mediaHtml;
+      delete dropzone.dataset.uploaderBound;
+      if (actions) {
+        actions.innerHTML = actionsHtml;
+      }
+
+      const toggleBtn = actions ? actions.querySelector('.toggle-select-video') : null;
+      if (toggleBtn) {
+        toggleBtn.addEventListener('click', function(event) {
+          event.preventDefault();
+          const container = getSegmentCard().querySelector('.select-video-container');
+          if (!container) {
+            return;
+          }
+          if (window.getComputedStyle(container).display === 'none') {
+            container.style.display = '';
+            container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          } else {
+            container.style.display = 'none';
+          }
+        });
+      }
+
+      attachSegmentPreviewUploader();
+    }
+
+    function attachSegmentPreviewUploader() {
+      const { dropzone } = getSegmentPreviewElements();
+      if (!dropzone || dropzone.dataset.uploaderBound === '1') {
+        return;
+      }
+
+      const fileInput = dropzone.querySelector('.segment-media-input');
+      if (!fileInput) {
+        return;
+      }
+
+      dropzone.dataset.uploaderBound = '1';
+
+      dropzone.addEventListener('click', (e) => {
+        const clickedReplaceHint = e.target.closest('.segment-replace-hint');
+        if (clickedReplaceHint) {
+          e.preventDefault();
+          e.stopPropagation();
+          fileInput.click();
+          return;
+        }
+
+        if (dropzone.dataset.hasMedia === '1') {
+          return;
+        }
         fileInput.click();
       });
 
@@ -266,19 +346,48 @@
         const file = e.target.files[0];
         if (!file) return;
 
-        await uploadFile(file, isVideo);
-        fileInput.value = ''; // Reset input
+        await uploadFile(file);
+        fileInput.value = '';
       });
 
-      return uploadCard;
+      dropzone.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.add('drag-over');
+      });
+
+      dropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.add('drag-over');
+      });
+
+      dropzone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.remove('drag-over');
+      });
+
+      dropzone.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.remove('drag-over');
+
+        const file = e.dataTransfer && e.dataTransfer.files ? e.dataTransfer.files[0] : null;
+        if (!file) {
+          return;
+        }
+        await uploadFile(file);
+      });
     }
 
-    async function uploadFile(file, isVideo = true) {
+    async function uploadFile(file) {
       try {
-        // Validate file type
-        const expectedType = isVideo ? 'video/' : 'image/';
-        if (!file.type.startsWith(expectedType)) {
-          showAlert(isVideo ? i18n.invalidVideoType : i18n.invalidImageType, 'danger', !isVideo);
+        const isVideo = file.type.startsWith('video/');
+        const isImage = file.type.startsWith('image/');
+
+        if (!isVideo && !isImage) {
+          showAlert(i18n.invalidMediaType, 'danger', false);
           return;
         }
 
@@ -306,7 +415,7 @@
         if (data.error) {
           showAlert(data.error, 'danger', !isVideo);
         } else {
-          showAlert(isVideo ? i18n.uploadSuccessVideo : i18n.uploadSuccessImage, 'success', !isVideo);
+          showAlert(data.is_image ? i18n.uploadSuccessImage : i18n.uploadSuccessVideo, 'success', data.is_image);
 
           // Create media object
           const mediaObject = {
@@ -452,9 +561,8 @@
           showAlert(i18n.noVideosFound, 'info', false);
         } else {
           if (page === 1) {
-            // Clear results and add upload card first
+              // Clear results
             videosResultsDiv.innerHTML = '';
-            videosResultsDiv.appendChild(createUploadCard(true));
           }
 
           data.videos.forEach(video => {
@@ -487,9 +595,8 @@
           showAlert(i18n.noImagesFound, 'info', true);
         } else {
           if (page === 1) {
-            // Clear results and add upload card first
+              // Clear results
             imagesResultsDiv.innerHTML = '';
-            imagesResultsDiv.appendChild(createUploadCard(false));
           }
 
           data.images.forEach(image => {
@@ -512,6 +619,7 @@
       // Find the segment card
       const segmentCard = el.closest('.segment-card');
       const cardBody = segmentCard.querySelector('.card-body > .row');
+      const wasCompleted = segmentCard.classList.contains('completed');
 
       // Update badge
       const badge = segmentCard.querySelector('.badge');
@@ -523,40 +631,10 @@
       segmentCard.classList.add('completed');
 
       // Update right column with preview
-      const rightCol = cardBody.querySelector('.col-md-4');
-      const mediaTag = video.is_image ?
-        `<img src="${video.video_url}" class="video-preview w-100" alt="${i18n.selectedImageAlt}">` :
-        `<video controls class="video-preview">
-          <source src="${video.video_url}" type="video/mp4">
-          ${i18n.browserNoVideoSupport}
-        </video>`;
-
-      const sourceLabel = formatSourceName(video.source || 'pexels');
-
-      rightCol.innerHTML = `
-        ${mediaTag}
-        <div class="mt-2">
-          ${video.url ? `<a href="${video.url}" class="btn btn-sm btn-outline-info" target="_blank">
-            <i class="bi bi-box-arrow-up-right"></i> ${sourceLabel}
-          </a>` : ''}
-          <a href="#" class="btn btn-sm btn-outline-secondary toggle-select-video">
-            <i class="bi bi-arrow-repeat"></i> ${i18n.replace}
-          </a>
-        </div>
-      `;
-
-      // Re-attach toggle button event
-      const newToggleBtn = rightCol.querySelector('.toggle-select-video');
-      newToggleBtn.addEventListener('click', function(event) {
-        event.preventDefault();
-        const container = segmentCard.querySelector('.select-video-container');
-        if (container.style.display === 'none') {
-          container.style.display = '';
-          container.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        } else {
-          container.style.display = 'none';
-        }
-      });
+      const rightCol = cardBody.querySelector('.segment-preview-col');
+      if (rightCol) {
+        renderSegmentPreview(video);
+      }
 
       const newAnimationToggleBtn = rightCol.querySelector('.toggle-animation-settings');
       if (newAnimationToggleBtn) {
@@ -584,7 +662,7 @@
       if (completedSegmentsEl && totalSegmentsEl) {
         const currentCompleted = parseInt(completedSegmentsEl.textContent);
         const totalSegments = parseInt(totalSegmentsEl.textContent);
-        const newCompleted = currentCompleted + 1;
+        const newCompleted = wasCompleted ? currentCompleted : currentCompleted + 1;
         completedSegmentsEl.textContent = newCompleted;
 
         const bottomButton = document.getElementById('generateVideoBottomBtn');
@@ -648,22 +726,7 @@
       searchImages(1);
     });
 
-    // Add upload card to images tab by default
-    imagesResultsDiv.innerHTML = '';
-    imagesResultsDiv.appendChild(createUploadCard(false));
-
-    // Listen for tab changes to ensure upload card is visible
-    const imagesTab = document.getElementById('images-tab-' + segmentId);
-    if (imagesTab) {
-      imagesTab.addEventListener('shown.bs.tab', function () {
-        // Check if upload card exists, if not add it
-        const existingUploadCard = imagesResultsDiv.querySelector('.upload-input');
-        if (!existingUploadCard) {
-          imagesResultsDiv.innerHTML = '';
-          imagesResultsDiv.appendChild(createUploadCard(false));
-        }
-      });
-    }
+    attachSegmentPreviewUploader();
 
     // on visibility toggle, search videos if no results yet
     const observer = new MutationObserver((mutationsList) => {

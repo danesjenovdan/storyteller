@@ -131,6 +131,48 @@
             background: #fff;
             border-radius: 4px;
         }
+        .segment-media-dropzone {
+            border: 2px dashed #c7ced6;
+            border-radius: 10px;
+            min-height: 220px;
+            background: #f8f9fa;
+            transition: border-color 0.2s ease, background-color 0.2s ease;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            aspect-ratio: 1;
+        }
+        .segment-media-dropzone.drag-over {
+            border-color: #0d6efd;
+            background: #e7f1ff;
+        }
+        .segment-media-dropzone .segment-media-empty {
+            text-align: center;
+            color: #6c757d;
+            padding: 1rem;
+        }
+        .segment-media-dropzone .segment-media-empty i {
+            font-size: 2.2rem;
+            color: #0d6efd;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+        .segment-media-dropzone .video-preview {
+            width: 100%;
+            max-height: 350px;
+        }
+        .segment-media-dropzone .segment-replace-hint {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            background: rgba(0, 0, 0, 0.65);
+            color: #fff;
+            border-radius: 999px;
+            padding: 0.2rem 0.6rem;
+            font-size: 0.75rem;
+        }
     </style>
 {% endblock %}
 
@@ -558,17 +600,29 @@
                                 </a>
                                 {% endif %}
                             </div>
-                            <div class="col-md-4">
-                                {% if segment.video_proposals and segment.video_proposals.0.selected %}
-                                    {% if segment.video_proposals.0.is_image %}
-                                        <img src="{{ segment.video_proposals.0.video_url }}" class="video-preview w-100" alt="{% trans "Izbrana slika" %}">
+                            <div class="col-md-4 segment-preview-col">
+                                <div class="segment-media-dropzone position-relative" data-segment-id="{{ segment.id }}">
+                                    <input type="file" accept="video/*,image/*" class="segment-media-input d-none">
+                                    {% if segment.video_proposals and segment.video_proposals.0.selected %}
+                                        {% if segment.video_proposals.0.is_image %}
+                                            <img src="{{ segment.video_proposals.0.video_url }}" class="video-preview w-100" alt="{% trans "Izbrana slika" %}">
+                                        {% else %}
+                                            <video controls class="video-preview">
+                                                <source src="{{ segment.video_proposals.0.video_url }}" type="video/mp4">
+                                                {% trans "Vaš brskalnik ne podpira predvajanja videa." %}
+                                            </video>
+                                        {% endif %}
+                                        <span class="segment-replace-hint">{% trans "Klikni ali spusti datoteko" %}</span>
                                     {% else %}
-                                        <video controls class="video-preview">
-                                            <source src="{{ segment.video_proposals.0.video_url }}" type="video/mp4">
-                                            {% trans "Vaš brskalnik ne podpira predvajanja videa." %}
-                                        </video>
+                                        <div class="segment-media-empty">
+                                            <i class="bi bi-cloud-upload"></i>
+                                            <div class="fw-semibold">{% trans "Naloži video ali sliko" %}</div>
+                                            <small>{% trans "Klikni ali spusti datoteko" %}</small>
+                                        </div>
                                     {% endif %}
-                                    <div class="mt-2">
+                                </div>
+                                <div class="mt-2 segment-preview-actions">
+                                    {% if segment.video_proposals and segment.video_proposals.0.selected %}
                                         {% if segment.video_proposals.0.pexels_url %}
                                         <a href="{{ segment.video_proposals.0.pexels_url }}" class="btn btn-sm btn-outline-info" target="_blank">
                                             <i class="bi bi-box-arrow-up-right"></i> {{ segment.video_proposals.0.source|default:"pexels"|title }}
@@ -577,13 +631,8 @@
                                         <a href="#" class="btn btn-sm btn-outline-secondary toggle-select-video">
                                             <i class="bi bi-arrow-repeat"></i> {% trans "Zamenjaj" %}
                                         </a>
-                                    </div>
-                                {% else %}
-                                    <p class="text-muted text-center">
-                                        <i class="bi bi-exclamation-triangle" style="font-size: 3rem;"></i><br>
-                                        {% trans "Video ni izbran" %}
-                                    </p>
-                                {% endif %}
+                                    {% endif %}
+                                </div>
                             </div>
                             <div class="col-md-12 select-video-container mt-3" style="{% if segment.video_proposals and segment.video_proposals.0.selected %}display: none;{% endif %}">
                                 {% include "agent/includes/video_carousel.html" with segment=segment %}
