@@ -405,7 +405,7 @@ def generate_voice_file_eleven_labs(video: int) -> None:
                 similarity_boost=1.0,
                 style=0.0,
                 use_speaker_boost=True,
-                speed=1.25,
+                speed=1.2,
             ),
         )
 
