@@ -29,7 +29,6 @@
         }
         .video-preview {
             max-width: 100%;
-            max-height: 350px;
             aspect-ratio: 1;
             border-radius: 8px;
             object-fit: contain;
@@ -161,7 +160,6 @@
         }
         .segment-media-dropzone .video-preview {
             width: 100%;
-            max-height: 350px;
         }
         .segment-media-dropzone .segment-replace-hint {
             position: absolute;
@@ -540,8 +538,7 @@
                                 </h5>
                                 <p class="card-text">{{ segment.text }}</p>
 
-                                {% if segment.video_proposals and segment.video_proposals.0.selected %}
-                                <div class="mt-2">
+                                <div class="mt-2 position-and-animation-controls" {% if not segment.video_proposals or not segment.video_proposals.0.selected %}style="display: none;"{% endif %}>
                                     <div class="card border-0 bg-light">
                                         <div class="card-body py-2">
                                             <div class="d-flex gap-3">
@@ -592,7 +589,6 @@
                                         </div>
                                     </div>
                                 </div>
-                                {% endif %}
 
                                 {% if not segment.video_proposals or not segment.video_proposals.0.selected %}
                                 <a href="#" class="btn btn-sm btn-primary mt-2 toggle-select-video">
