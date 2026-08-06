@@ -672,7 +672,9 @@ def save_selected_video(request, video_segment_id):
             requested_out if requested_out in allowed_out_animations else "none"
         )
         normalized_fit_mode = (
-            requested_fit_mode if requested_fit_mode in allowed_fit_modes else "fit_both"
+            requested_fit_mode
+            if requested_fit_mode in allowed_fit_modes
+            else "fit_both"
         )
 
         if not video_url:
