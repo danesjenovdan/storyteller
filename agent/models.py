@@ -70,6 +70,11 @@ class GenVideo(models.Model):
     srt_content = models.TextField(
         blank=True, null=True, help_text="Content of the SRT subtitle file"
     )
+    elevenlabs_alignment = models.JSONField(
+        blank=True,
+        null=True,
+        help_text="Character timings returned by ElevenLabs TTS for local SRT regeneration",
+    )
     subtitle_style = models.CharField(
         max_length=50,
         default="style1",

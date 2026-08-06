@@ -233,7 +233,14 @@
                     </h5>
                     <div class="card flex-grow-1">
                         <div class="card-body">
-                            <p class="card-text" style="white-space: pre-wrap;">{{ video.scenario }}</p>
+                            <label class="form-label visually-hidden" for="scenarioInput">{% trans "Scenarij" %}</label>
+                            <textarea class="form-control" id="scenarioInput" rows="10">{{ video.scenario }}</textarea>
+                            <div class="d-flex align-items-center mt-3 gap-2">
+                                <button type="button" class="btn btn-primary" id="saveScenarioButton">
+                                    <i class="bi bi-save"></i> {% trans "Shrani scenarij" %}
+                                </button>
+                                <span class="small text-muted" id="scenarioSaveStatus"></span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -597,7 +604,7 @@
             <div class="col-md-12 text-center">
                 <form method="post" action="{% url 'render_video' video.id %}" style="margin: 0;" onsubmit="return onGenerateSubmit(this);">
                     {% csrf_token %}
-                    {% if video.status == 'GENERATING_VOICE' or video.status == 'GENERATING_SUBTITLES' or video.status == 'GENERATING_SEGMENTS' or video.status == 'RENDERING' or video.status == 'PROCESSING' %}
+                    {% if video.status == 'GENERATING_VOICE' or video.status == 'GENERATING_SUBTITLES' or video.status == 'GENERATING_SEGMENTS' or video.status == 'RENDERING' or video.status == 'PROCESSING' or video.status == 'SEGMENTS_READY' %}
                     <!-- don't show button -->
                     {% else %}
                     <button type="submit" id="generateVideoBottomBtn" class="btn btn-lg btn-success js-generate-button" {% if completed_segments == total_segments and total_segments > 0 and video.voice_file %}{% else %}disabled{% endif %}>
@@ -641,7 +648,11 @@
             savingAnimation: '{% trans "Shranjujem animacijo..." %}',
             animationSaved: '{% trans "Animacija uspešno shranjena." %}',
             errorPrefix: '{% trans "Napaka:" %}',
-            animationSaveErrorPrefix: '{% trans "Napaka pri shranjevanju animacije:" %}'
+            animationSaveErrorPrefix: '{% trans "Napaka pri shranjevanju animacije:" %}',
+            confirmScenarioUpdate: '{% trans "S spremembo scenarija bodo odstranjeni obstoječi zvok, podnapisi in video segmenti. Nato se bo začelo ponovno generiranje zvoka. Ali želiš nadaljevati?" %}',
+            scenarioRequired: '{% trans "Scenarij ne sme biti prazen." %}',
+            savingScenario: '{% trans "Shranjujem scenarij in začenjam generiranje zvoka..." %}',
+            scenarioSaveFailed: '{% trans "Napaka pri shranjevanju scenarija" %}'
         };
 
         function onGenerateButtonClick(button) {
@@ -658,20 +669,82 @@
 
         // Auto-reload page every 15 seconds if video is being processed
         const videoStatus = '{{ video.status }}';
-        const processingStatuses = ['GENERATING_VOICE', 'GENERATING_SUBTITLES', 'GENERATING_SEGMENTS', 'RENDERING'];
+        const processingStatuses = ['GENERATING_VOICE', 'GENERATING_SUBTITLES', 'GENERATING_SEGMENTS', 'RENDERING', 'SUBTITLES_READY'];
         const ttsProvider = '{{ tts_provider }}';
         const voiceModelSaveUrl = '{% url "set_video_voice_model" video.id %}';
         const voiceSampleUrl = '{% url "elevenlabs_voice_sample_audio" video.id %}';
+        const scenarioUpdateUrl = '{% url "update_video_scenario" video.id %}';
+
+        function updateScenarioSaveStatus(message, level = 'muted') {
+            const statusEl = document.getElementById('scenarioSaveStatus');
+            if (!statusEl) {
+                return;
+            }
+            statusEl.className = `small text-${level}`;
+            statusEl.textContent = message;
+        }
+
+        async function saveScenario() {
+            const scenarioInput = document.getElementById('scenarioInput');
+            const saveButton = document.getElementById('saveScenarioButton');
+            const scenario = scenarioInput.value.trim();
+
+            if (!scenario) {
+                updateScenarioSaveStatus(i18n.scenarioRequired, 'danger');
+                return;
+            }
+
+            if (!confirm(i18n.confirmScenarioUpdate)) {
+                return;
+            }
+
+            saveButton.disabled = true;
+            updateScenarioSaveStatus(i18n.savingScenario, 'muted');
+
+            try {
+                const response = await fetch(scenarioUpdateUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify({ scenario })
+                });
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || i18n.scenarioSaveFailed);
+                }
+
+                window.location.reload();
+            } catch (error) {
+                console.error('Error saving scenario:', error);
+                updateScenarioSaveStatus(error.message || i18n.scenarioSaveFailed, 'danger');
+                saveButton.disabled = false;
+            }
+        }
 
         // Function to update subtitle preview
         function updateSubtitlePreview() {
-            const fontSize = document.getElementById('fontSize').value;
-            const fontFamily = document.getElementById('fontFamily').value;
-            const fontWeight = document.getElementById('fontWeight').value;
-            const strokeWeight = document.getElementById('strokeWeight').value;
-            const shadow = document.getElementById('shadow').value;
-            const verticalPosition = document.getElementById('verticalPosition').value;
-            const maxWordsPerScreen = document.getElementById('maxWordsPerScreen').value;
+            const fontSizeInput = document.getElementById('fontSize');
+            const fontFamilyInput = document.getElementById('fontFamily');
+            const fontWeightInput = document.getElementById('fontWeight');
+            const strokeWeightInput = document.getElementById('strokeWeight');
+            const shadowInput = document.getElementById('shadow');
+            const verticalPositionInput = document.getElementById('verticalPosition');
+            const maxWordsPerScreenInput = document.getElementById('maxWordsPerScreen');
+
+            if (!fontSizeInput || !fontFamilyInput || !fontWeightInput || !strokeWeightInput || !shadowInput || !verticalPositionInput || !maxWordsPerScreenInput) {
+                return;
+            }
+
+            const fontSize = fontSizeInput.value;
+            const fontFamily = fontFamilyInput.value;
+            const fontWeight = fontWeightInput.value;
+            const strokeWeight = strokeWeightInput.value;
+            const shadow = shadowInput.value;
+            const verticalPosition = verticalPositionInput.value;
+            const maxWordsPerScreen = maxWordsPerScreenInput.value;
 
             // Update display values
             document.getElementById('fontSizeValue').textContent = fontSize;
@@ -740,11 +813,19 @@
 
         function updateLogoPreview() {
             const logoImage = document.getElementById('logoPreviewImage');
-            const logoPosition = document.getElementById('logoPosition').value;
-            const logoSizePercent = document.getElementById('logoSizePercent').value;
+            const logoPositionInput = document.getElementById('logoPosition');
+            const logoSizePercentInput = document.getElementById('logoSizePercent');
+            const logoSizeValue = document.getElementById('logoSizeValue');
             const selectedLogoInput = getSelectedLogoInput();
 
-            document.getElementById('logoSizeValue').textContent = logoSizePercent;
+            if (!logoImage || !logoPositionInput || !logoSizePercentInput || !logoSizeValue) {
+                return;
+            }
+
+            const logoPosition = logoPositionInput.value;
+            const logoSizePercent = logoSizePercentInput.value;
+
+            logoSizeValue.textContent = logoSizePercent;
 
             if (!selectedLogoInput || !selectedLogoInput.dataset.logoUrl) {
                 logoImage.style.display = 'none';
@@ -987,6 +1068,11 @@
         window.addEventListener('DOMContentLoaded', function() {
             updateSubtitlePreview();
             updateLogoPreview();
+
+            const saveScenarioButton = document.getElementById('saveScenarioButton');
+            if (saveScenarioButton) {
+                saveScenarioButton.addEventListener('click', saveScenario);
+            }
 
             const voiceModelSelect = document.getElementById('voiceModelSelect');
             if (voiceModelSelect) {

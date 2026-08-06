@@ -4,6 +4,7 @@ import os
 import re
 import sys
 import time
+from base64 import b64decode
 from datetime import timedelta
 
 from django.conf import settings
@@ -38,6 +39,142 @@ tipko_api = Api(
     username=settings.TIPKO_API_USERNAME,
     password=settings.TIPKO_API_PASSWORD,
 )
+
+
+def _format_srt_timestamp(seconds: float) -> str:
+    total_milliseconds = round(seconds * 1000)
+    hours, remainder = divmod(total_milliseconds, 3_600_000)
+    minutes, remainder = divmod(remainder, 60_000)
+    seconds, milliseconds = divmod(remainder, 1000)
+    return f"{hours:02}:{minutes:02}:{seconds:02},{milliseconds:03}"
+
+
+def generate_srt_from_elevenlabs_alignment(
+    alignment, max_words_per_screen: int | None = None
+) -> str:
+    """Create SRT subtitle content from ElevenLabs character-level timings."""
+    if isinstance(alignment, dict):
+        characters = alignment.get("characters")
+        start_times = alignment.get("character_start_times_seconds")
+        end_times = alignment.get("character_end_times_seconds")
+    else:
+        characters = alignment.characters
+        start_times = alignment.character_start_times_seconds
+        end_times = alignment.character_end_times_seconds
+    if not (characters and start_times and end_times):
+        raise ValueError("ElevenLabs response did not contain alignment data")
+    if not (len(characters) == len(start_times) == len(end_times)):
+        raise ValueError("ElevenLabs alignment data has inconsistent lengths")
+
+    max_words = max_words_per_screen or 8
+    words = []
+    word_characters = []
+    word_start = None
+    word_end = None
+
+    def append_word() -> None:
+        nonlocal word_characters, word_start, word_end
+        if word_characters and word_start is not None and word_end is not None:
+            words.append(("".join(word_characters), word_start, word_end))
+        word_characters = []
+        word_start = None
+        word_end = None
+
+    for character, start_time, end_time in zip(characters, start_times, end_times):
+        if character.isspace():
+            append_word()
+            continue
+        if start_time is None or end_time is None:
+            continue
+        if word_start is None:
+            word_start = start_time
+        word_characters.append(character)
+        word_end = end_time
+    append_word()
+
+    if not words:
+        raise ValueError("ElevenLabs alignment did not contain timed words")
+
+    subtitles = []
+    subtitle_words = []
+    subtitle_start = None
+    subtitle_end = None
+
+    def append_subtitle() -> None:
+        nonlocal subtitle_words, subtitle_start, subtitle_end
+        if subtitle_words and subtitle_start is not None and subtitle_end is not None:
+            subtitles.append(
+                (
+                    subtitle_start,
+                    subtitle_end,
+                    " ".join(subtitle_words),
+                )
+            )
+        subtitle_words = []
+        subtitle_start = None
+        subtitle_end = None
+
+    for word, start_time, end_time in words:
+        if subtitle_start is None:
+            subtitle_start = start_time
+        subtitle_words.append(word)
+        subtitle_end = end_time
+        if len(subtitle_words) >= max_words or word.endswith((".", "!", "?")):
+            append_subtitle()
+    append_subtitle()
+
+    return "\n\n".join(
+        f"{index}\n{_format_srt_timestamp(start)} --> {_format_srt_timestamp(end)}\n{text}"
+        for index, (start, end, text) in enumerate(subtitles, start=1)
+    )
+
+
+def save_elevenlabs_srt_file(video: GenVideo, alignment) -> None:
+    """Save SRT subtitles derived from the alignment returned by ElevenLabs TTS."""
+    video.status = GenVideo.Statuses.GENERATING_SUBTITLES
+    video.save(update_fields=["status", "updated_at"])
+
+    srt_content = generate_srt_from_elevenlabs_alignment(
+        alignment,
+        video.subtitle_max_words_per_screen,
+    )
+    is_valid, validation_message = validate_srt_content(srt_content, video)
+    if not is_valid:
+        raise ValueError(f"{_('Neveljavna SRT vsebina')}: {validation_message}")
+
+    filename = f"srt_{video.id}.srt"
+    video.srt_content = srt_content
+    video.srt_file.save(filename, ContentFile(srt_content), save=False)
+    video.status = GenVideo.Statuses.SUBTITLES_READY
+    video.save()
+    logger.info(
+        "SRT subtitles generated from ElevenLabs alignment for video %s: %s",
+        video.id,
+        validation_message,
+    )
+
+
+@db_task()
+def regenerate_elevenlabs_srt_file(video: GenVideo) -> None:
+    """Regenerate only SRT subtitles from a saved ElevenLabs alignment."""
+    try:
+        if not video.elevenlabs_alignment:
+            raise ValueError("Video has no saved ElevenLabs alignment data")
+        save_elevenlabs_srt_file(video, video.elevenlabs_alignment)
+        render_final_video(video)
+    except Exception as e:
+        logger.error(
+            "Error regenerating ElevenLabs SRT file for video %s: %s",
+            video.id,
+            e,
+        )
+        video.status = GenVideo.Statuses.FAILED
+        video.error_type = GenVideo.ErrorTypes.SRT_GENERATION
+        video.error_details = _(
+            "Napaka pri ustvarjanju podnapisov (ElevenLabs): %(error)s"
+        ) % {"error": str(e)}
+        video.save()
+        raise
 
 
 def validate_srt_content(srt_content: str, video: GenVideo) -> tuple[bool, str]:
@@ -215,6 +352,8 @@ def generate_voice_file_eleven_labs(video: int) -> None:
         video.status = GenVideo.Statuses.GENERATING_VOICE
         video.save()
 
+        video.segments.all().delete()  # Clear existing segments if any
+
         if not video.scenario:
             raise ValueError(f"Video {video.id} has no scenario to convert to speech")
 
@@ -255,8 +394,8 @@ def generate_voice_file_eleven_labs(video: int) -> None:
         # Initialize ElevenLabs client
         client = ElevenLabs(api_key=settings.ELEVENLABS_API_KEY)
 
-        # Generate speech from scenario
-        audio_generator = client.text_to_speech.convert(
+        # Generate speech and character-level timing from the same TTS request.
+        response = client.text_to_speech.convert_with_timestamps(
             voice_id=voice_id,
             text=video.scenario,
             model_id=model_id,
@@ -266,12 +405,11 @@ def generate_voice_file_eleven_labs(video: int) -> None:
                 similarity_boost=1.0,
                 style=0.0,
                 use_speaker_boost=True,
-                speed=1.2,
+                speed=1.25,
             ),
         )
 
-        # Collect audio chunks into bytes
-        audio_bytes = b"".join(audio_generator)
+        audio_bytes = b64decode(response.audio_base_64)
 
         # Save the audio file to the model
         filename = f"voice_{video.id}.mp3"
@@ -289,15 +427,18 @@ def generate_voice_file_eleven_labs(video: int) -> None:
         except Exception as e:
             logger.warning(f"Could not get audio duration: {e}")
 
-        # Update video status
-        video.status = GenVideo.Statuses.VOICE_READY
-        video.save()
-
         logger.info(
             f"✓ Voice file generated successfully for video {video.id} [ElevenLabs]"
         )
 
-        generate_srt_file(video)
+        alignment = response.normalized_alignment or response.alignment
+        video.elevenlabs_alignment = {
+            "characters": alignment.characters,
+            "character_start_times_seconds": alignment.character_start_times_seconds,
+            "character_end_times_seconds": alignment.character_end_times_seconds,
+        }
+        save_elevenlabs_srt_file(video, alignment)
+        get_video_segments(video)
 
     except GenVideo.DoesNotExist:
         logger.error(f"Video with id {video.id} does not exist")
@@ -306,10 +447,16 @@ def generate_voice_file_eleven_labs(video: int) -> None:
         logger.error(f"✗ Error generating voice file for video {video.id}: {str(e)}")
         video = GenVideo.objects.get(id=video.id)
         video.status = GenVideo.Statuses.FAILED
-        video.error_type = GenVideo.ErrorTypes.VOICE_GENERATION
-        video.error_details = _(
-            "Napaka pri ustvarjanju zvočne datoteke (ElevenLabs): %(error)s"
-        ) % {"error": str(e)}
+        if video.voice_file:
+            video.error_type = GenVideo.ErrorTypes.SRT_GENERATION
+            video.error_details = _(
+                "Napaka pri ustvarjanju podnapisov (ElevenLabs): %(error)s"
+            ) % {"error": str(e)}
+        else:
+            video.error_type = GenVideo.ErrorTypes.VOICE_GENERATION
+            video.error_details = _(
+                "Napaka pri ustvarjanju zvočne datoteke (ElevenLabs): %(error)s"
+            ) % {"error": str(e)}
         video.save()
         raise
 
@@ -813,40 +960,40 @@ def request_transcription(video: GenVideo) -> None:
         logger.info("File successfully uploaded.")
 
 
-@db_periodic_task(crontab(minute="*/1"))
-def check_status_and_download_transcription() -> None:
-    waiting_tipkos = TipkoRequest.objects.filter(
-        tipko_task_id__isnull=False,
-        status="PENDING",
-    )
+# @db_periodic_task(crontab(minute="*/1"))
+# def check_status_and_download_transcription() -> None:
+#     waiting_tipkos = TipkoRequest.objects.filter(
+#         tipko_task_id__isnull=False,
+#         status="PENDING",
+#     )
 
-    for tipko_instance in waiting_tipkos:
-        status_response = tipko_api.get_status(tipko_instance.tipko_task_id)
-        logger.info(
-            f"Checking status for {tipko_instance.id}: {status_response['status']}"
-        )
-        if status_response["status"] == "done":
-            logger.info(f"checking transcription for {tipko_instance.id}")
-            srt_response = tipko_api.get_transcription_file(
-                tipko_instance.tipko_task_id
-            )
-            if srt_response.status_code != 200:
-                logger.error(
-                    f"Failed to download transcription for {tipko_instance.id}: {srt_response.status_code}"
-                )
-                continue
-            srt_content = srt_response.content.decode("utf-8")
-            video = tipko_instance.video
-            video.srt_content = srt_content
-            video.save()
-            filename = f"transcript_{tipko_instance.tipko_task_id}.srt"
-            video.srt_file.save(
-                filename,
-                ContentFile(srt_content),
-                save=False,
-            )
-            tipko_instance.status = "DONE"
-            tipko_instance.save()
-            logger.info("Transcription downloaded and saved.")
-            # Automatically generate video segments if video has none
-            get_video_segments(video)
+#     for tipko_instance in waiting_tipkos:
+#         status_response = tipko_api.get_status(tipko_instance.tipko_task_id)
+#         logger.info(
+#             f"Checking status for {tipko_instance.id}: {status_response['status']}"
+#         )
+#         if status_response["status"] == "done":
+#             logger.info(f"checking transcription for {tipko_instance.id}")
+#             srt_response = tipko_api.get_transcription_file(
+#                 tipko_instance.tipko_task_id
+#             )
+#             if srt_response.status_code != 200:
+#                 logger.error(
+#                     f"Failed to download transcription for {tipko_instance.id}: {srt_response.status_code}"
+#                 )
+#                 continue
+#             srt_content = srt_response.content.decode("utf-8")
+#             video = tipko_instance.video
+#             video.srt_content = srt_content
+#             video.save()
+#             filename = f"transcript_{tipko_instance.tipko_task_id}.srt"
+#             video.srt_file.save(
+#                 filename,
+#                 ContentFile(srt_content),
+#                 save=False,
+#             )
+#             tipko_instance.status = "DONE"
+#             tipko_instance.save()
+#             logger.info("Transcription downloaded and saved.")
+#             # Automatically generate video segments if video has none
+#             get_video_segments(video)
