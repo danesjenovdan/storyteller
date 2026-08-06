@@ -604,7 +604,7 @@
             <div class="col-md-12 text-center">
                 <form method="post" action="{% url 'render_video' video.id %}" style="margin: 0;" onsubmit="return onGenerateSubmit(this);">
                     {% csrf_token %}
-                    {% if video.status == 'GENERATING_VOICE' or video.status == 'GENERATING_SUBTITLES' or video.status == 'GENERATING_SEGMENTS' or video.status == 'RENDERING' or video.status == 'PROCESSING' or video.status == 'SEGMENTS_READY' %}
+                    {% if video.status == 'GENERATING_VOICE' or video.status == 'GENERATING_SUBTITLES' or video.status == 'GENERATING_SEGMENTS' or video.status == 'RENDERING' or video.status == 'PROCESSING' or video.status == 'SUBTITLES_READY' %}
                     <!-- don't show button -->
                     {% else %}
                     <button type="submit" id="generateVideoBottomBtn" class="btn btn-lg btn-success js-generate-button" {% if completed_segments == total_segments and total_segments > 0 and video.voice_file %}{% else %}disabled{% endif %}>
