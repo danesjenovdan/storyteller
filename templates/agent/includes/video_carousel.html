@@ -636,6 +636,18 @@
         renderSegmentPreview(video);
       }
 
+      // Show position and animation controls once a media item is selected.
+      const positionAndAnimationControls = segmentCard.querySelector('.position-and-animation-controls');
+      if (positionAndAnimationControls) {
+        positionAndAnimationControls.style.display = '';
+      }
+
+      // Hide the "select video" CTA from the left column after selection.
+      const selectVideoCta = segmentCard.querySelector('.col-md-8 > .toggle-select-video');
+      if (selectVideoCta) {
+        selectVideoCta.style.display = 'none';
+      }
+
       const newAnimationToggleBtn = rightCol.querySelector('.toggle-animation-settings');
       if (newAnimationToggleBtn) {
         newAnimationToggleBtn.addEventListener('click', function(event) {
