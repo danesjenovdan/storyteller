@@ -1,11 +1,13 @@
 {% load i18n %}
 <style>
   .video-carousel .video-preview {
-    width: 150px;
+    width: auto;
+    height: 200px;
     flex-shrink: 0;
     cursor: pointer;
     object-fit: contain;
-    background: #000;
+    background: #888;
+    aspect-ratio: auto;
   }
   .video-carousel .horizontal-scroll {
     overflow: hidden;
@@ -358,8 +360,10 @@
 
     function createVideoPreview(video) {
       const previewFragment = videoPreviewTemplate.content.cloneNode(true);
+      const ratioEl = previewFragment.querySelector('.ratio');
       const videoEl = previewFragment.querySelector('video');
       const imgEl = previewFragment.querySelector('img');
+      ratioEl.style.setProperty('--bs-aspect-ratio', (video.height / video.width * 100).toFixed(4) + '%');
       imgEl.src = video.image;
       videoEl.src = video.video_url;
 
@@ -374,6 +378,7 @@
       sourceLinkEl.querySelector('.user').textContent = video.user;
 
       const previewEl = previewFragment.querySelector('.video-preview');
+      previewEl.style.width = (video.width / video.height * 200).toFixed(4) + 'px'; // Adjust width based on aspect ratio and fixed height of 200px
 
       previewEl.addEventListener('click', (e) => {
         const closestLink = e.target.closest('a');
