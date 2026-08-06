@@ -1228,7 +1228,7 @@ def regenerate_srt(request, video_id):
     from django.contrib import messages
     from django.shortcuts import redirect
 
-    from agent.tasks import generate_srt_file
+    from agent.tasks import generate_srt_file, regenerate_elevenlabs_srt_file
 
     if request.method != "POST":
         return redirect("video_detail", video_id=video_id)
@@ -1247,13 +1247,27 @@ def regenerate_srt(request, video_id):
     video.srt_content = ""
     video.save()
 
-    # Trigger SRT generation task
-    generate_srt_file(video)
+    # ElevenLabs videos retain character-level timings, so subtitle layout can be
+    # regenerated locally when settings such as words per screen change.
+    if video.elevenlabs_alignment:
+        regenerate_elevenlabs_srt_file(video)
+    elif django_settings.TTS_PROVIDER == "elevenlabs" and video.scenario:
+        generate_voice_file_eleven_labs(video)
+    else:
+        generate_srt_file(video)
 
-    messages.success(
-        request,
-        _("Generiranje podnapisov se je začelo! Podnapisi bodo kmalu na voljo."),
-    )
+    if django_settings.TTS_PROVIDER == "elevenlabs" and not video.elevenlabs_alignment:
+        messages.success(
+            request,
+            _(
+                "Zvok se ponovno generira, da se lahko ustvarijo natančni podnapisi."
+            ),
+        )
+    else:
+        messages.success(
+            request,
+            _("Generiranje podnapisov se je začelo! Podnapisi bodo kmalu na voljo."),
+        )
 
     return redirect("video_detail", video_id=video_id)
 
