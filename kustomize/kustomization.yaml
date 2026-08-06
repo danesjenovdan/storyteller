@@ -9,4 +9,4 @@ resources:
 images:
   - name: storyteller
     newName: rg.fr-par.scw.cloud/djnd/storyteller
-    newTag: '7c3f4859f8d594c28bc65bef3681254e2dfa08bd'
+    newTag: '5819add6b6131d1a100fb84f64b21c7012a409eb'
