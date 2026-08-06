@@ -9,6 +9,7 @@ from django.conf import settings as django_settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.files.storage import default_storage
+from django.db import transaction
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext as _
@@ -794,6 +795,62 @@ def save_selected_video(request, video_segment_id):
         )
 
 
+@ajax_login_required
+def update_video_scenario(request, video_id):
+    """Save a changed scenario and restart its generation pipeline."""
+    if request.method != "POST":
+        return JsonResponse({"error": _("Method not allowed")}, status=405)
+
+    try:
+        data = json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": _("Invalid JSON payload")}, status=400)
+
+    scenario = (data.get("scenario") or "").strip()
+    if not scenario:
+        return JsonResponse({"error": _("Scenario is required")}, status=400)
+
+    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    if not video.voice_model:
+        return JsonResponse({"error": _("Voice model is required")}, status=400)
+
+    with transaction.atomic():
+        if video.voice_file:
+            video.voice_file.delete(save=False)
+        if video.srt_file:
+            video.srt_file.delete(save=False)
+
+        video.scenario = scenario
+        video.voice_file = None
+        video.voice_duration = None
+        video.srt_file = None
+        video.srt_content = ""
+        video.elevenlabs_alignment = None
+        video.status = GenVideo.Statuses.GENERATING_VOICE
+        video.error_type = None
+        video.error_details = ""
+        video.progress = ""
+        video.save()
+        video.segments.all().delete()
+
+        tts_provider = django_settings.TTS_PROVIDER
+        if tts_provider == "elevenlabs":
+            transaction.on_commit(lambda: generate_voice_file_eleven_labs(video))
+        elif tts_provider == "gemini":
+            transaction.on_commit(lambda: generate_voice_file_gemini(video))
+        else:
+            transaction.on_commit(lambda: generate_voice_file_openai(video))
+
+    return JsonResponse(
+        {
+            "success": True,
+            "message": _(
+                "Scenarij je shranjen. Začenja se ponovno generiranje zvočnega posnetka."
+            ),
+        }
+    )
+
+
 @login_required(login_url="/admin/login/")
 def video_detail(request, video_id):
     """
@@ -1245,6 +1302,7 @@ def regenerate_srt(request, video_id):
     if video.srt_file:
         video.srt_file.delete()
     video.srt_content = ""
+    video.status = GenVideo.Statuses.GENERATING_SUBTITLES
     video.save()
 
     # ElevenLabs videos retain character-level timings, so subtitle layout can be

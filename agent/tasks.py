@@ -161,6 +161,7 @@ def regenerate_elevenlabs_srt_file(video: GenVideo) -> None:
         if not video.elevenlabs_alignment:
             raise ValueError("Video has no saved ElevenLabs alignment data")
         save_elevenlabs_srt_file(video, video.elevenlabs_alignment)
+        render_final_video(video)
     except Exception as e:
         logger.error(
             "Error regenerating ElevenLabs SRT file for video %s: %s",

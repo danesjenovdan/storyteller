@@ -11,6 +11,11 @@ urlpatterns = [
         views.modify_scenario_with_gemini,
         name="modify_scenario_with_gemini",
     ),
+    path(
+        "videos/<int:video_id>/update-scenario/",
+        views.update_video_scenario,
+        name="update_video_scenario",
+    ),
     path("videos/<int:video_id>/", views.video_detail, name="video_detail"),
     path(
         "videos/<int:video_id>/set-voice-model/",
