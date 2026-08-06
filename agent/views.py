@@ -1317,9 +1317,7 @@ def regenerate_srt(request, video_id):
     if django_settings.TTS_PROVIDER == "elevenlabs" and not video.elevenlabs_alignment:
         messages.success(
             request,
-            _(
-                "Zvok se ponovno generira, da se lahko ustvarijo natančni podnapisi."
-            ),
+            _("Zvok se ponovno generira, da se lahko ustvarijo natančni podnapisi."),
         )
     else:
         messages.success(

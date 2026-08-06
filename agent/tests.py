@@ -36,9 +36,7 @@ class ElevenLabsSubtitleGenerationTests(SimpleTestCase):
         alignment = {
             "characters": list("One two"),
             "character_start_times_seconds": [index / 10 for index in range(7)],
-            "character_end_times_seconds": [
-                (index + 1) / 10 for index in range(7)
-            ],
+            "character_end_times_seconds": [(index + 1) / 10 for index in range(7)],
         }
 
         srt_content = generate_srt_from_elevenlabs_alignment(alignment)
