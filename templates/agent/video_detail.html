@@ -29,10 +29,11 @@
         }
         .video-preview {
             max-width: 100%;
-            max-height: 300px;
+            max-height: 350px;
+            aspect-ratio: 1;
             border-radius: 8px;
             object-fit: contain;
-            background: #000;
+            background: #888;
         }
         .progress {
             height: 30px;
@@ -130,6 +131,48 @@
             background: #fff;
             border-radius: 4px;
         }
+        .segment-media-dropzone {
+            border: 2px dashed #c7ced6;
+            border-radius: 10px;
+            min-height: 220px;
+            background: #f8f9fa;
+            transition: border-color 0.2s ease, background-color 0.2s ease;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            aspect-ratio: 1;
+        }
+        .segment-media-dropzone.drag-over {
+            border-color: #0d6efd;
+            background: #e7f1ff;
+        }
+        .segment-media-dropzone .segment-media-empty {
+            text-align: center;
+            color: #6c757d;
+            padding: 1rem;
+        }
+        .segment-media-dropzone .segment-media-empty i {
+            font-size: 2.2rem;
+            color: #0d6efd;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+        .segment-media-dropzone .video-preview {
+            width: 100%;
+            max-height: 350px;
+        }
+        .segment-media-dropzone .segment-replace-hint {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            background: rgba(0, 0, 0, 0.65);
+            color: #fff;
+            border-radius: 999px;
+            padding: 0.2rem 0.6rem;
+            font-size: 0.75rem;
+        }
     </style>
 {% endblock %}
 
@@ -206,7 +249,7 @@
                 <div class="card">
                     <div class="card-body">
                         <p class="text-success"><i class="bi bi-check-circle-fill"></i> {% trans "Pripravljen" %}</p>
-                        <video controls class="w-100 mb-2" style="max-height: 200px;">
+                        <video controls class="w-100 mb-2" style="max-height: 200px; background: #888;">
                             <source src="{{ video.final_file.url }}" type="video/mp4">
                             {% trans "Vaš brskalnik ne podpira predvajanja videa." %}
                         </video>
@@ -497,23 +540,89 @@
                                 </h5>
                                 <p class="card-text">{{ segment.text }}</p>
 
+                                {% if segment.video_proposals and segment.video_proposals.0.selected %}
+                                <div class="mt-2">
+                                    <div class="card border-0 bg-light">
+                                        <div class="card-body py-2">
+                                            <div class="d-flex gap-3">
+                                                <div class="" style="flex: 1;">
+                                                    <div class="small text-muted mb-2">{% trans "Pozicija segmenta:" %}</div>
+                                                    <div class="mb-2 fit-mode-group" data-segment-id="{{ segment.id }}">
+                                                        <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Segment fit mode">
+                                                            <button type="button" class="btn {% if segment.video_proposals.0.fit_mode == 'fit_width' %}btn-primary{% else %}btn-outline-primary{% endif %} fit-mode-btn" data-fit-mode="fit_width">fit width</button>
+                                                            <button type="button" class="btn {% if segment.video_proposals.0.fit_mode == 'fit_height' %}btn-primary{% else %}btn-outline-primary{% endif %} fit-mode-btn" data-fit-mode="fit_height">fit height</button>
+                                                            <button type="button" class="btn {% if segment.video_proposals.0.fit_mode == 'fit_both' or not segment.video_proposals.0.fit_mode %}btn-primary{% else %}btn-outline-primary{% endif %} fit-mode-btn" data-fit-mode="fit_both">fit both</button>
+                                                        </div>
+                                                    </div>
+                                                    <div class="small text-muted fit-mode-status"></div>
+                                                </div>
+                                                <div class="" style="flex: 1.5;">
+                                                    <div class="small text-muted mb-2">{% trans "Animacije segmenta:" %}</div>
+
+                                                    <div class="mb-2 animation-mode-group" data-segment-id="{{ segment.id }}" data-slot="in">
+                                                        <div class="small fw-semibold mb-1">{% trans "Vhod" %}</div>
+                                                        <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Entry animation">
+                                                            <button type="button" class="btn {% if segment.video_proposals.0.animation_in == 'none' or not segment.video_proposals.0.animation_in %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="in" data-value="none">{% trans "Brez" %}</button>
+                                                            <button type="button" class="btn {% if segment.video_proposals.0.animation_in == 'fade' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="in" data-value="fade">Fade</button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="mb-2 animation-mode-group" data-segment-id="{{ segment.id }}" data-slot="mid">
+                                                        <div class="small fw-semibold mb-1">{% trans "Vmes" %}</div>
+                                                        <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Middle animation">
+                                                            <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'none' or not segment.video_proposals.0.animation_mid and not segment.video_proposals.0.animation %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="none">{% trans "Brez" %}</button>
+                                                            <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'zoom_in' or segment.video_proposals.0.animation == 'zoom_in' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="zoom_in">Zoom In</button>
+                                                            <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'zoom_out' or segment.video_proposals.0.animation == 'zoom_out' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="zoom_out">Zoom Out</button>
+                                                            <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'subtle_pan_lr' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="subtle_pan_lr">Pan L-R</button>
+                                                            <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'subtle_pan_ud' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="subtle_pan_ud">Pan U-D</button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="mb-2 animation-mode-group" data-segment-id="{{ segment.id }}" data-slot="out">
+                                                        <div class="small fw-semibold mb-1">{% trans "Izhod" %}</div>
+                                                        <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Exit animation">
+                                                            <button type="button" class="btn {% if segment.video_proposals.0.animation_out == 'none' or not segment.video_proposals.0.animation_out %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="out" data-value="none">{% trans "Brez" %}</button>
+                                                            <button type="button" class="btn {% if segment.video_proposals.0.animation_out == 'fade' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="out" data-value="fade">Fade</button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="small text-muted mt-2 animation-status"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+
                                 {% if not segment.video_proposals or not segment.video_proposals.0.selected %}
                                 <a href="#" class="btn btn-sm btn-primary mt-2 toggle-select-video">
                                     <i class="bi bi-film"></i> {% trans "Izberi video" %}
                                 </a>
                                 {% endif %}
                             </div>
-                            <div class="col-md-4">
-                                {% if segment.video_proposals and segment.video_proposals.0.selected %}
-                                    {% if segment.video_proposals.0.is_image %}
-                                        <img src="{{ segment.video_proposals.0.video_url }}" class="video-preview w-100" alt="{% trans "Izbrana slika" %}">
+                            <div class="col-md-4 segment-preview-col">
+                                <div class="segment-media-dropzone position-relative" data-segment-id="{{ segment.id }}">
+                                    <input type="file" accept="video/*,image/*" class="segment-media-input d-none">
+                                    {% if segment.video_proposals and segment.video_proposals.0.selected %}
+                                        {% if segment.video_proposals.0.is_image %}
+                                            <img src="{{ segment.video_proposals.0.video_url }}" class="video-preview w-100" alt="{% trans "Izbrana slika" %}">
+                                        {% else %}
+                                            <video controls class="video-preview">
+                                                <source src="{{ segment.video_proposals.0.video_url }}" type="video/mp4">
+                                                {% trans "Vaš brskalnik ne podpira predvajanja videa." %}
+                                            </video>
+                                        {% endif %}
+                                        <span class="segment-replace-hint">{% trans "Klikni ali spusti datoteko" %}</span>
                                     {% else %}
-                                        <video controls class="video-preview">
-                                            <source src="{{ segment.video_proposals.0.video_url }}" type="video/mp4">
-                                            {% trans "Vaš brskalnik ne podpira predvajanja videa." %}
-                                        </video>
+                                        <div class="segment-media-empty">
+                                            <i class="bi bi-cloud-upload"></i>
+                                            <div class="fw-semibold">{% trans "Naloži video ali sliko" %}</div>
+                                            <small>{% trans "Klikni ali spusti datoteko" %}</small>
+                                        </div>
                                     {% endif %}
-                                    <div class="mt-2">
+                                </div>
+                                <div class="mt-2 segment-preview-actions">
+                                    {% if segment.video_proposals and segment.video_proposals.0.selected %}
                                         {% if segment.video_proposals.0.pexels_url %}
                                         <a href="{{ segment.video_proposals.0.pexels_url }}" class="btn btn-sm btn-outline-info" target="_blank">
                                             <i class="bi bi-box-arrow-up-right"></i> {{ segment.video_proposals.0.source|default:"pexels"|title }}
@@ -522,64 +631,7 @@
                                         <a href="#" class="btn btn-sm btn-outline-secondary toggle-select-video">
                                             <i class="bi bi-arrow-repeat"></i> {% trans "Zamenjaj" %}
                                         </a>
-                                        <a href="#" class="btn btn-sm btn-outline-dark toggle-animation-settings">
-                                            <i class="bi bi-magic"></i> {% trans "Animacije" %}
-                                        </a>
-                                    </div>
-                                    {% if segment.video_proposals.0.width > segment.video_proposals.0.height %}
-                                    <div class="btn-group btn-group-sm mt-2 horizontal-mode-group" role="group" aria-label="Horizontal mode" data-segment-id="{{ segment.id }}">
-                                        <button type="button" class="btn {% if segment.video_proposals.0.horizontal_mode == 'crop' or not segment.video_proposals.0.horizontal_mode %}btn-primary{% else %}btn-outline-primary{% endif %} mode-btn" data-mode="crop" title="Crop">
-                                            <i class="bi bi-crop"></i> Crop
-                                        </button>
-                                        <button type="button" class="btn {% if segment.video_proposals.0.horizontal_mode == 'blur' %}btn-primary{% else %}btn-outline-primary{% endif %} mode-btn" data-mode="blur" title="Blur">
-                                            <i class="bi bi-images"></i> Blur
-                                        </button>
-                                        <button type="button" class="btn {% if segment.video_proposals.0.horizontal_mode == 'blur_crop' %}btn-primary{% else %}btn-outline-primary{% endif %} mode-btn" data-mode="blur_crop" title="Blur & Crop">
-                                            <i class="bi bi-circle-half"></i> Blur&Crop
-                                        </button>
-                                    </div>
                                     {% endif %}
-                                {% else %}
-                                    <p class="text-muted text-center">
-                                        <i class="bi bi-exclamation-triangle" style="font-size: 3rem;"></i><br>
-                                        {% trans "Video ni izbran" %}
-                                    </p>
-                                {% endif %}
-                            </div>
-                            <div class="col-md-12 select-animation-container mt-2" style="display: none;">
-                                <div class="card border-0 bg-light">
-                                    <div class="card-body py-2">
-                                        <div class="small text-muted mb-2">{% trans "Animacije segmenta:" %}</div>
-
-                                        <div class="mb-2 animation-mode-group" data-segment-id="{{ segment.id }}" data-slot="in">
-                                            <div class="small fw-semibold mb-1">{% trans "Vhod" %}</div>
-                                            <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Entry animation">
-                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_in == 'none' or not segment.video_proposals.0.animation_in %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="in" data-value="none">{% trans "Brez" %}</button>
-                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_in == 'fade' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="in" data-value="fade">Fade</button>
-                                            </div>
-                                        </div>
-
-                                        <div class="mb-2 animation-mode-group" data-segment-id="{{ segment.id }}" data-slot="mid">
-                                            <div class="small fw-semibold mb-1">{% trans "Vmes" %}</div>
-                                            <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Middle animation">
-                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'none' or not segment.video_proposals.0.animation_mid and not segment.video_proposals.0.animation %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="none">{% trans "Brez" %}</button>
-                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'zoom_in' or segment.video_proposals.0.animation == 'zoom_in' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="zoom_in">Zoom In</button>
-                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'zoom_out' or segment.video_proposals.0.animation == 'zoom_out' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="zoom_out">Zoom Out</button>
-                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'subtle_pan_lr' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="subtle_pan_lr">Pan L-R</button>
-                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_mid == 'subtle_pan_ud' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="mid" data-value="subtle_pan_ud">Pan U-D</button>
-                                            </div>
-                                        </div>
-
-                                        <div class="mb-2 animation-mode-group" data-segment-id="{{ segment.id }}" data-slot="out">
-                                            <div class="small fw-semibold mb-1">{% trans "Izhod" %}</div>
-                                            <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Exit animation">
-                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_out == 'none' or not segment.video_proposals.0.animation_out %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="out" data-value="none">{% trans "Brez" %}</button>
-                                                <button type="button" class="btn {% if segment.video_proposals.0.animation_out == 'fade' %}btn-primary{% else %}btn-outline-primary{% endif %} animation-btn" data-slot="out" data-value="fade">Fade</button>
-                                            </div>
-                                        </div>
-
-                                        <div class="small text-muted mt-2 animation-status"></div>
-                                    </div>
                                 </div>
                             </div>
                             <div class="col-md-12 select-video-container mt-3" style="{% if segment.video_proposals and segment.video_proposals.0.selected %}display: none;{% endif %}">
@@ -632,8 +684,6 @@
             noVoiceSamples: '{% trans "Za ta model ni razpoložljivega sample-a." %}',
             selectVoiceModelForSample: '{% trans "Izberi model za predvajanje sample-a." %}',
             voiceSampleLoadFailed: '{% trans "Napaka pri nalaganju sample-a" %}',
-            modeUpdated: '{% trans "Način uspešno posodobljen!" %}',
-            modeSaveErrorPrefix: '{% trans "Napaka pri shranjevanju načina:" %}',
             logoSaveFailed: '{% trans "Failed to save selected logo" %}',
             logoSaveError: '{% trans "Napaka pri shranjevanju izbranega logotipa" %}',
             logoSettingsSaved: '{% trans "Logo nastavitve so shranjene!" %}',
@@ -647,6 +697,9 @@
             subtitleSettingsError: '{% trans "Napaka pri shranjevanju nastavitev" %}',
             savingAnimation: '{% trans "Shranjujem animacijo..." %}',
             animationSaved: '{% trans "Animacija uspešno shranjena." %}',
+            savingFitMode: '{% trans "Shranjujem pozicijo segmenta..." %}',
+            fitModeSaved: '{% trans "Pozicija segmenta uspešno shranjena." %}',
+            fitModeSaveErrorPrefix: '{% trans "Napaka pri shranjevanju pozicije segmenta:" %}',
             errorPrefix: '{% trans "Napaka:" %}',
             animationSaveErrorPrefix: '{% trans "Napaka pri shranjevanju animacije:" %}',
             confirmScenarioUpdate: '{% trans "S spremembo scenarija bodo odstranjeni obstoječi zvok, podnapisi in video segmenti. Nato se bo začelo ponovno generiranje zvoka. Ali želiš nadaljevati?" %}',
@@ -1135,117 +1188,6 @@
                 });
             });
 
-            // Toggle animation selector
-            const toggleAnimationButtons = document.querySelectorAll('.toggle-animation-settings');
-            toggleAnimationButtons.forEach(button => {
-                button.addEventListener('click', function(event) {
-                    event.preventDefault();
-                    const container = this.closest('.card-body').querySelector('.select-animation-container');
-                    if (!container) {
-                        return;
-                    }
-                    if (container.style.display === 'none') {
-                        container.style.display = '';
-                        container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                    } else {
-                        container.style.display = 'none';
-                    }
-                });
-            });
-
-            // Handle horizontal mode buttons for already selected videos
-            const horizontalModeGroups = document.querySelectorAll('.horizontal-mode-group');
-            horizontalModeGroups.forEach(group => {
-                const segmentId = group.getAttribute('data-segment-id');
-                const modeButtons = group.querySelectorAll('.mode-btn');
-
-                modeButtons.forEach(btn => {
-                    btn.addEventListener('click', async function(e) {
-                        e.preventDefault();
-                        const newMode = this.getAttribute('data-mode');
-
-                        // Get current video data from the segment
-                        const cardBody = this.closest('.card-body');
-                        const videoElement = cardBody.querySelector('video source');
-                        const imageElement = cardBody.querySelector('img.video-preview');
-                        const videoUrl = videoElement ? videoElement.getAttribute('src') :
-                                       imageElement ? imageElement.getAttribute('src') : null;
-
-                        if (!videoUrl) {
-                            alert(i18n.missingMediaUrl);
-                            return;
-                        }
-
-                        // Get existing metadata from the segment (from Django template)
-                        const segmentCard = cardBody.closest('.segment-card');
-
-                        try {
-                            // Find the video carousel to show loading message
-                            const carousel = cardBody.querySelector('.video-carousel');
-                            let alertBox = null;
-                            if (carousel) {
-                                alertBox = carousel.querySelector('.alert');
-                                if (alertBox) {
-                                    alertBox.className = 'alert alert-warning';
-                                    alertBox.querySelector('i').className = 'bi bi-hourglass-split';
-                                    alertBox.querySelector('span').textContent = i18n.savingSetting;
-                                    alertBox.style.display = 'block';
-                                }
-                            }
-
-                            const response = await fetch(`/video-segments/${segmentId}/save-video/`, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-                                },
-                                body: JSON.stringify({
-                                    video_url: videoUrl,
-                                    metadata: {
-                                        horizontal_mode: newMode
-                                    }
-                                })
-                            });
-
-                            const data = await response.json();
-
-                            if (data.error) {
-                                alert(i18n.errorPrefix + ' ' + data.error);
-                                if (alertBox) {
-                                    alertBox.className = 'alert alert-danger';
-                                    alertBox.querySelector('i').className = 'bi bi-exclamation-triangle-fill';
-                                    alertBox.querySelector('span').textContent = data.error;
-                                }
-                            } else {
-                                // Update button states
-                                modeButtons.forEach(b => {
-                                    const mode = b.getAttribute('data-mode');
-                                    if (mode === newMode) {
-                                        b.classList.remove('btn-outline-primary');
-                                        b.classList.add('btn-primary');
-                                    } else {
-                                        b.classList.remove('btn-primary');
-                                        b.classList.add('btn-outline-primary');
-                                    }
-                                });
-
-                                if (alertBox) {
-                                    alertBox.className = 'alert alert-success';
-                                    alertBox.querySelector('i').className = 'bi bi-check-circle-fill';
-                                    alertBox.querySelector('span').textContent = i18n.modeUpdated;
-                                    setTimeout(() => {
-                                        alertBox.style.display = 'none';
-                                    }, 2000);
-                                }
-                            }
-                        } catch (error) {
-                            console.error('Napaka pri shranjevanju načina:', error);
-                            alert(i18n.modeSaveErrorPrefix + ' ' + error.message);
-                        }
-                    });
-                });
-            });
-
             // Handle animation buttons
             const animationModeGroups = document.querySelectorAll('.animation-mode-group');
             animationModeGroups.forEach(group => {
@@ -1326,6 +1268,79 @@
                                 statusEl.textContent = i18n.errorPrefix + ' ' + error.message;
                             }
                             alert(i18n.animationSaveErrorPrefix + ' ' + error.message);
+                        }
+                    });
+                });
+            });
+
+            // Handle fit mode buttons
+            const fitModeGroups = document.querySelectorAll('.fit-mode-group');
+            fitModeGroups.forEach(group => {
+                const segmentId = group.getAttribute('data-segment-id');
+                const fitModeButtons = group.querySelectorAll('.fit-mode-btn');
+
+                fitModeButtons.forEach(btn => {
+                    btn.addEventListener('click', async function(e) {
+                        e.preventDefault();
+                        const newFitMode = this.getAttribute('data-fit-mode');
+
+                        const cardBody = this.closest('.card-body');
+                        const segmentBody = this.closest('.segment-card').querySelector('.card-body');
+                        const videoElement = segmentBody.querySelector('video source');
+                        const imageElement = segmentBody.querySelector('img.video-preview');
+                        const videoUrl = videoElement ? videoElement.getAttribute('src') :
+                                       imageElement ? imageElement.getAttribute('src') : null;
+
+                        if (!videoUrl) {
+                            alert(i18n.missingMediaUrl);
+                            return;
+                        }
+
+                        const statusEl = cardBody.querySelector('.fit-mode-status');
+                        if (statusEl) {
+                            statusEl.textContent = i18n.savingFitMode;
+                        }
+
+                        try {
+                            const response = await fetch(`/video-segments/${segmentId}/save-video/`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                                },
+                                body: JSON.stringify({
+                                    video_url: videoUrl,
+                                    metadata: {
+                                        fit_mode: newFitMode
+                                    }
+                                })
+                            });
+
+                            const data = await response.json();
+                            if (data.error) {
+                                throw new Error(data.error);
+                            }
+
+                            fitModeButtons.forEach(fitModeBtn => {
+                                const fitMode = fitModeBtn.getAttribute('data-fit-mode');
+                                if (fitMode === newFitMode) {
+                                    fitModeBtn.classList.remove('btn-outline-primary');
+                                    fitModeBtn.classList.add('btn-primary');
+                                } else {
+                                    fitModeBtn.classList.remove('btn-primary');
+                                    fitModeBtn.classList.add('btn-outline-primary');
+                                }
+                            });
+
+                            if (statusEl) {
+                                statusEl.textContent = i18n.fitModeSaved;
+                            }
+                        } catch (error) {
+                            console.error('Napaka pri shranjevanju pozicije segmenta:', error);
+                            if (statusEl) {
+                                statusEl.textContent = i18n.errorPrefix + ' ' + error.message;
+                            }
+                            alert(i18n.fitModeSaveErrorPrefix + ' ' + error.message);
                         }
                     });
                 });

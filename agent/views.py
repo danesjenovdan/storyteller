@@ -655,10 +655,12 @@ def save_selected_video(request, video_segment_id):
             "subtle_pan_ud",
         }
         allowed_out_animations = {"none", "fade"}
+        allowed_fit_modes = {"fit_width", "fit_height", "fit_both"}
 
         requested_in = (video_metadata.get("animation_in") or "").strip()
         requested_mid = (video_metadata.get("animation_mid") or "").strip()
         requested_out = (video_metadata.get("animation_out") or "").strip()
+        requested_fit_mode = (video_metadata.get("fit_mode") or "").strip()
 
         normalized_in = (
             requested_in if requested_in in allowed_in_animations else "none"
@@ -668,6 +670,11 @@ def save_selected_video(request, video_segment_id):
         )
         normalized_out = (
             requested_out if requested_out in allowed_out_animations else "none"
+        )
+        normalized_fit_mode = (
+            requested_fit_mode
+            if requested_fit_mode in allowed_fit_modes
+            else "fit_both"
         )
 
         if not video_url:
@@ -697,6 +704,11 @@ def save_selected_video(request, video_segment_id):
                 if requested_out
                 else existing_proposal.get("animation_out", "none")
             )
+            final_fit_mode = (
+                normalized_fit_mode
+                if requested_fit_mode
+                else existing_proposal.get("fit_mode", "fit_both")
+            )
 
             # Update existing proposal - preserve all existing data and update with new metadata
             existing_proposal.update(
@@ -724,14 +736,11 @@ def save_selected_video(request, video_segment_id):
                     "height": video_metadata.get(
                         "height", existing_proposal.get("height")
                     ),
-                    "horizontal_mode": video_metadata.get(
-                        "horizontal_mode",
-                        existing_proposal.get("horizontal_mode", "crop"),
-                    ),
                     "animation_in": final_animation_in,
                     "animation_mid": final_animation_mid,
                     "animation_out": final_animation_out,
                     "animation": final_animation_mid,
+                    "fit_mode": final_fit_mode,
                     "is_image": video_metadata.get(
                         "is_image", existing_proposal.get("is_image", False)
                     ),
@@ -752,11 +761,11 @@ def save_selected_video(request, video_segment_id):
                     "duration": video_metadata.get("duration"),
                     "width": video_metadata.get("width"),
                     "height": video_metadata.get("height"),
-                    "horizontal_mode": video_metadata.get("horizontal_mode", "crop"),
                     "animation_in": normalized_in,
                     "animation_mid": normalized_mid,
                     "animation_out": normalized_out,
                     "animation": normalized_mid,
+                    "fit_mode": normalized_fit_mode,
                     "is_image": video_metadata.get("is_image", False),
                     "selected": True,
                 }

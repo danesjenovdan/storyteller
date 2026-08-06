@@ -138,7 +138,7 @@ class FinalVideoRenderer:
             )
             width, height = 1080, 1920
 
-        horizontal_mode = proposal.get("horizontal_mode", "crop")
+        fit_mode = proposal.get("fit_mode", "fit_both")
         animation_mode = {
             "in": proposal.get("animation_in", "none"),
             "mid": proposal.get("animation_mid", proposal.get("animation", "none")),
@@ -150,7 +150,8 @@ class FinalVideoRenderer:
 
         logger.info(
             f"Processing clip {index+1}/{total}: {duration:.2f}s from URL "
-            f"(dimensions: {width}x{height}, is_image: {is_image}, mode: {horizontal_mode}, "
+            f"(dimensions: {width}x{height}, is_image: {is_image}, "
+            f"fit_mode: {fit_mode}, "
             f"animation_in: {animation_mode['in']}, animation_mid: {animation_mode['mid']}, "
             f"animation_out: {animation_mode['out']})"
         )
@@ -165,7 +166,7 @@ class FinalVideoRenderer:
                 height,
                 duration,
                 is_image,
-                horizontal_mode,
+                fit_mode,
                 animation_mode,
             )
             self._run_ffmpeg(
@@ -187,15 +188,10 @@ class FinalVideoRenderer:
         height: int,
         duration: float,
         is_image: bool,
-        horizontal_mode: str,
+        fit_mode: str,
         animation_mode: dict,
     ) -> list[str]:
-        is_horizontal = width > height
-
-        if is_horizontal:
-            vf_filter, filter_complex = self._horizontal_filter(horizontal_mode)
-        else:
-            vf_filter, filter_complex = self._vertical_filter(), None
+        vf_filter, filter_complex = self._vertical_filter(fit_mode), None
 
         cmd = ["ffmpeg"]
         if is_image:
@@ -218,29 +214,17 @@ class FinalVideoRenderer:
         cmd.extend(["-an", "-y", str(output_file)])
         return cmd
 
-    def _horizontal_filter(
-        self, horizontal_mode: str
-    ) -> tuple[Optional[str], Optional[str]]:
-        """Returns (vf_filter, filter_complex) for a horizontal source; only one is set."""
-        if horizontal_mode == "blur":
-            return None, (
-                "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
-                "[0:v]scale=1080:-1:force_original_aspect_ratio=decrease[main];"
-                "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
+    def _vertical_filter(self, fit_mode: str) -> str:
+        if fit_mode == "fit_width":
+            return (
+                "scale=1080:-1,crop=1080:min(ih\\,1920):0:max((ih-1920)/2\\,0),"
+                "pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1"
             )
-        if horizontal_mode == "blur_crop":
-            return None, (
-                "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[blurred];"
-                "[0:v]crop=ih:ih:(iw-ih)/2:0,scale=1080:-1:force_original_aspect_ratio=decrease[main];"
-                "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1"
+        if fit_mode == "fit_height":
+            return (
+                "scale=-1:1920,crop=min(iw\\,1080):1920:max((iw-1080)/2\\,0):0,"
+                "pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1"
             )
-        # "crop" and any unrecognized mode default to a centered 9:16 crop.
-        return (
-            "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,"
-            "pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1"
-        ), None
-
-    def _vertical_filter(self) -> str:
         return (
             "scale=1080:1920:force_original_aspect_ratio=decrease,"
             "pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1"
