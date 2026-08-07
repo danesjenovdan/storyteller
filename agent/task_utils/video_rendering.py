@@ -273,15 +273,20 @@ class FinalVideoRenderer:
 
         if animation == "zoom_in":
             return (
-                f"scale=iw*(1+0.10*t/{safe_duration:.3f}):"
-                f"ih*(1+0.10*t/{safe_duration:.3f}):eval=frame,"
-                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
+                # Apply zoom to the already-fitted 1080x1920 frame so motion starts
+                # from the exact fit_mode result and remains centered.
+                f"scale=1080*(1+0.10*min(t/{safe_duration:.3f}\\,1)):"
+                f"1920*(1+0.10*min(t/{safe_duration:.3f}\\,1)):eval=frame,"
+                f"crop=1080:1920:1080*0.10*min(t/{safe_duration:.3f}\\,1)/2:"
+                f"1920*0.10*min(t/{safe_duration:.3f}\\,1)/2"
             )
         if animation == "zoom_out":
             return (
-                f"scale=iw*(1.20-0.10*t/{safe_duration:.3f}):"
-                f"ih*(1.20-0.10*t/{safe_duration:.3f}):eval=frame,"
-                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
+                # Start zoomed in (1.1x) and ease back to fit_mode (1.0x).
+                f"scale=1080*(1+0.10*(1-min(t/{safe_duration:.3f}\\,1))):"
+                f"1920*(1+0.10*(1-min(t/{safe_duration:.3f}\\,1))):eval=frame,"
+                f"crop=1080:1920:1080*0.10*(1-min(t/{safe_duration:.3f}\\,1))/2:"
+                f"1920*0.10*(1-min(t/{safe_duration:.3f}\\,1))/2"
             )
         return None
 
