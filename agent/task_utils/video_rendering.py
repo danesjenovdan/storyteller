@@ -191,7 +191,10 @@ class FinalVideoRenderer:
         fit_mode: str,
         animation_mode: dict,
     ) -> list[str]:
-        vf_filter, filter_complex = self._vertical_filter(fit_mode), None
+        vf_filter, filter_complex = (
+            self._vertical_filter(fit_mode, animation_mode, duration),
+            None,
+        )
 
         cmd = ["ffmpeg"]
         if is_image:
@@ -214,13 +217,32 @@ class FinalVideoRenderer:
         cmd.extend(["-an", "-y", str(output_file)])
         return cmd
 
-    def _vertical_filter(self, fit_mode: str) -> str:
+    def _vertical_filter(
+        self, fit_mode: str, animation_mode: dict, clip_duration: float
+    ) -> str:
+        animation_mid = (animation_mode.get("mid") or "none").strip().lower()
+        safe_duration = max(float(clip_duration or 0.0), 0.1)
+
         if fit_mode == "fit_width":
+            # Pan vertically only when scaled input is taller than 1920.
+            if animation_mid == "subtle_pan_ud":
+                return (
+                    "scale=1080:-1,"
+                    f"crop=1080:min(ih\\,1920):0:'if(gt(ih,1920),(ih-1920)*min(t/{safe_duration:.3f}\\,1),0)',"
+                    "pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1"
+                )
             return (
                 "scale=1080:-1,crop=1080:min(ih\\,1920):0:max((ih-1920)/2\\,0),"
                 "pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1"
             )
         if fit_mode == "fit_height":
+            # Pan horizontally only when scaled input is wider than 1080.
+            if animation_mid == "subtle_pan_lr":
+                return (
+                    "scale=-1:1920,"
+                    f"crop=min(iw\\,1080):1920:'if(gt(iw,1080),(iw-1080)*min(t/{safe_duration:.3f}\\,1),0)':0,"
+                    "pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1"
+                )
             return (
                 "scale=-1:1920,crop=min(iw\\,1080):1920:max((iw-1080)/2\\,0):0,"
                 "pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1"
@@ -260,18 +282,6 @@ class FinalVideoRenderer:
                 f"scale=iw*(1.20-0.10*t/{safe_duration:.3f}):"
                 f"ih*(1.20-0.10*t/{safe_duration:.3f}):eval=frame,"
                 "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
-            )
-        if animation == "subtle_pan_lr":
-            return (
-                # Uniform overscan gives enough travel distance to avoid visible step movement.
-                "scale=iw*1.30:ih*1.30:eval=frame,"
-                f"crop=1080:1920:'(iw-1080)*min(t/{safe_duration:.3f}\\,1)':(ih-1920)/2"
-            )
-        if animation == "subtle_pan_ud":
-            return (
-                # Uniform overscan gives enough travel distance to avoid visible step movement.
-                "scale=iw*1.30:ih*1.30:eval=frame,"
-                f"crop=1080:1920:(iw-1080)/2:'(ih-1920)*min(t/{safe_duration:.3f}\\,1)'"
             )
         return None
 
