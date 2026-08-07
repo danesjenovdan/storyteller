@@ -43,6 +43,11 @@ from .models import (
 
 # Create your views here.
 
+def _query_user_video(video_id, user):
+    if user.is_superuser:
+        return get_object_or_404(GenVideo, id=video_id)
+    return get_object_or_404(GenVideo, id=video_id, user=user)
+
 
 def ajax_login_required(view_func):
     """
@@ -819,7 +824,7 @@ def update_video_scenario(request, video_id):
     if not scenario:
         return JsonResponse({"error": _("Scenario is required")}, status=400)
 
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    video = _query_user_video(video_id, request.user)
     if not video.voice_model:
         return JsonResponse({"error": _("Voice model is required")}, status=400)
 
@@ -872,7 +877,7 @@ def video_detail(request, video_id):
     - All VideoSentences with their video clips
     - Final rendered video (if available)
     """
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    video = _query_user_video(video_id, request.user)
     tts_provider = django_settings.TTS_PROVIDER
     voice_models = get_voice_models_for_provider(tts_provider)
 
@@ -913,7 +918,7 @@ def render_video(request, video_id):
     if request.method != "POST":
         return redirect("video_detail", video_id=video_id)
 
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    video = _query_user_video(video_id, request.user)
 
     # Validate that all segments have video URLs selected
     segments = video.segments.all()
@@ -964,7 +969,7 @@ def generate_voice(request, video_id):
     if request.method != "POST":
         return redirect("video_detail", video_id=video_id)
 
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    video = _query_user_video(video_id, request.user)
 
     if not video.scenario:
         messages.error(
@@ -1008,7 +1013,7 @@ def set_video_voice_model(request, video_id):
     if request.method != "POST":
         return JsonResponse({"error": _("Method not allowed")}, status=405)
 
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    video = _query_user_video(video_id, request.user)
     tts_provider = django_settings.TTS_PROVIDER
     voice_models = get_voice_models_for_provider(tts_provider)
     allowed_voice_models = {value for value, _ in voice_models if value}
@@ -1043,7 +1048,7 @@ def elevenlabs_voice_sample_audio(request, video_id):
     if request.method != "GET":
         return JsonResponse({"error": _("Method not allowed")}, status=405)
 
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    video = _query_user_video(video_id, request.user)
 
     if django_settings.TTS_PROVIDER != "elevenlabs":
         return JsonResponse(
@@ -1268,7 +1273,7 @@ def regenerate_segments(request, video_id):
     if request.method != "POST":
         return redirect("video_detail", video_id=video_id)
 
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    video = _query_user_video(video_id, request.user)
 
     if not video.scenario:
         messages.error(
@@ -1299,7 +1304,7 @@ def regenerate_srt(request, video_id):
     if request.method != "POST":
         return redirect("video_detail", video_id=video_id)
 
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    video = _query_user_video(video_id, request.user)
 
     if not video.voice_file:
         messages.error(
@@ -1349,7 +1354,7 @@ def set_subtitle_style(request, video_id):
     if request.method != "POST":
         return JsonResponse({"error": _("Method not allowed")}, status=405)
 
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    video = _query_user_video(video_id, request.user)
 
     try:
         data = json.loads(request.body)
@@ -1400,7 +1405,7 @@ def upload_logo(request, video_id):
     """
     Upload a new logo for the current user and optionally select it for this video.
     """
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    video = _query_user_video(video_id, request.user)
 
     if request.method != "POST":
         return JsonResponse({"error": _("Method not allowed")}, status=405)
@@ -1440,7 +1445,7 @@ def set_video_logo(request, video_id):
     """
     import json
 
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    video = _query_user_video(video_id, request.user)
 
     if request.method != "POST":
         return JsonResponse({"error": _("Method not allowed")}, status=405)
@@ -1476,7 +1481,7 @@ def set_logo_settings(request, video_id):
     """
     import json
 
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    video = _query_user_video(video_id, request.user)
 
     if request.method != "POST":
         return JsonResponse({"error": _("Method not allowed")}, status=405)
