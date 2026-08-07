@@ -144,7 +144,11 @@ def save_elevenlabs_srt_file(video: GenVideo, alignment) -> None:
 
     filename = f"srt_{video.id}.srt"
     video.srt_content = srt_content
-    video.srt_file.save(filename, ContentFile(srt_content), save=False)
+    video.srt_file.save(
+        filename,
+        ContentFile(srt_content.encode("utf-8")),
+        save=False,
+    )
     video.status = GenVideo.Statuses.SUBTITLES_READY
     video.save()
     logger.info(
