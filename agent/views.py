@@ -356,18 +356,18 @@ def video_create(request):
                 video.status = GenVideo.Statuses.GENERATING_VOICE
                 video.save()
                 if tts_provider == "elevenlabs":
-                    generate_voice_file_eleven_labs(video)
+                    generate_voice_file_eleven_labs(video.id)
                 elif tts_provider == "openai":
-                    generate_voice_file_openai(video)
+                    generate_voice_file_openai(video.id)
                 elif tts_provider == "gemini":
-                    generate_voice_file_gemini(video)
+                    generate_voice_file_gemini(video.id)
                 return redirect("video_detail", video_id=video.id)
             elif video.voice_file:
                 with get_temporary_file_path(video.voice_file) as temp_audio_path:
                     duration = get_audio_duration(temp_audio_path)
                     video.voice_duration = duration
                     video.save()
-                generate_srt_file(video)
+                generate_srt_file(video.id)
                 return redirect("video_detail", video_id=video.id)
             else:
                 messages.success(request, _("Video mora vsebovati scenario!"))
@@ -844,16 +844,22 @@ def update_video_scenario(request, video_id):
         video.error_type = None
         video.error_details = ""
         video.progress = ""
+        video.recovery_attempts = 0
+        video.last_recovery_at = None
+        video.recovery_claimed_at = None
         video.save()
         video.segments.all().delete()
 
+        video_id = video.id
         tts_provider = django_settings.TTS_PROVIDER
         if tts_provider == "elevenlabs":
-            transaction.on_commit(lambda: generate_voice_file_eleven_labs(video))
+            transaction.on_commit(
+                lambda: generate_voice_file_eleven_labs(video_id)
+            )
         elif tts_provider == "gemini":
-            transaction.on_commit(lambda: generate_voice_file_gemini(video))
+            transaction.on_commit(lambda: generate_voice_file_gemini(video_id))
         else:
-            transaction.on_commit(lambda: generate_voice_file_openai(video))
+            transaction.on_commit(lambda: generate_voice_file_openai(video_id))
 
     return JsonResponse(
         {
@@ -949,8 +955,12 @@ def render_video(request, video_id):
         )
         return redirect("video_detail", video_id=video_id)
 
-    # Trigger rendering task
-    render_final_video(video)
+    video.status = GenVideo.Statuses.RENDERING
+    video.recovery_attempts = 0
+    video.last_recovery_at = None
+    video.recovery_claimed_at = None
+    video.save()
+    render_final_video(video.id)
 
     messages.success(
         request, _("Renderiranje videa se je začelo! To lahko traja nekaj minut.")
@@ -988,14 +998,19 @@ def generate_voice(request, video_id):
 
     # Get TTS provider from settings
     tts_provider = django_settings.TTS_PROVIDER
+    video.status = GenVideo.Statuses.GENERATING_VOICE
+    video.recovery_attempts = 0
+    video.last_recovery_at = None
+    video.recovery_claimed_at = None
+    video.save()
 
     # Trigger voice generation based on provider
     if tts_provider == "elevenlabs":
-        generate_voice_file_eleven_labs(video)
+        generate_voice_file_eleven_labs(video.id)
     elif tts_provider == "gemini":
-        generate_voice_file_gemini(video)
+        generate_voice_file_gemini(video.id)
     else:  # openai
-        generate_voice_file_openai(video)
+        generate_voice_file_openai(video.id)
 
     messages.success(
         request,
@@ -1283,9 +1298,14 @@ def regenerate_segments(request, video_id):
 
     # Delete existing segments
     video.segments.all().delete()
+    video.status = GenVideo.Statuses.GENERATING_SEGMENTS
+    video.recovery_attempts = 0
+    video.last_recovery_at = None
+    video.recovery_claimed_at = None
+    video.save()
 
     # Trigger segment generation task
-    get_video_segments(video)
+    get_video_segments(video.id)
 
     messages.success(request, _("Segmenti se ponovno generirajo..."))
     return redirect("video_detail", video_id=video_id)
@@ -1317,16 +1337,19 @@ def regenerate_srt(request, video_id):
         video.srt_file.delete()
     video.srt_content = ""
     video.status = GenVideo.Statuses.GENERATING_SUBTITLES
+    video.recovery_attempts = 0
+    video.last_recovery_at = None
+    video.recovery_claimed_at = None
     video.save()
 
     # ElevenLabs videos retain character-level timings, so subtitle layout can be
     # regenerated locally when settings such as words per screen change.
     if video.elevenlabs_alignment:
-        regenerate_elevenlabs_srt_file(video)
+        regenerate_elevenlabs_srt_file(video.id)
     elif django_settings.TTS_PROVIDER == "elevenlabs" and video.scenario:
-        generate_voice_file_eleven_labs(video)
+        generate_voice_file_eleven_labs(video.id)
     else:
-        generate_srt_file(video)
+        generate_srt_file(video.id)
 
     if django_settings.TTS_PROVIDER == "elevenlabs" and not video.elevenlabs_alignment:
         messages.success(
