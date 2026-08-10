@@ -196,6 +196,77 @@ class UpdateVideoScenarioTests(TestCase):
         mock_generate_voice.assert_called_once_with(self.video.id)
 
 
+class VideoStatusTests(TestCase):
+    def setUp(self) -> None:
+        self.user = get_user_model().objects.create_user(
+            username="status-owner",
+            password="test-password",
+        )
+        self.video = GenVideo.objects.create(
+            user=self.user,
+            title="Status video",
+            status=GenVideo.Statuses.GENERATING_VOICE,
+            progress="Generating voice 2 of 3",
+        )
+        self.url = reverse("video_status", args=[self.video.id])
+        self.client.force_login(self.user)
+
+    def test_returns_current_status_display_data(self) -> None:
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {
+                "status": GenVideo.Statuses.GENERATING_VOICE,
+                "status_display": "Generiranje zvoka",
+                "progress": "Generating voice 2 of 3",
+                "error_type_display": "",
+                "error_details": "",
+            },
+        )
+
+    def test_returns_error_display_data(self) -> None:
+        self.video.status = GenVideo.Statuses.FAILED
+        self.video.error_type = GenVideo.ErrorTypes.RENDERING
+        self.video.error_details = "FFmpeg failed"
+        self.video.save()
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], GenVideo.Statuses.FAILED)
+        self.assertEqual(
+            response.json()["error_type_display"], "Napaka pri renderiranju videa"
+        )
+        self.assertEqual(response.json()["error_details"], "FFmpeg failed")
+
+    def test_hides_another_users_video(self) -> None:
+        other_user = get_user_model().objects.create_user(
+            username="status-other-user",
+            password="test-password",
+        )
+        self.client.force_login(other_user)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_rejects_non_get_requests(self) -> None:
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, 405)
+        self.assertEqual(response.json()["error"], "Method not allowed")
+
+    def test_rejects_unauthenticated_requests_with_json(self) -> None:
+        self.client.logout()
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json()["error"], "Authentication required")
+
+
 class InterruptedVideoRecoveryTests(TestCase):
     def setUp(self) -> None:
         self.user = get_user_model().objects.create_user(

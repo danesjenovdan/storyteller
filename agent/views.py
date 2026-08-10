@@ -915,6 +915,27 @@ def video_detail(request, video_id):
     return render(request, "agent/video_detail.html", context)
 
 
+@ajax_login_required
+def video_status(request, video_id):
+    """Return the current display status for a video-detail polling request."""
+    if request.method != "GET":
+        return JsonResponse({"error": _("Method not allowed")}, status=405)
+
+    video = _query_user_video(video_id, request.user)
+
+    return JsonResponse(
+        {
+            "status": video.status,
+            "status_display": str(video.get_status_display()),
+            "progress": video.progress,
+            "error_type_display": (
+                str(video.get_error_type_display()) if video.error_type else ""
+            ),
+            "error_details": video.error_details or "",
+        }
+    )
+
+
 @login_required(login_url="/admin/login/")
 def render_video(request, video_id):
     """

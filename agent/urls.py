@@ -18,6 +18,11 @@ urlpatterns = [
     ),
     path("videos/<int:video_id>/", views.video_detail, name="video_detail"),
     path(
+        "videos/<int:video_id>/status/",
+        views.video_status,
+        name="video_status",
+    ),
+    path(
         "videos/<int:video_id>/set-voice-model/",
         views.set_video_voice_model,
         name="set_video_voice_model",

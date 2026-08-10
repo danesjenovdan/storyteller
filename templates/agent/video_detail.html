@@ -194,8 +194,11 @@
                         </p>
                     </div>
                     <div class="col-md-6 text-end">
-                        {% if video.status == 'GENERATING_VOICE' or video.status == 'GENERATING_SUBTITLES' or video.status == 'GENERATING_SEGMENTS' or video.status == 'RENDERING' or video.status == 'PROCESSING' %}
-                            <div class="text-muted">{% trans "Generiranje ..." %} {{ video.progress }}</div>
+                        <div id="videoStatusContent">
+                        {% if video.status == 'GENERATING_SCENARIO' or video.status == 'GENERATING_SCRIPT' or video.status == 'GENERATING_VOICE' or video.status == 'GENERATING_SUBTITLES' or video.status == 'SUBTITLES_READY' or video.status == 'GENERATING_SEGMENTS' or video.status == 'RENDERING' or video.status == 'PROCESSING' %}
+                            <div class="text-muted">
+                                <span id="videoStatusDisplay">{{ video.get_status_display }}</span><span id="videoProgress">{% if video.progress %} - {{ video.progress }}{% endif %}</span>
+                            </div>
                             <div class="spinner-border text-primary me-2" role="status" style="width: 1.5rem; height: 1.5rem;"></div>
                         {% elif completed_segments == total_segments and total_segments > 0 and video.voice_file %}
                             <form method="post" action="{% url 'render_video' video.id %}" style="margin: 0;" onsubmit="return onGenerateSubmit(this);">
@@ -228,6 +231,7 @@
                                 {% trans "segmentov ima izbran video klip" %}
                             </div>
                         {% endif %}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -716,9 +720,19 @@
             return true;
         }
 
-        // Auto-reload page every 15 seconds if video is being processed
+        // Poll active video tasks and reload once they reach a stable state.
         const videoStatus = '{{ video.status }}';
-        const processingStatuses = ['GENERATING_VOICE', 'GENERATING_SUBTITLES', 'GENERATING_SEGMENTS', 'RENDERING', 'SUBTITLES_READY'];
+        const processingStatuses = [
+            'GENERATING_SCENARIO',
+            'GENERATING_SCRIPT',
+            'GENERATING_VOICE',
+            'GENERATING_SUBTITLES',
+            'SUBTITLES_READY',
+            'GENERATING_SEGMENTS',
+            'RENDERING',
+            'PROCESSING'
+        ];
+        const videoStatusUrl = '{% url "video_status" video.id %}';
         const ttsProvider = '{{ tts_provider }}';
         const voiceModelSaveUrl = '{% url "set_video_voice_model" video.id %}';
         const voiceSampleUrl = '{% url "elevenlabs_voice_sample_audio" video.id %}';
@@ -1343,10 +1357,71 @@
             });
         });
 
+        function updateVideoStatusDisplay(statusData) {
+            const statusDisplay = document.getElementById('videoStatusDisplay');
+            const progress = document.getElementById('videoProgress');
+
+            if (statusDisplay) {
+                statusDisplay.textContent = statusData.status_display;
+            }
+            if (progress) {
+                progress.textContent = statusData.progress ? ` - ${statusData.progress}` : '';
+            }
+        }
+
+        function startVideoStatusPolling() {
+            const pollDelays = [1000, 2000, 4000];
+            let pollCount = 0;
+            let pollInFlight = false;
+            let pollingStopped = false;
+
+            function scheduleNextPoll() {
+                if (pollingStopped) {
+                    return;
+                }
+
+                const delay = pollDelays[Math.min(pollCount, pollDelays.length - 1)];
+                pollCount += 1;
+                window.setTimeout(checkVideoStatus, delay);
+            }
+
+            async function checkVideoStatus() {
+                if (pollingStopped || pollInFlight) {
+                    return;
+                }
+
+                pollInFlight = true;
+                try {
+                    const response = await fetch(videoStatusUrl, {
+                        credentials: 'same-origin',
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    const statusData = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(statusData.error || 'Unable to load video status');
+                    }
+
+                    if (!processingStatuses.includes(statusData.status)) {
+                        pollingStopped = true;
+                        window.location.reload();
+                        return;
+                    }
+
+                    updateVideoStatusDisplay(statusData);
+                } catch (error) {
+                    console.error('Error checking video status:', error);
+                } finally {
+                    pollInFlight = false;
+                    scheduleNextPoll();
+                }
+            }
+
+            scheduleNextPoll();
+        }
+
         if (processingStatuses.includes(videoStatus)) {
-            setTimeout(function() {
-                location.reload();
-            }, 15000); // 15 seconds
+            startVideoStatusPolling();
         }
     </script>
 {% endblock %}

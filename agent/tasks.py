@@ -180,6 +180,9 @@ def regenerate_elevenlabs_srt_file(video_id: int) -> None:
         if video.segments.exists():
             if has_video_selected_segments(video):
                 render_final_video(video.id)
+            else:
+                video.status = GenVideo.Statuses.SEGMENTS_READY
+                video.save()
         else:
             get_video_segments(video.id)
     except Exception as e:
