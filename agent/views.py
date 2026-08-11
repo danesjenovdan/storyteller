@@ -44,6 +44,12 @@ from .models import (
 # Create your views here.
 
 
+def _query_user_video(video_id, user):
+    if user.is_superuser:
+        return get_object_or_404(GenVideo, id=video_id)
+    return get_object_or_404(GenVideo, id=video_id, user=user)
+
+
 def ajax_login_required(view_func):
     """
     Decorator for AJAX views that returns JSON error instead of redirect when not authenticated.
@@ -351,18 +357,18 @@ def video_create(request):
                 video.status = GenVideo.Statuses.GENERATING_VOICE
                 video.save()
                 if tts_provider == "elevenlabs":
-                    generate_voice_file_eleven_labs(video)
+                    generate_voice_file_eleven_labs(video.id)
                 elif tts_provider == "openai":
-                    generate_voice_file_openai(video)
+                    generate_voice_file_openai(video.id)
                 elif tts_provider == "gemini":
-                    generate_voice_file_gemini(video)
+                    generate_voice_file_gemini(video.id)
                 return redirect("video_detail", video_id=video.id)
             elif video.voice_file:
                 with get_temporary_file_path(video.voice_file) as temp_audio_path:
                     duration = get_audio_duration(temp_audio_path)
                     video.voice_duration = duration
                     video.save()
-                generate_srt_file(video)
+                generate_srt_file(video.id)
                 return redirect("video_detail", video_id=video.id)
             else:
                 messages.success(request, _("Video mora vsebovati scenario!"))
@@ -819,7 +825,7 @@ def update_video_scenario(request, video_id):
     if not scenario:
         return JsonResponse({"error": _("Scenario is required")}, status=400)
 
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    video = _query_user_video(video_id, request.user)
     if not video.voice_model:
         return JsonResponse({"error": _("Voice model is required")}, status=400)
 
@@ -839,16 +845,20 @@ def update_video_scenario(request, video_id):
         video.error_type = None
         video.error_details = ""
         video.progress = ""
+        video.recovery_attempts = 0
+        video.last_recovery_at = None
+        video.recovery_claimed_at = None
         video.save()
         video.segments.all().delete()
 
+        video_id = video.id
         tts_provider = django_settings.TTS_PROVIDER
         if tts_provider == "elevenlabs":
-            transaction.on_commit(lambda: generate_voice_file_eleven_labs(video))
+            transaction.on_commit(lambda: generate_voice_file_eleven_labs(video_id))
         elif tts_provider == "gemini":
-            transaction.on_commit(lambda: generate_voice_file_gemini(video))
+            transaction.on_commit(lambda: generate_voice_file_gemini(video_id))
         else:
-            transaction.on_commit(lambda: generate_voice_file_openai(video))
+            transaction.on_commit(lambda: generate_voice_file_openai(video_id))
 
     return JsonResponse(
         {
@@ -872,7 +882,7 @@ def video_detail(request, video_id):
     - All VideoSentences with their video clips
     - Final rendered video (if available)
     """
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    video = _query_user_video(video_id, request.user)
     tts_provider = django_settings.TTS_PROVIDER
     voice_models = get_voice_models_for_provider(tts_provider)
 
@@ -904,6 +914,27 @@ def video_detail(request, video_id):
     return render(request, "agent/video_detail.html", context)
 
 
+@ajax_login_required
+def video_status(request, video_id):
+    """Return the current display status for a video-detail polling request."""
+    if request.method != "GET":
+        return JsonResponse({"error": _("Method not allowed")}, status=405)
+
+    video = _query_user_video(video_id, request.user)
+
+    return JsonResponse(
+        {
+            "status": video.status,
+            "status_display": str(video.get_status_display()),
+            "progress": video.progress,
+            "error_type_display": (
+                str(video.get_error_type_display()) if video.error_type else ""
+            ),
+            "error_details": video.error_details or "",
+        }
+    )
+
+
 @login_required(login_url="/admin/login/")
 def render_video(request, video_id):
     """
@@ -913,7 +944,7 @@ def render_video(request, video_id):
     if request.method != "POST":
         return redirect("video_detail", video_id=video_id)
 
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    video = _query_user_video(video_id, request.user)
 
     # Validate that all segments have video URLs selected
     segments = video.segments.all()
@@ -944,8 +975,12 @@ def render_video(request, video_id):
         )
         return redirect("video_detail", video_id=video_id)
 
-    # Trigger rendering task
-    render_final_video(video)
+    video.status = GenVideo.Statuses.RENDERING
+    video.recovery_attempts = 0
+    video.last_recovery_at = None
+    video.recovery_claimed_at = None
+    video.save()
+    render_final_video(video.id)
 
     messages.success(
         request, _("Renderiranje videa se je začelo! To lahko traja nekaj minut.")
@@ -964,7 +999,7 @@ def generate_voice(request, video_id):
     if request.method != "POST":
         return redirect("video_detail", video_id=video_id)
 
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    video = _query_user_video(video_id, request.user)
 
     if not video.scenario:
         messages.error(
@@ -983,14 +1018,19 @@ def generate_voice(request, video_id):
 
     # Get TTS provider from settings
     tts_provider = django_settings.TTS_PROVIDER
+    video.status = GenVideo.Statuses.GENERATING_VOICE
+    video.recovery_attempts = 0
+    video.last_recovery_at = None
+    video.recovery_claimed_at = None
+    video.save()
 
     # Trigger voice generation based on provider
     if tts_provider == "elevenlabs":
-        generate_voice_file_eleven_labs(video)
+        generate_voice_file_eleven_labs(video.id)
     elif tts_provider == "gemini":
-        generate_voice_file_gemini(video)
+        generate_voice_file_gemini(video.id)
     else:  # openai
-        generate_voice_file_openai(video)
+        generate_voice_file_openai(video.id)
 
     messages.success(
         request,
@@ -1008,7 +1048,7 @@ def set_video_voice_model(request, video_id):
     if request.method != "POST":
         return JsonResponse({"error": _("Method not allowed")}, status=405)
 
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    video = _query_user_video(video_id, request.user)
     tts_provider = django_settings.TTS_PROVIDER
     voice_models = get_voice_models_for_provider(tts_provider)
     allowed_voice_models = {value for value, _ in voice_models if value}
@@ -1043,7 +1083,7 @@ def elevenlabs_voice_sample_audio(request, video_id):
     if request.method != "GET":
         return JsonResponse({"error": _("Method not allowed")}, status=405)
 
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    video = _query_user_video(video_id, request.user)
 
     if django_settings.TTS_PROVIDER != "elevenlabs":
         return JsonResponse(
@@ -1268,7 +1308,7 @@ def regenerate_segments(request, video_id):
     if request.method != "POST":
         return redirect("video_detail", video_id=video_id)
 
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    video = _query_user_video(video_id, request.user)
 
     if not video.scenario:
         messages.error(
@@ -1278,9 +1318,14 @@ def regenerate_segments(request, video_id):
 
     # Delete existing segments
     video.segments.all().delete()
+    video.status = GenVideo.Statuses.GENERATING_SEGMENTS
+    video.recovery_attempts = 0
+    video.last_recovery_at = None
+    video.recovery_claimed_at = None
+    video.save()
 
     # Trigger segment generation task
-    get_video_segments(video)
+    get_video_segments(video.id)
 
     messages.success(request, _("Segmenti se ponovno generirajo..."))
     return redirect("video_detail", video_id=video_id)
@@ -1299,7 +1344,7 @@ def regenerate_srt(request, video_id):
     if request.method != "POST":
         return redirect("video_detail", video_id=video_id)
 
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    video = _query_user_video(video_id, request.user)
 
     if not video.voice_file:
         messages.error(
@@ -1312,16 +1357,19 @@ def regenerate_srt(request, video_id):
         video.srt_file.delete()
     video.srt_content = ""
     video.status = GenVideo.Statuses.GENERATING_SUBTITLES
+    video.recovery_attempts = 0
+    video.last_recovery_at = None
+    video.recovery_claimed_at = None
     video.save()
 
     # ElevenLabs videos retain character-level timings, so subtitle layout can be
     # regenerated locally when settings such as words per screen change.
     if video.elevenlabs_alignment:
-        regenerate_elevenlabs_srt_file(video)
+        regenerate_elevenlabs_srt_file(video.id)
     elif django_settings.TTS_PROVIDER == "elevenlabs" and video.scenario:
-        generate_voice_file_eleven_labs(video)
+        generate_voice_file_eleven_labs(video.id)
     else:
-        generate_srt_file(video)
+        generate_srt_file(video.id)
 
     if django_settings.TTS_PROVIDER == "elevenlabs" and not video.elevenlabs_alignment:
         messages.success(
@@ -1349,7 +1397,7 @@ def set_subtitle_style(request, video_id):
     if request.method != "POST":
         return JsonResponse({"error": _("Method not allowed")}, status=405)
 
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    video = _query_user_video(video_id, request.user)
 
     try:
         data = json.loads(request.body)
@@ -1400,7 +1448,7 @@ def upload_logo(request, video_id):
     """
     Upload a new logo for the current user and optionally select it for this video.
     """
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    video = _query_user_video(video_id, request.user)
 
     if request.method != "POST":
         return JsonResponse({"error": _("Method not allowed")}, status=405)
@@ -1440,7 +1488,7 @@ def set_video_logo(request, video_id):
     """
     import json
 
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    video = _query_user_video(video_id, request.user)
 
     if request.method != "POST":
         return JsonResponse({"error": _("Method not allowed")}, status=405)
@@ -1476,7 +1524,7 @@ def set_logo_settings(request, video_id):
     """
     import json
 
-    video = get_object_or_404(GenVideo, id=video_id, user=request.user)
+    video = _query_user_video(video_id, request.user)
 
     if request.method != "POST":
         return JsonResponse({"error": _("Method not allowed")}, status=405)

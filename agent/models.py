@@ -33,6 +33,7 @@ class GenVideo(models.Model):
         )
         RENDERING = "RENDERING", _("Napaka pri renderiranju videa")
         TIMEOUT = "TIMEOUT", _("Timeout pri renderiranju videa")
+        RECOVERY = "RECOVERY", _("Samodejna obnovitev prekinjenega opravila")
 
     class LogoPositions(models.TextChoices):
         TOP_LEFT = "top_left", _("Zgoraj levo")
@@ -126,6 +127,20 @@ class GenVideo(models.Model):
         max_length=255,
         default="",
         help_text="Optional field to store progress details for long-running tasks",
+    )
+    recovery_attempts = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Automatic restart recovery attempts for interrupted processing",
+    )
+    last_recovery_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When interrupted processing was last scheduled for recovery",
+    )
+    recovery_claimed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Temporary lease that prevents duplicate recovery scheduling",
     )
     logo = models.ForeignKey(
         "UsersLogo",

@@ -19,7 +19,11 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 
 from agent.models import GenVideo
-from agent.utils import get_temporary_file, get_temporary_file_path
+from agent.utils import (
+    get_selected_segments,
+    get_temporary_file,
+    get_temporary_file_path,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -102,17 +106,7 @@ class FinalVideoRenderer:
     # ------------------------------------------------------------------
 
     def _get_selected_segments(self):
-        segments = self.video.segments.filter(
-            video_proposals__0__selected=True
-        ).order_by("order")
-
-        if not segments.exists():
-            raise ValueError(f"Video {self.video} has no segments with selected videos")
-
-        if not self.video.voice_file:
-            raise ValueError(f"Video {self.video} has no voice file")
-
-        return segments
+        return get_selected_segments(self.video)
 
     def _prepare_clips(self, segments, temp_path: Path) -> list[Path]:
         total = segments.count()

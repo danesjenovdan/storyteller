@@ -14,6 +14,7 @@ spec:
       labels:
         app: storyteller
     spec:
+      terminationGracePeriodSeconds: 120
       volumes:
         - name: storyteller-storage
           emptyDir: {}
@@ -96,17 +97,27 @@ spec:
           volumeMounts:
             - name: storyteller-storage
               mountPath: /storage
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - kill -TERM 1; sleep "${HUEY_DRAIN_SECONDS:-30}"
           command:
-            - "python"
-            - "manage.py"
-            - "run_huey"
-            - "--workers"
-            - "1"
-            - "--worker-type"
-            - "thread"
+            - /bin/sh
+            - -c
+            - >-
+              python manage.py recover_stuck_videos
+              --stale-minutes "${HUEY_RECOVERY_STARTUP_STALE_MINUTES:-0}" &&
+              exec python manage.py run_huey --workers 1 --worker-type thread
           env:
             - name: DJANGO_STATIC_ROOT
               value: '/storage/static'
+            - name: HUEY_DRAIN_SECONDS
+              value: "30"
+            - name: HUEY_RECOVERY_STARTUP_STALE_MINUTES
+              value: "0"
           envFrom:
             - secretRef:
                 name: storyteller-credentials

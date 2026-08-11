@@ -207,3 +207,32 @@ def ensure_google_api_key():
 
     if not os.environ.get("GOOGLE_API_KEY"):
         raise ValueError("GOOGLE_API_KEY is not configured in settings")
+
+
+def get_selected_segments(video):
+    segments = video.segments.filter(video_proposals__0__selected=True).order_by(
+        "order"
+    )
+
+    if not segments.exists():
+        raise ValueError(f"Video {video} has no segments with selected videos")
+
+    if not video.voice_file:
+        raise ValueError(f"Video {video} has no voice file")
+
+    return segments
+
+
+def has_video_selected_segments(video):
+    """
+    Check if a video has any segments with selected videos.
+
+    Args:
+        video: Video instance
+    Returns:
+
+    """
+    segments = video.segments.filter(video_proposals__0__selected=True).order_by(
+        "order"
+    )
+    return segments.exists()

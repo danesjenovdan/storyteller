@@ -9,6 +9,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.core.files.base import ContentFile
+from django.utils import timezone
 from django.utils.translation import gettext as _
 from elevenlabs import VoiceSettings
 from elevenlabs.client import ElevenLabs
@@ -21,9 +22,15 @@ from langchain_core.messages import HumanMessage
 from openai import OpenAI
 
 from agent.models import GenVideo, TipkoRequest, VideoSegment
+from agent.recovery import reset_recovery_state
 from agent.task_utils.tipko_source import Api
 from agent.task_utils.video_rendering import FFmpegTimeoutError, FinalVideoRenderer
-from agent.utils import ensure_google_api_key, get_temporary_file_path
+from agent.utils import (
+    ensure_google_api_key,
+    get_selected_segments,
+    get_temporary_file_path,
+    has_video_selected_segments,
+)
 
 # Configure logging for Huey tasks
 logger = logging.getLogger(__name__)
@@ -132,6 +139,7 @@ def generate_srt_from_elevenlabs_alignment(
 def save_elevenlabs_srt_file(video: GenVideo, alignment) -> None:
     """Save SRT subtitles derived from the alignment returned by ElevenLabs TTS."""
     video.status = GenVideo.Statuses.GENERATING_SUBTITLES
+    video.elevenlabs_alignment = alignment
     video.save(update_fields=["status", "updated_at"])
 
     srt_content = generate_srt_from_elevenlabs_alignment(
@@ -151,6 +159,7 @@ def save_elevenlabs_srt_file(video: GenVideo, alignment) -> None:
     )
     video.status = GenVideo.Statuses.SUBTITLES_READY
     video.save()
+    reset_recovery_state(video.id)
     logger.info(
         "SRT subtitles generated from ElevenLabs alignment for video %s: %s",
         video.id,
@@ -159,25 +168,61 @@ def save_elevenlabs_srt_file(video: GenVideo, alignment) -> None:
 
 
 @db_task()
-def regenerate_elevenlabs_srt_file(video: GenVideo) -> None:
+def regenerate_elevenlabs_srt_file(video_id: int) -> None:
     """Regenerate only SRT subtitles from a saved ElevenLabs alignment."""
     try:
+        video = GenVideo.objects.get(id=video_id)
+        video.recovery_claimed_at = None
+        video.save(update_fields=["recovery_claimed_at", "updated_at"])
         if not video.elevenlabs_alignment:
             raise ValueError("Video has no saved ElevenLabs alignment data")
         save_elevenlabs_srt_file(video, video.elevenlabs_alignment)
-        render_final_video(video)
+        if video.segments.exists():
+            if has_video_selected_segments(video):
+                render_final_video(video.id)
+            else:
+                video.status = GenVideo.Statuses.SEGMENTS_READY
+                video.save()
+        else:
+            get_video_segments(video.id)
     except Exception as e:
         logger.error(
             "Error regenerating ElevenLabs SRT file for video %s: %s",
-            video.id,
+            video_id,
             e,
         )
-        video.status = GenVideo.Statuses.FAILED
-        video.error_type = GenVideo.ErrorTypes.SRT_GENERATION
-        video.error_details = _(
-            "Napaka pri ustvarjanju podnapisov (ElevenLabs): %(error)s"
-        ) % {"error": str(e)}
-        video.save()
+        GenVideo.objects.filter(id=video_id).update(
+            status=GenVideo.Statuses.FAILED,
+            error_type=GenVideo.ErrorTypes.SRT_GENERATION,
+            error_details=_("Napaka pri ustvarjanju podnapisov (ElevenLabs): %(error)s")
+            % {"error": str(e)},
+        )
+        raise
+
+
+@db_task()
+def continue_elevenlabs_pipeline(video_id: int) -> None:
+    """Regenerate ElevenLabs subtitles and advance the initial pipeline."""
+    try:
+        video = GenVideo.objects.get(id=video_id)
+        video.recovery_claimed_at = None
+        video.save(update_fields=["recovery_claimed_at", "updated_at"])
+        if not video.elevenlabs_alignment:
+            raise ValueError("Video has no saved ElevenLabs alignment data")
+        save_elevenlabs_srt_file(video, video.elevenlabs_alignment)
+        video.status = GenVideo.Statuses.GENERATING_SEGMENTS
+        video.save(update_fields=["status", "updated_at"])
+        get_video_segments(video.id)
+    except Exception as e:
+        logger.error(
+            "Error continuing ElevenLabs pipeline for video %s: %s", video_id, e
+        )
+        GenVideo.objects.filter(id=video_id).update(
+            status=GenVideo.Statuses.FAILED,
+            error_type=GenVideo.ErrorTypes.SRT_GENERATION,
+            error_details=_("Napaka pri ustvarjanju podnapisov (ElevenLabs): %(error)s")
+            % {"error": str(e)},
+        )
         raise
 
 
@@ -344,16 +389,18 @@ def validate_srt_content(srt_content: str, video: GenVideo) -> tuple[bool, str]:
 
 
 @db_task()
-def generate_voice_file_eleven_labs(video: int) -> None:
+def generate_voice_file_eleven_labs(video_id: int) -> None:
     """
     Generate voice file from scenario using ElevenLabs SDK.
 
     Args:
-        video.id: ID of the GenVideo instance
+        video_id: ID of the GenVideo instance
     """
     try:
+        video = GenVideo.objects.get(id=video_id)
         logger.info(f"ELEVENLABS TTS")
         video.status = GenVideo.Statuses.GENERATING_VOICE
+        video.recovery_claimed_at = None
         video.save()
 
         video.segments.all().delete()  # Clear existing segments if any
@@ -441,15 +488,16 @@ def generate_voice_file_eleven_labs(video: int) -> None:
             "character_start_times_seconds": alignment.character_start_times_seconds,
             "character_end_times_seconds": alignment.character_end_times_seconds,
         }
-        save_elevenlabs_srt_file(video, alignment)
-        get_video_segments(video)
+        video.status = GenVideo.Statuses.GENERATING_SUBTITLES
+        video.save()
+        continue_elevenlabs_pipeline(video.id)
 
     except GenVideo.DoesNotExist:
-        logger.error(f"Video with id {video.id} does not exist")
+        logger.error(f"Video with id {video_id} does not exist")
         raise
     except Exception as e:
-        logger.error(f"✗ Error generating voice file for video {video.id}: {str(e)}")
-        video = GenVideo.objects.get(id=video.id)
+        logger.error(f"✗ Error generating voice file for video {video_id}: {str(e)}")
+        video = GenVideo.objects.get(id=video_id)
         video.status = GenVideo.Statuses.FAILED
         if video.voice_file:
             video.error_type = GenVideo.ErrorTypes.SRT_GENERATION
@@ -466,17 +514,19 @@ def generate_voice_file_eleven_labs(video: int) -> None:
 
 
 @db_task()
-def generate_voice_file_openai(video: int) -> None:
+def generate_voice_file_openai(video_id: int) -> None:
     """
     Generate voice file from scenario using OpenAI TTS API.
     Much cheaper than ElevenLabs - ~$0.015 per 1000 characters.
 
     Args:
-        video.id: ID of the GenVideo instance
+        video_id: ID of the GenVideo instance
     """
     try:
+        video = GenVideo.objects.get(id=video_id)
         logger.info(f"OPENAI TTS")
         video.status = GenVideo.Statuses.GENERATING_VOICE
+        video.recovery_claimed_at = None
         video.save()
 
         if not video.scenario:
@@ -516,7 +566,6 @@ def generate_voice_file_openai(video: int) -> None:
         filename = f"voice_{video.id}.mp3"
         video.voice_file.save(filename, ContentFile(response.content), save=False)
 
-        # Update video status
         video.status = GenVideo.Statuses.VOICE_READY
         video.save()
 
@@ -525,11 +574,11 @@ def generate_voice_file_openai(video: int) -> None:
         )
 
     except GenVideo.DoesNotExist:
-        logger.error(f"Video with id {video.id} does not exist")
+        logger.error(f"Video with id {video_id} does not exist")
         raise
     except Exception as e:
-        logger.error(f"✗ Error generating voice file for video {video.id}: {str(e)}")
-        video = GenVideo.objects.get(id=video.id)
+        logger.error(f"✗ Error generating voice file for video {video_id}: {str(e)}")
+        video = GenVideo.objects.get(id=video_id)
         video.status = GenVideo.Statuses.FAILED
         video.error_type = GenVideo.ErrorTypes.VOICE_GENERATION
         video.error_details = _(
@@ -573,21 +622,23 @@ def get_audio_duration(audio_file_path):
 
 
 @db_task()
-def generate_voice_file_gemini(video: int) -> None:
+def generate_voice_file_gemini(video_id: int) -> None:
     """
     Generate voice file from scenario using Google Gemini Audio Generation via LangChain.
     Part of Google AI services - uses same API key as Gemini.
     Free tier available with Gemini API!
 
     Args:
-        video.id: ID of the GenVideo instance
+        video_id: ID of the GenVideo instance
     """
     try:
         from langchain_google_genai import ChatGoogleGenerativeAI
 
+        video = GenVideo.objects.get(id=video_id)
         logger.info(f"GEMINI TTS")
 
         video.status = GenVideo.Statuses.GENERATING_VOICE
+        video.recovery_claimed_at = None
         video.save()
 
         if not video.scenario:
@@ -685,8 +736,7 @@ def generate_voice_file_gemini(video: int) -> None:
             except Exception as e:
                 logger.warning(f"Could not get audio duration: {e}")
 
-            # Update video status
-            video.status = GenVideo.Statuses.VOICE_READY
+            video.status = GenVideo.Statuses.GENERATING_SUBTITLES
             video.save()
 
             logger.info(
@@ -694,28 +744,30 @@ def generate_voice_file_gemini(video: int) -> None:
             )
 
             # Automatically generate SRT file
-            generate_srt_file(video)
+            generate_srt_file(video.id)
         else:
             logger.error(f"Response content: {response}")
             raise ValueError(_("V odgovoru ni zvočnih podatkov"))
 
     except GenVideo.DoesNotExist:
-        logger.error(f"Video with id {video.id} does not exist")
+        logger.error(f"Video with id {video_id} does not exist")
         raise
     except Exception as e:
-        logger.error(f"✗ Error generating voice file for video {video.id}: {str(e)}")
-        video = GenVideo.objects.get(id=video.id)
+        logger.error(f"✗ Error generating voice file for video {video_id}: {str(e)}")
+        video = GenVideo.objects.get(id=video_id)
         video.status = GenVideo.Statuses.FAILED
         video.save()
         raise
 
 
 @db_task()
-def get_video_segments(video_instance: GenVideo) -> None:
+def get_video_segments(video_id: int) -> None:
     try:
+        video_instance = GenVideo.objects.get(id=video_id)
         ensure_google_api_key()
 
         video_instance.status = GenVideo.Statuses.GENERATING_SEGMENTS
+        video_instance.recovery_claimed_at = None
         video_instance.save()
 
         video_instance.segments.all().delete()  # Clear existing segments if any
@@ -806,37 +858,38 @@ def get_video_segments(video_instance: GenVideo) -> None:
 
         video_instance.status = GenVideo.Statuses.SEGMENTS_READY
         video_instance.save()
+        reset_recovery_state(video_instance.id)
 
     except Exception as e:
-        logger.error(
-            f"✗ Error generating segments for video {video_instance.id}: {str(e)}"
+        logger.error(f"✗ Error generating segments for video {video_id}: {str(e)}")
+        GenVideo.objects.filter(id=video_id).update(
+            status=GenVideo.Statuses.FAILED,
+            error_type=GenVideo.ErrorTypes.SEGMENTS_GENERATION,
+            error_details=_("Napaka pri generiranju segmentov: %(error)s")
+            % {"error": str(e)},
         )
-        video_instance.status = GenVideo.Statuses.FAILED
-        video_instance.error_type = GenVideo.ErrorTypes.SEGMENTS_GENERATION
-        video_instance.error_details = _(
-            "Napaka pri generiranju segmentov: %(error)s"
-        ) % {"error": str(e)}
-        video_instance.save()
         raise
 
 
 @db_task()
-def generate_srt_file(video: GenVideo) -> None:
+def generate_srt_file(video_id: int) -> None:
     """
-    Generate SRT subtitle file from audio file with gemini,
+    Generate SRT subtitle file from audio file with default SRT model,
 
     Args:
-        video: GenVideo instance
+        video_id: ID of the GenVideo instance
     """
     try:
+        video = GenVideo.objects.get(id=video_id)
         video.status = GenVideo.Statuses.GENERATING_SUBTITLES
+        video.recovery_claimed_at = None
         video.save()
 
         if not video.voice_file:
             raise ValueError(f"Video {video.id} has no voice_file to generate SRT from")
 
         if video.language == "sl":
-            request_transcription(video)
+            request_transcription(video.id)
 
         else:
             client = genai.Client()
@@ -898,25 +951,28 @@ def generate_srt_file(video: GenVideo) -> None:
             video.srt_file.save(filename, ContentFile(srt_content), save=False)
             video.status = GenVideo.Statuses.SUBTITLES_READY
             video.save()
+            reset_recovery_state(video.id)
 
             logger.info(f"✓ SRT file generated for video {video.id}: {filename}")
 
             # Automatically generate video segments if video has none
-            get_video_segments(video)
+            video.status = GenVideo.Statuses.GENERATING_SEGMENTS
+            video.save(update_fields=["status", "updated_at"])
+            get_video_segments(video.id)
 
     except Exception as e:
-        logger.error(f"✗ Error generating SRT file for video {video.id}: {str(e)}")
-        video.status = GenVideo.Statuses.FAILED
-        video.error_type = GenVideo.ErrorTypes.SRT_GENERATION
-        video.error_details = _("Napaka pri generiranju SRT datoteke: %(error)s") % {
-            "error": str(e)
-        }
-        video.save()
+        logger.error(f"✗ Error generating SRT file for video {video_id}: {str(e)}")
+        GenVideo.objects.filter(id=video_id).update(
+            status=GenVideo.Statuses.FAILED,
+            error_type=GenVideo.ErrorTypes.SRT_GENERATION,
+            error_details=_("Napaka pri generiranju SRT datoteke: %(error)s")
+            % {"error": str(e)},
+        )
         # raise
 
 
 @db_task()
-def render_final_video(video: GenVideo) -> None:
+def render_final_video(video_id: int) -> None:
     """
     Combine all VideoSegment clips with ffmpeg, add audio and subtitles.
 
@@ -929,10 +985,14 @@ def render_final_video(video: GenVideo) -> None:
     6. Save to GenVideo.final_file
 
     Args:
-        video: GenVideo instance
+        video_id: ID of the GenVideo instance
     """
     try:
+        video = GenVideo.objects.get(id=video_id)
+        video.recovery_claimed_at = timezone.now()
+        video.save(update_fields=["recovery_claimed_at", "updated_at"])
         FinalVideoRenderer(video).render()
+        reset_recovery_state(video.id)
     except FFmpegTimeoutError as e:
         logger.error(f"Error rendering video {video}: {str(e)}")
         video.status = GenVideo.Statuses.FAILED
@@ -952,7 +1012,10 @@ def render_final_video(video: GenVideo) -> None:
 
 
 @db_task()
-def request_transcription(video: GenVideo) -> None:
+def request_transcription(video_id: int) -> None:
+    video = GenVideo.objects.get(id=video_id)
+    video.recovery_claimed_at = None
+    video.save(update_fields=["recovery_claimed_at", "updated_at"])
     # if there's no sound file, eject
     if video.voice_file is None:
         raise ValueError("Can't transcribe without a sound file.")
@@ -964,40 +1027,87 @@ def request_transcription(video: GenVideo) -> None:
         logger.info("File successfully uploaded.")
 
 
-# @db_periodic_task(crontab(minute="*/1"))
-# def check_status_and_download_transcription() -> None:
-#     waiting_tipkos = TipkoRequest.objects.filter(
-#         tipko_task_id__isnull=False,
-#         status="PENDING",
-#     )
+@db_periodic_task(crontab(minute="*/5"))
+def recover_interrupted_videos() -> None:
+    """Periodically requeue video work interrupted after the worker started."""
+    if getattr(settings, "HUEY_RECOVERY_ENABLED", True):
+        from agent.recovery import recover_stuck_videos
 
-#     for tipko_instance in waiting_tipkos:
-#         status_response = tipko_api.get_status(tipko_instance.tipko_task_id)
-#         logger.info(
-#             f"Checking status for {tipko_instance.id}: {status_response['status']}"
-#         )
-#         if status_response["status"] == "done":
-#             logger.info(f"checking transcription for {tipko_instance.id}")
-#             srt_response = tipko_api.get_transcription_file(
-#                 tipko_instance.tipko_task_id
-#             )
-#             if srt_response.status_code != 200:
-#                 logger.error(
-#                     f"Failed to download transcription for {tipko_instance.id}: {srt_response.status_code}"
-#                 )
-#                 continue
-#             srt_content = srt_response.content.decode("utf-8")
-#             video = tipko_instance.video
-#             video.srt_content = srt_content
-#             video.save()
-#             filename = f"transcript_{tipko_instance.tipko_task_id}.srt"
-#             video.srt_file.save(
-#                 filename,
-#                 ContentFile(srt_content),
-#                 save=False,
-#             )
-#             tipko_instance.status = "DONE"
-#             tipko_instance.save()
-#             logger.info("Transcription downloaded and saved.")
-#             # Automatically generate video segments if video has none
-#             get_video_segments(video)
+        recover_stuck_videos()
+
+
+@db_periodic_task(crontab(minute="*/1"))
+def check_status_and_download_transcription() -> None:
+    waiting_tipkos = TipkoRequest.objects.filter(
+        tipko_task_id__isnull=False,
+        status="PENDING",
+    )
+
+    for tipko_instance in waiting_tipkos:
+        status_response = tipko_api.get_status(tipko_instance.tipko_task_id)
+        logger.info(
+            f"Checking status for {tipko_instance.id}: {status_response['status']}"
+        )
+        if status_response["status"] == "done":
+            video = tipko_instance.video
+            logger.info(f"checking transcription for {tipko_instance.id}")
+            char_offsets = tipko_to_elvenlabs_char_offset_obj(
+                status_response, video.voice_duration
+            )
+            save_elevenlabs_srt_file(video, char_offsets)
+
+            # srt_response = tipko_api.get_transcription_file(
+            #     tipko_instance.tipko_task_id
+            # )
+            # if srt_response.status_code != 200:
+            #     logger.error(
+            #         f"Failed to download transcription for {tipko_instance.id}: {srt_response.status_code}"
+            #     )
+            #     continue
+            # srt_content = srt_response.content.decode("utf-8")
+            # video = tipko_instance.video
+            # video.srt_content = srt_content
+            # video.save()
+            # filename = f"transcript_{tipko_instance.tipko_task_id}.srt"
+            # video.srt_file.save(
+            #     filename,
+            #     ContentFile(srt_content),
+            #     save=False,
+            # )
+            tipko_instance.status = "DONE"
+            tipko_instance.save()
+            logger.info("Transcription downloaded and saved.")
+            # Automatically generate video segments if video has none
+            get_video_segments(video.id)
+
+
+def tipko_to_elvenlabs_char_offset_obj(
+    status_response: dict, video_duration: float
+) -> dict:
+    """
+    Convert Tipko character offset response to ElevenLabs character offset format.
+
+    Args:
+        response: Tipko API response containing character offsets
+
+    Returns:
+        dict: Converted character offset data in ElevenLabs format
+    """
+    if "segments" not in status_response:
+        raise ValueError("Tipko response missing 'segments' key")
+
+    segments = status_response["segments"]
+    characters = [char for segment in segments for char in segment["text"]]
+    character_start_times_seconds = [
+        t / 1000 for segment in segments for t in segment["offsets_ms"]
+    ]
+    character_end_times_seconds = character_start_times_seconds[1:]
+    character_end_times_seconds.append(
+        round(video_duration, 2)
+    )  # cast duration to float with 2 decimal places
+
+    return {
+        "characters": characters,
+        "character_start_times_seconds": character_start_times_seconds,
+        "character_end_times_seconds": character_end_times_seconds,
+    }

@@ -1,14 +1,17 @@
 import json
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from .content_apis.pexels import _pick_preferred_video_file
 from .content_apis.pixabay import _pick_video_variant
 from .models import GenVideo, VideoSegment
-from .tasks import generate_srt_from_elevenlabs_alignment
+from .recovery import recover_stuck_videos
+from .tasks import generate_srt_from_elevenlabs_alignment, save_elevenlabs_srt_file
 
 
 class ElevenLabsTimestampResponse:
@@ -75,6 +78,32 @@ class ElevenLabsSubtitleGenerationTests(SimpleTestCase):
             "1\n00:00:00,000 --> 00:00:00,700\nOne two\n\n"
             "2\n00:00:00,800 --> 00:00:01,800\nthree four",
         )
+
+
+class ElevenLabsSrtFileEncodingTests(TestCase):
+    def test_saves_srt_file_as_utf8(self) -> None:
+        user = get_user_model().objects.create_user(
+            username="subtitle-encoding-user",
+            password="test-password",
+        )
+        video = GenVideo.objects.create(
+            user=user,
+            title="UTF-8 subtitles",
+            voice_duration=0.3,
+        )
+        alignment = {
+            "characters": list("Čšž"),
+            "character_start_times_seconds": [0.0, 0.1, 0.2],
+            "character_end_times_seconds": [0.1, 0.2, 0.3],
+        }
+
+        save_elevenlabs_srt_file(video, alignment)
+
+        video.srt_file.open("rb")
+        try:
+            self.assertEqual(video.srt_file.read().decode("utf-8"), video.srt_content)
+        finally:
+            video.srt_file.close()
 
 
 class UpdateVideoScenarioTests(TestCase):
@@ -164,7 +193,197 @@ class UpdateVideoScenarioTests(TestCase):
         self.assertEqual(self.video.progress, "")
         self.assertEqual(self.video.segments.count(), 0)
         self.assertTrue(self.video.final_file)
-        mock_generate_voice.assert_called_once_with(self.video)
+        mock_generate_voice.assert_called_once_with(self.video.id)
+
+
+class VideoStatusTests(TestCase):
+    def setUp(self) -> None:
+        self.user = get_user_model().objects.create_user(
+            username="status-owner",
+            password="test-password",
+        )
+        self.video = GenVideo.objects.create(
+            user=self.user,
+            title="Status video",
+            status=GenVideo.Statuses.GENERATING_VOICE,
+            progress="Generating voice 2 of 3",
+        )
+        self.url = reverse("video_status", args=[self.video.id])
+        self.client.force_login(self.user)
+
+    def test_returns_current_status_display_data(self) -> None:
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {
+                "status": GenVideo.Statuses.GENERATING_VOICE,
+                "status_display": "Generiranje zvoka",
+                "progress": "Generating voice 2 of 3",
+                "error_type_display": "",
+                "error_details": "",
+            },
+        )
+
+    def test_returns_error_display_data(self) -> None:
+        self.video.status = GenVideo.Statuses.FAILED
+        self.video.error_type = GenVideo.ErrorTypes.RENDERING
+        self.video.error_details = "FFmpeg failed"
+        self.video.save()
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], GenVideo.Statuses.FAILED)
+        self.assertEqual(
+            response.json()["error_type_display"], "Napaka pri renderiranju videa"
+        )
+        self.assertEqual(response.json()["error_details"], "FFmpeg failed")
+
+    def test_hides_another_users_video(self) -> None:
+        other_user = get_user_model().objects.create_user(
+            username="status-other-user",
+            password="test-password",
+        )
+        self.client.force_login(other_user)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_rejects_non_get_requests(self) -> None:
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, 405)
+        self.assertEqual(response.json()["error"], "Method not allowed")
+
+    def test_rejects_unauthenticated_requests_with_json(self) -> None:
+        self.client.logout()
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json()["error"], "Authentication required")
+
+
+class InterruptedVideoRecoveryTests(TestCase):
+    def setUp(self) -> None:
+        self.user = get_user_model().objects.create_user(
+            username="recovery-owner",
+            password="test-password",
+        )
+
+    def create_stale_video(self, **kwargs) -> GenVideo:
+        status = kwargs.pop("status", GenVideo.Statuses.GENERATING_VOICE)
+        video = GenVideo.objects.create(
+            user=self.user,
+            title="Interrupted video",
+            scenario="A script that was interrupted.",
+            status=status,
+            **kwargs,
+        )
+        GenVideo.objects.filter(pk=video.pk).update(
+            updated_at=timezone.now() - timedelta(minutes=20)
+        )
+        video.refresh_from_db()
+        return video
+
+    @patch("agent.tasks.continue_elevenlabs_pipeline")
+    @patch("agent.tasks.generate_voice_file_eleven_labs")
+    def test_recovery_uses_saved_elevenlabs_artifacts_before_tts(
+        self,
+        mock_generate_voice,
+        mock_continue_pipeline,
+    ) -> None:
+        video = self.create_stale_video(
+            voice_file="voice_files/recovered.mp3",
+            elevenlabs_alignment={"characters": ["A"]},
+        )
+
+        recovered = recover_stuck_videos(stale_after=timedelta(minutes=5))
+
+        self.assertEqual(recovered, 1)
+        mock_continue_pipeline.assert_called_once_with(video.id)
+        mock_generate_voice.assert_not_called()
+        video.refresh_from_db()
+        self.assertEqual(video.recovery_attempts, 1)
+        self.assertIsNotNone(video.recovery_claimed_at)
+
+    @override_settings(TTS_PROVIDER="openai")
+    @patch("agent.tasks.generate_voice_file_openai")
+    def test_recovery_claim_prevents_duplicate_enqueue(
+        self, mock_generate_voice
+    ) -> None:
+        self.create_stale_video()
+
+        self.assertEqual(recover_stuck_videos(stale_after=timedelta(minutes=5)), 1)
+        self.assertEqual(recover_stuck_videos(stale_after=timedelta(minutes=5)), 0)
+
+        mock_generate_voice.assert_called_once()
+
+    @override_settings(TTS_PROVIDER="openai")
+    @patch("agent.tasks.generate_voice_file_openai")
+    def test_fourth_interruption_marks_video_as_failed(
+        self, mock_generate_voice
+    ) -> None:
+        video = self.create_stale_video()
+        expired = timezone.now() - timedelta(minutes=20)
+
+        for _ in range(3):
+            self.assertEqual(
+                recover_stuck_videos(
+                    stale_after=timedelta(minutes=5),
+                    max_attempts=3,
+                ),
+                1,
+            )
+            GenVideo.objects.filter(pk=video.pk).update(
+                recovery_claimed_at=expired,
+                updated_at=expired,
+            )
+
+        self.assertEqual(
+            recover_stuck_videos(
+                stale_after=timedelta(minutes=5),
+                max_attempts=3,
+            ),
+            0,
+        )
+
+        video.refresh_from_db()
+        self.assertEqual(video.status, GenVideo.Statuses.FAILED)
+        self.assertEqual(video.error_type, GenVideo.ErrorTypes.RECOVERY)
+        self.assertEqual(mock_generate_voice.call_count, 3)
+
+    @patch("agent.tasks.render_final_video")
+    def test_recovery_rerenders_even_with_an_old_final_file(self, mock_render) -> None:
+        video = self.create_stale_video(
+            status=GenVideo.Statuses.RENDERING,
+            final_file="final_videos/old-output.mp4",
+        )
+
+        recovered = recover_stuck_videos(stale_after=timedelta(minutes=5))
+
+        self.assertEqual(recovered, 1)
+        mock_render.assert_called_once_with(video.id)
+
+    @override_settings(TTS_PROVIDER="openai")
+    @patch("agent.tasks.generate_voice_file_openai")
+    def test_zero_stale_threshold_recovers_immediately(
+        self, mock_generate_voice
+    ) -> None:
+        video = GenVideo.objects.create(
+            user=self.user,
+            title="Immediately recoverable video",
+            scenario="A script that was interrupted.",
+            status=GenVideo.Statuses.GENERATING_VOICE,
+        )
+
+        recovered = recover_stuck_videos(stale_after=timedelta(0))
+
+        self.assertEqual(recovered, 1)
+        mock_generate_voice.assert_called_once_with(video.id)
 
 
 class PexelsVideoFilePickerTests(SimpleTestCase):

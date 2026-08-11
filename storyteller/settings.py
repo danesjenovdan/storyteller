@@ -169,6 +169,17 @@ HUEY = RedisHuey(
     db=int(os.getenv("REDIS_DB", 0)),
 )
 
+HUEY_RECOVERY_STALE_MINUTES = int(os.getenv("HUEY_RECOVERY_STALE_MINUTES", "10"))
+HUEY_RECOVERY_STARTUP_STALE_MINUTES = int(
+    os.getenv("HUEY_RECOVERY_STARTUP_STALE_MINUTES", "0")
+)
+HUEY_RECOVERY_MAX_ATTEMPTS = int(os.getenv("HUEY_RECOVERY_MAX_ATTEMPTS", "3"))
+HUEY_RECOVERY_ENABLED = os.getenv("HUEY_RECOVERY_ENABLED", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+
 ENABLE_S3 = os.getenv("ENABLE_S3", False)
 # DJANGO STORAGE SETTINGS
 if ENABLE_S3:
