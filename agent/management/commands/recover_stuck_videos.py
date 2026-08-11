@@ -1,7 +1,7 @@
 from datetime import timedelta
 
-from django.core.management.base import BaseCommand
 from django.conf import settings
+from django.core.management.base import BaseCommand
 
 from agent.recovery import recover_stuck_videos
 
@@ -26,4 +26,6 @@ class Command(BaseCommand):
             stale_after=stale_after,
             max_attempts=options["max_attempts"],
         )
-        self.stdout.write(self.style.SUCCESS(f"Requeued {recovered} interrupted video(s)."))
+        self.stdout.write(
+            self.style.SUCCESS(f"Requeued {recovered} interrupted video(s).")
+        )

@@ -19,7 +19,11 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 
 from agent.models import GenVideo
-from agent.utils import get_temporary_file, get_temporary_file_path, get_selected_segments
+from agent.utils import (
+    get_selected_segments,
+    get_temporary_file,
+    get_temporary_file_path,
+)
 
 logger = logging.getLogger(__name__)
 

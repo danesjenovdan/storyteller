@@ -210,17 +210,18 @@ def ensure_google_api_key():
 
 
 def get_selected_segments(video):
-        segments = video.segments.filter(
-            video_proposals__0__selected=True
-        ).order_by("order")
+    segments = video.segments.filter(video_proposals__0__selected=True).order_by(
+        "order"
+    )
 
-        if not segments.exists():
-            raise ValueError(f"Video {video} has no segments with selected videos")
+    if not segments.exists():
+        raise ValueError(f"Video {video} has no segments with selected videos")
 
-        if not video.voice_file:
-            raise ValueError(f"Video {video} has no voice file")
+    if not video.voice_file:
+        raise ValueError(f"Video {video} has no voice file")
 
-        return segments
+    return segments
+
 
 def has_video_selected_segments(video):
     """
@@ -229,9 +230,9 @@ def has_video_selected_segments(video):
     Args:
         video: Video instance
     Returns:
-        
+
     """
-    segments = video.segments.filter(
-        video_proposals__0__selected=True
-    ).order_by("order")
+    segments = video.segments.filter(video_proposals__0__selected=True).order_by(
+        "order"
+    )
     return segments.exists()

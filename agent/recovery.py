@@ -115,17 +115,21 @@ def recover_stuck_videos(
             )
             continue
 
-        claimed = GenVideo.objects.filter(
-            pk=video.pk,
-            status=video.status,
-            recovery_attempts__lt=max_attempts,
-        ).filter(
-            Q(recovery_claimed_at__isnull=True)
-            | Q(recovery_claimed_at__lt=claim_expires_before)
-        ).update(
-            recovery_attempts=F("recovery_attempts") + 1,
-            last_recovery_at=now,
-            recovery_claimed_at=now,
+        claimed = (
+            GenVideo.objects.filter(
+                pk=video.pk,
+                status=video.status,
+                recovery_attempts__lt=max_attempts,
+            )
+            .filter(
+                Q(recovery_claimed_at__isnull=True)
+                | Q(recovery_claimed_at__lt=claim_expires_before)
+            )
+            .update(
+                recovery_attempts=F("recovery_attempts") + 1,
+                last_recovery_at=now,
+                recovery_claimed_at=now,
+            )
         )
         if not claimed:
             continue

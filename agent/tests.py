@@ -312,7 +312,9 @@ class InterruptedVideoRecoveryTests(TestCase):
 
     @override_settings(TTS_PROVIDER="openai")
     @patch("agent.tasks.generate_voice_file_openai")
-    def test_recovery_claim_prevents_duplicate_enqueue(self, mock_generate_voice) -> None:
+    def test_recovery_claim_prevents_duplicate_enqueue(
+        self, mock_generate_voice
+    ) -> None:
         self.create_stale_video()
 
         self.assertEqual(recover_stuck_videos(stale_after=timedelta(minutes=5)), 1)
@@ -322,7 +324,9 @@ class InterruptedVideoRecoveryTests(TestCase):
 
     @override_settings(TTS_PROVIDER="openai")
     @patch("agent.tasks.generate_voice_file_openai")
-    def test_fourth_interruption_marks_video_as_failed(self, mock_generate_voice) -> None:
+    def test_fourth_interruption_marks_video_as_failed(
+        self, mock_generate_voice
+    ) -> None:
         video = self.create_stale_video()
         expired = timezone.now() - timedelta(minutes=20)
 
@@ -366,7 +370,9 @@ class InterruptedVideoRecoveryTests(TestCase):
 
     @override_settings(TTS_PROVIDER="openai")
     @patch("agent.tasks.generate_voice_file_openai")
-    def test_zero_stale_threshold_recovers_immediately(self, mock_generate_voice) -> None:
+    def test_zero_stale_threshold_recovers_immediately(
+        self, mock_generate_voice
+    ) -> None:
         video = GenVideo.objects.create(
             user=self.user,
             title="Immediately recoverable video",

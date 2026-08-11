@@ -43,6 +43,7 @@ from .models import (
 
 # Create your views here.
 
+
 def _query_user_video(video_id, user):
     if user.is_superuser:
         return get_object_or_404(GenVideo, id=video_id)
@@ -853,9 +854,7 @@ def update_video_scenario(request, video_id):
         video_id = video.id
         tts_provider = django_settings.TTS_PROVIDER
         if tts_provider == "elevenlabs":
-            transaction.on_commit(
-                lambda: generate_voice_file_eleven_labs(video_id)
-            )
+            transaction.on_commit(lambda: generate_voice_file_eleven_labs(video_id))
         elif tts_provider == "gemini":
             transaction.on_commit(lambda: generate_voice_file_gemini(video_id))
         else:
