@@ -375,7 +375,9 @@ def validate_srt_content(srt_content: str, video: GenVideo) -> tuple[bool, str]:
             )
         elif last_subtitle_end:
             # Allow a small tolerance for last subtitle end being slightly after video duration
-            if last_subtitle_end > (timedelta(seconds=video_duration_seconds) + timedelta(milliseconds=100)):
+            if last_subtitle_end > (
+                timedelta(seconds=video_duration_seconds) + timedelta(milliseconds=100)
+            ):
                 return (
                     False,
                     (
