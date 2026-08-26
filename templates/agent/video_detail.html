@@ -171,6 +171,28 @@
             padding: 0.2rem 0.6rem;
             font-size: 0.75rem;
         }
+        .gradient-color-input {
+            width: 48px;
+            height: 38px;
+            padding: 2px;
+        }
+        .gradient-only-preview {
+            border-radius: 10px;
+            min-height: 220px;
+            aspect-ratio: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: #fff;
+            padding: 1rem;
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+        }
+        .gradient-only-preview i {
+            font-size: 2.2rem;
+            margin-bottom: 0.5rem;
+        }
     </style>
 {% endblock %}
 
@@ -515,6 +537,7 @@
         </div>
 
         {% for segment in segments %}
+        {% with media_source=segment.video_proposals.0.media_source|default:"custom" %}
         <div class="row mb-3">
             <div class="col-md-12">
                 {% if segment.video_proposals and segment.video_proposals.0.selected %}
@@ -542,6 +565,12 @@
                                 </h5>
                                 <p class="card-text">{{ segment.text }}</p>
 
+                                <div class="btn-group btn-group-sm media-source-group mb-2" data-segment-id="{{ segment.id }}" role="group" aria-label="Segment media source">
+                                    <button type="button" class="btn {% if media_source == 'gradient' %}btn-outline-primary{% else %}btn-primary{% endif %} media-source-btn" data-source="custom">{% trans "Custom video" %}</button>
+                                    <button type="button" class="btn {% if media_source == 'gradient' %}btn-primary{% else %}btn-outline-primary{% endif %} media-source-btn" data-source="gradient">{% trans "Gradient & Shapes" %}</button>
+                                </div>
+
+                                <div class="custom-only-controls" {% if media_source == 'gradient' %}style="display: none;"{% endif %}>
                                 <div class="mt-2 position-and-animation-controls" {% if not segment.video_proposals or not segment.video_proposals.0.selected %}style="display: none;"{% endif %}>
                                     <div class="card border-0 bg-light">
                                         <div class="card-body py-2">
@@ -599,8 +628,24 @@
                                     <i class="bi bi-film"></i> {% trans "Izberi video" %}
                                 </a>
                                 {% endif %}
+                                </div>
+
+                                <div class="gradient-only-controls" {% if media_source != 'gradient' %}style="display: none;"{% endif %}>
+                                    <div class="card border-0 bg-light">
+                                        <div class="card-body py-2">
+                                            <div class="small text-muted mb-2">{% trans "Barve gradienta:" %}</div>
+                                            <div class="d-flex gap-3 gradient-color-inputs" data-segment-id="{{ segment.id }}">
+                                                <input type="color" class="form-control form-control-color gradient-color-input" data-index="0" value="{{ segment.video_proposals.0.gradient_colors.0|default:'#1a2a6c' }}" title="{% trans "Barva 1" %}">
+                                                <input type="color" class="form-control form-control-color gradient-color-input" data-index="1" value="{{ segment.video_proposals.0.gradient_colors.1|default:'#b21f1f' }}" title="{% trans "Barva 2" %}">
+                                                <input type="color" class="form-control form-control-color gradient-color-input" data-index="2" value="{{ segment.video_proposals.0.gradient_colors.2|default:'#fdbb2d' }}" title="{% trans "Barva 3" %}">
+                                            </div>
+                                            <div class="small text-muted mt-2 gradient-save-status"></div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                             <div class="col-md-4 segment-preview-col">
+                                <div class="custom-only-preview" {% if media_source == 'gradient' %}style="display: none;"{% endif %}>
                                 <div class="segment-media-dropzone position-relative" data-segment-id="{{ segment.id }}">
                                     <input type="file" accept="video/*,image/*" class="segment-media-input d-none">
                                     {% if segment.video_proposals and segment.video_proposals.0.selected %}
@@ -633,8 +678,14 @@
                                         </a>
                                     {% endif %}
                                 </div>
+                                </div>
+                                <div class="gradient-only-preview" {% if media_source != 'gradient' %}style="display: none;"{% endif %}>
+                                    <i class="bi bi-palette2"></i>
+                                    <div class="fw-semibold">{% trans "Gradient ozadje" %}</div>
+                                    <small>{% trans "Ustvarjeno ob renderiranju videa" %}</small>
+                                </div>
                             </div>
-                            <div class="col-md-12 select-video-container mt-3" style="{% if segment.video_proposals and segment.video_proposals.0.selected %}display: none;{% endif %}">
+                            <div class="col-md-12 select-video-container mt-3" style="{% if media_source == 'gradient' or segment.video_proposals and segment.video_proposals.0.selected %}display: none;{% endif %}">
                                 {% include "agent/includes/video_carousel.html" with segment=segment %}
                             </div>
                         </div>
@@ -642,6 +693,7 @@
                 </div>
             </div>
         </div>
+        {% endwith %}
         {% empty %}
         <div class="row">
             <div class="col-md-12">
@@ -705,7 +757,12 @@
             confirmScenarioUpdate: '{% trans "S spremembo scenarija bodo odstranjeni obstoječi zvok, podnapisi in video segmenti. Nato se bo začelo ponovno generiranje zvoka. Ali želiš nadaljevati?" %}',
             scenarioRequired: '{% trans "Scenarij ne sme biti prazen." %}',
             savingScenario: '{% trans "Shranjujem scenarij in začenjam generiranje zvoka..." %}',
-            scenarioSaveFailed: '{% trans "Napaka pri shranjevanju scenarija" %}'
+            scenarioSaveFailed: '{% trans "Napaka pri shranjevanju scenarija" %}',
+            savingMediaSource: '{% trans "Shranjujem..." %}',
+            mediaSourceSaveErrorPrefix: '{% trans "Napaka pri preklopu vira medija:" %}',
+            savingGradient: '{% trans "Shranjujem barve..." %}',
+            gradientSaved: '{% trans "Barve gradienta uspešno shranjene." %}',
+            gradientSaveErrorPrefix: '{% trans "Napaka pri shranjevanju barv gradienta:" %}'
         };
 
         function onGenerateButtonClick(button) {
@@ -1351,6 +1408,131 @@
                                 statusEl.textContent = i18n.errorPrefix + ' ' + error.message;
                             }
                             alert(i18n.fitModeSaveErrorPrefix + ' ' + error.message);
+                        }
+                    });
+                });
+            });
+
+            // Handle Custom video / Gradient & Shapes toggle
+            const mediaSourceGroups = document.querySelectorAll('.media-source-group');
+            mediaSourceGroups.forEach(group => {
+                const segmentId = group.getAttribute('data-segment-id');
+                const sourceButtons = group.querySelectorAll('.media-source-btn');
+                const segmentCard = group.closest('.segment-card');
+
+                sourceButtons.forEach(btn => {
+                    btn.addEventListener('click', async function(e) {
+                        e.preventDefault();
+                        const newSource = this.getAttribute('data-source');
+
+                        try {
+                            const response = await fetch(`/video-segments/${segmentId}/set-media-source/`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                                },
+                                body: JSON.stringify({ source: newSource })
+                            });
+
+                            const data = await response.json();
+                            if (data.error) {
+                                throw new Error(data.error);
+                            }
+
+                            sourceButtons.forEach(sourceBtn => {
+                                const source = sourceBtn.getAttribute('data-source');
+                                if (source === newSource) {
+                                    sourceBtn.classList.remove('btn-outline-primary');
+                                    sourceBtn.classList.add('btn-primary');
+                                } else {
+                                    sourceBtn.classList.remove('btn-primary');
+                                    sourceBtn.classList.add('btn-outline-primary');
+                                }
+                            });
+
+                            const isGradient = newSource === 'gradient';
+                            segmentCard.querySelectorAll('.custom-only-controls, .custom-only-preview').forEach(el => {
+                                el.style.display = isGradient ? 'none' : '';
+                            });
+                            segmentCard.querySelectorAll('.gradient-only-controls, .gradient-only-preview').forEach(el => {
+                                el.style.display = isGradient ? '' : 'none';
+                            });
+                            const selectVideoContainer = segmentCard.querySelector('.select-video-container');
+                            if (selectVideoContainer && isGradient) {
+                                selectVideoContainer.style.display = 'none';
+                            }
+
+                            const badge = segmentCard.querySelector('.badge');
+                            if (badge) {
+                                badge.className = data.selected ? 'badge bg-success' : 'badge bg-danger';
+                                badge.textContent = data.selected ? '✓' : '✗';
+                            }
+                            segmentCard.classList.toggle('completed', data.selected);
+                            segmentCard.classList.toggle('missing', !data.selected);
+
+                            const completedSegmentsEl = document.getElementById('completedSegments');
+                            const totalSegmentsEl = document.getElementById('totalSegments');
+                            if (completedSegmentsEl && totalSegmentsEl) {
+                                completedSegmentsEl.textContent = data.completed_segments;
+                                totalSegmentsEl.textContent = data.total_segments;
+
+                                const bottomButton = document.getElementById('generateVideoBottomBtn');
+                                if (bottomButton) {
+                                    bottomButton.disabled = data.completed_segments !== data.total_segments;
+                                }
+                            }
+                        } catch (error) {
+                            console.error('Napaka pri preklopu vira medija:', error);
+                            alert(i18n.mediaSourceSaveErrorPrefix + ' ' + error.message);
+                        }
+                    });
+                });
+            });
+
+            // Handle gradient color pickers
+            const gradientColorGroups = document.querySelectorAll('.gradient-color-inputs');
+            gradientColorGroups.forEach(group => {
+                const segmentId = group.getAttribute('data-segment-id');
+                const colorInputs = group.querySelectorAll('.gradient-color-input');
+                const statusEl = group.closest('.card-body').querySelector('.gradient-save-status');
+
+                colorInputs.forEach(input => {
+                    input.addEventListener('change', async function() {
+                        const colors = Array.from(colorInputs).map(el => el.value);
+
+                        if (statusEl) {
+                            statusEl.textContent = i18n.savingGradient;
+                        }
+
+                        try {
+                            const response = await fetch(`/video-segments/${segmentId}/save-gradient/`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                                },
+                                body: JSON.stringify({ colors: colors })
+                            });
+
+                            const data = await response.json();
+                            if (data.error) {
+                                throw new Error(data.error);
+                            }
+
+                            if (statusEl) {
+                                statusEl.textContent = i18n.gradientSaved;
+                            }
+
+                            const preview = group.closest('.segment-card').querySelector('.gradient-only-preview');
+                            if (preview) {
+                                preview.style.background = `linear-gradient(135deg, ${colors.join(', ')})`;
+                            }
+                        } catch (error) {
+                            console.error('Napaka pri shranjevanju barv gradienta:', error);
+                            if (statusEl) {
+                                statusEl.textContent = i18n.gradientSaveErrorPrefix + ' ' + error.message;
+                            }
                         }
                     });
                 });

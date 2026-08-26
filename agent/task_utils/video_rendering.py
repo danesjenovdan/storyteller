@@ -65,6 +65,11 @@ class FinalVideoRenderer:
     # timeline to match.
     DURATION_SYNC_THRESHOLD_SECONDS = 0.05
 
+    # Defaults for procedurally generated "Gradient & Shapes" segment backgrounds.
+    DEFAULT_GRADIENT_COLORS = ["#1a2a6c", "#b21f1f", "#fdbb2d"]
+    GRADIENT_TYPE = "spiral"
+    GRADIENT_SPEED = 0.03
+
     def __init__(self, video: GenVideo):
         self.video = video
 
@@ -117,6 +122,21 @@ class FinalVideoRenderer:
 
     def _prepare_clip(self, index: int, total: int, segment, temp_path: Path) -> Path:
         proposal = segment.video_proposals[0]
+        output_file = temp_path / f"clip_{index:03d}.mp4"
+
+        if proposal.get("media_source") == "gradient":
+            duration = segment.duration()
+            logger.info(
+                f"Processing clip {index+1}/{total}: {duration:.2f}s gradient background"
+            )
+            self.video.progress = (
+                f"Processing clip {index+1}/{total}: gradient background"
+            )
+            self.video.save()
+            self._generate_gradient_clip(proposal, duration, output_file)
+            logger.info(f"Successfully created gradient clip {index}: {output_file}")
+            return output_file
+
         video_url = proposal.get("video_url")
         if not video_url:
             raise ValueError(f"Segment {segment.id} has no video URL")
@@ -139,7 +159,6 @@ class FinalVideoRenderer:
             "out": proposal.get("animation_out", "none"),
         }
 
-        output_file = temp_path / f"clip_{index:03d}.mp4"
         duration = segment.duration()
 
         logger.info(
@@ -169,6 +188,39 @@ class FinalVideoRenderer:
 
         logger.info(f"Successfully created clip {index}: {output_file}")
         return output_file
+
+    # ------------------------------------------------------------------
+    # Gradient & Shapes background clip generation
+    # ------------------------------------------------------------------
+
+    def _generate_gradient_clip(
+        self, proposal: dict, duration: float, output_file: Path
+    ) -> None:
+        colors = proposal.get("gradient_colors") or self.DEFAULT_GRADIENT_COLORS
+        cmd = self._build_gradient_command(colors, duration, output_file)
+        self._run_ffmpeg(cmd, error_context="gradient clip")
+
+    def _build_gradient_command(
+        self,
+        colors: list[str],
+        duration: float,
+        output_file: Path,
+        gradient_type: str = GRADIENT_TYPE,
+        speed: float = GRADIENT_SPEED,
+        size: str = "1080x1920",
+        framerate: int = 60,
+    ) -> list[str]:
+        safe_duration = max(float(duration or 0.0), 0.1)
+        colors_arg = ":".join(f"c{i}={color}" for i, color in enumerate(colors))
+        gradient_filter = (
+            f"gradients=type={gradient_type}:{colors_arg}:nb_colors={len(colors)}:"
+            f"speed={speed}:s={size}:r={framerate}:d={safe_duration:.3f}"
+        )
+
+        cmd = ["ffmpeg", "-f", "lavfi", "-i", gradient_filter]
+        cmd.extend(self.ENCODING_ARGS)
+        cmd.extend(["-an", "-y", str(output_file)])
+        return cmd
 
     # ------------------------------------------------------------------
     # Per-clip ffmpeg command construction

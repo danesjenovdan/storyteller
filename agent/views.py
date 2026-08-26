@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import tempfile
 from functools import wraps
@@ -750,6 +751,7 @@ def save_selected_video(request, video_segment_id):
                     "is_image": video_metadata.get(
                         "is_image", existing_proposal.get("is_image", False)
                     ),
+                    "media_source": "custom",
                     "selected": True,
                 }
             )
@@ -773,27 +775,13 @@ def save_selected_video(request, video_segment_id):
                     "animation": normalized_mid,
                     "fit_mode": normalized_fit_mode,
                     "is_image": video_metadata.get("is_image", False),
+                    "media_source": "custom",
                     "selected": True,
                 }
             ]
 
         video_segment.save()
-
-        # Update video status
-        gen_video = video_segment.video
-        total_segments = gen_video.segments.count()
-        completed_segments = gen_video.segments.filter(
-            video_proposals__0__selected=True
-        ).count()
-
-        if completed_segments == 1:
-            # First video selected, update status
-            gen_video.status = GenVideo.Statuses.SELECTING_VIDEOS
-            gen_video.save()
-        elif completed_segments == total_segments:
-            # All videos selected
-            gen_video.status = GenVideo.Statuses.VIDEOS_SELECTED
-            gen_video.save()
+        _sync_gen_video_selection_status(video_segment.video)
 
         return JsonResponse(
             {
@@ -806,6 +794,135 @@ def save_selected_video(request, video_segment_id):
     except Exception as e:
         return JsonResponse(
             {"error": _("Error saving video: %(error)s") % {"error": str(e)}},
+            status=500,
+        )
+
+
+def _sync_gen_video_selection_status(gen_video):
+    """Recompute GenVideo status based on how many segments have a ready-to-render selection."""
+    total_segments = gen_video.segments.count()
+    completed_segments = gen_video.segments.filter(
+        video_proposals__0__selected=True
+    ).count()
+
+    if completed_segments == 1:
+        gen_video.status = GenVideo.Statuses.SELECTING_VIDEOS
+        gen_video.save()
+    elif completed_segments == total_segments:
+        gen_video.status = GenVideo.Statuses.VIDEOS_SELECTED
+        gen_video.save()
+
+    return completed_segments, total_segments
+
+
+GRADIENT_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+DEFAULT_GRADIENT_COLORS = ["#1a2a6c", "#b21f1f", "#fdbb2d"]
+
+
+@ajax_login_required
+def save_segment_gradient(request, video_segment_id):
+    """Save the Gradient & Shapes colors for a segment (used at render time)."""
+    if request.method != "POST":
+        return JsonResponse({"error": _("Method not allowed")}, status=405)
+
+    video_segment = get_object_or_404(
+        VideoSegment, id=video_segment_id, video__user=request.user
+    )
+
+    try:
+        data = json.loads(request.body)
+        colors = data.get("colors")
+
+        if (
+            not isinstance(colors, list)
+            or len(colors) != 3
+            or not all(
+                isinstance(c, str) and GRADIENT_COLOR_RE.match(c) for c in colors
+            )
+        ):
+            return JsonResponse(
+                {"error": _("colors must be a list of exactly 3 hex color strings")},
+                status=400,
+            )
+
+        proposal = (
+            video_segment.video_proposals[0] if video_segment.video_proposals else {}
+        )
+        proposal.update(
+            {
+                "gradient_colors": colors,
+                "media_source": "gradient",
+                "selected": True,
+            }
+        )
+        video_segment.video_proposals = [proposal]
+        video_segment.save()
+
+        completed_segments, total_segments = _sync_gen_video_selection_status(
+            video_segment.video
+        )
+
+        return JsonResponse(
+            {
+                "success": True,
+                "completed_segments": completed_segments,
+                "total_segments": total_segments,
+            }
+        )
+
+    except Exception as e:
+        return JsonResponse(
+            {"error": _("Error saving gradient colors: %(error)s") % {"error": str(e)}},
+            status=500,
+        )
+
+
+@ajax_login_required
+def set_segment_media_source(request, video_segment_id):
+    """Switch which media configuration (custom video vs. gradient) is active for a segment."""
+    if request.method != "POST":
+        return JsonResponse({"error": _("Method not allowed")}, status=405)
+
+    video_segment = get_object_or_404(
+        VideoSegment, id=video_segment_id, video__user=request.user
+    )
+
+    try:
+        data = json.loads(request.body)
+        source = data.get("source")
+
+        if source not in ("custom", "gradient"):
+            return JsonResponse({"error": _("Invalid media source")}, status=400)
+
+        proposal = (
+            video_segment.video_proposals[0] if video_segment.video_proposals else {}
+        )
+
+        if source == "gradient" and not proposal.get("gradient_colors"):
+            proposal["gradient_colors"] = list(DEFAULT_GRADIENT_COLORS)
+
+        proposal["media_source"] = source
+        proposal["selected"] = source == "gradient" or bool(proposal.get("video_url"))
+
+        video_segment.video_proposals = [proposal]
+        video_segment.save()
+
+        completed_segments, total_segments = _sync_gen_video_selection_status(
+            video_segment.video
+        )
+
+        return JsonResponse(
+            {
+                "success": True,
+                "selected": proposal["selected"],
+                "completed_segments": completed_segments,
+                "total_segments": total_segments,
+            }
+        )
+
+    except Exception as e:
+        return JsonResponse(
+            {"error": _("Error updating media source: %(error)s") % {"error": str(e)}},
             status=500,
         )
 
