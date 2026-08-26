@@ -1560,6 +1560,39 @@ def set_subtitle_style(request, video_id):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+@ajax_login_required
+def reset_subtitle_style(request, video_id):
+    """
+    Reset subtitle style to the default values used for newly created videos, and save.
+    """
+    if request.method != "POST":
+        return JsonResponse({"error": _("Method not allowed")}, status=405)
+
+    video = _query_user_video(video_id, request.user)
+
+    video.subtitle_font_size = 20
+    video.subtitle_font_family = "Montserrat"
+    video.subtitle_font_weight = "700"
+    video.subtitle_stroke_weight = 2
+    video.subtitle_shadow = 0
+    video.subtitle_vertical_position = 15
+    video.subtitle_max_words_per_screen = None
+    video.save()
+
+    return JsonResponse(
+        {
+            "success": True,
+            "font_size": video.subtitle_font_size,
+            "font_family": video.subtitle_font_family,
+            "font_weight": video.subtitle_font_weight,
+            "stroke_weight": video.subtitle_stroke_weight,
+            "shadow": video.subtitle_shadow,
+            "vertical_position": video.subtitle_vertical_position,
+            "max_words_per_screen": video.subtitle_max_words_per_screen,
+        }
+    )
+
+
 @login_required(login_url="/admin/login/")
 def upload_logo(request, video_id):
     """

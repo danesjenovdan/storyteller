@@ -441,9 +441,12 @@
                                         <input type="range" class="form-range" min="0" max="15" value="{% if video.subtitle_max_words_per_screen %}{{ video.subtitle_max_words_per_screen }}{% else %}0{% endif %}" id="maxWordsPerScreen" oninput="updateSubtitlePreview()">
                                         <div class="form-text">0 = {% trans "Nedefinirano" %}, 1-15</div>
                                     </div>
-                                    <div class="col-md-12">
+                                    <div class="col-md-12 d-flex gap-2">
                                         <button class="btn btn-primary" onclick="saveSubtitleSettings('{{ video.id }}')">
                                             <i class="bi bi-check-circle"></i> {% trans "Shrani nastavitve" %}
+                                        </button>
+                                        <button class="btn btn-outline-secondary" onclick="resetSubtitleSettings('{{ video.id }}')">
+                                            <i class="bi bi-arrow-counterclockwise"></i> {% trans "Ponastavi na privzeto" %}
                                         </button>
                                     </div>
                                 </div>
@@ -747,6 +750,9 @@
             subtitleSettingsFailed: '{% trans "Failed to save subtitle settings" %}',
             subtitleSettingsSaved: '{% trans "Nastavitve podnapisov so shranjene!" %}',
             subtitleSettingsError: '{% trans "Napaka pri shranjevanju nastavitev" %}',
+            subtitleSettingsResetFailed: '{% trans "Failed to reset subtitle settings" %}',
+            subtitleSettingsResetSaved: '{% trans "Nastavitve podnapisov so ponastavljene na privzete vrednosti in shranjene!" %}',
+            subtitleSettingsResetError: '{% trans "Napaka pri ponastavljanju nastavitev podnapisov" %}',
             savingAnimation: '{% trans "Shranjujem animacijo..." %}',
             animationSaved: '{% trans "Animacija uspešno shranjena." %}',
             savingFitMode: '{% trans "Shranjujem pozicijo segmenta..." %}',
@@ -1181,6 +1187,40 @@
             } catch (error) {
                 console.error('Error saving subtitle settings:', error);
                 alert(i18n.subtitleSettingsError);
+            }
+        }
+
+        // Function to reset subtitle settings to the defaults used for newly created videos
+        async function resetSubtitleSettings(videoId) {
+            try {
+                const response = await fetch(`/videos/${videoId}/reset-subtitle-style/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(i18n.subtitleSettingsResetFailed);
+                }
+
+                const result = await response.json();
+
+                document.getElementById('fontFamily').value = result.font_family;
+                document.getElementById('fontSize').value = result.font_size;
+                document.getElementById('fontWeight').value = result.font_weight;
+                document.getElementById('strokeWeight').value = result.stroke_weight;
+                document.getElementById('shadow').value = result.shadow;
+                document.getElementById('verticalPosition').value = result.vertical_position;
+                document.getElementById('maxWordsPerScreen').value = result.max_words_per_screen || 0;
+                updateSubtitlePreview();
+
+                alert(i18n.subtitleSettingsResetSaved);
+                console.log('Subtitle settings reset:', result);
+            } catch (error) {
+                console.error('Error resetting subtitle settings:', error);
+                alert(i18n.subtitleSettingsResetError);
             }
         }
 

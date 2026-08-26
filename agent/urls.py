@@ -59,6 +59,11 @@ urlpatterns = [
         name="set_subtitle_style",
     ),
     path(
+        "videos/<int:video_id>/reset-subtitle-style/",
+        views.reset_subtitle_style,
+        name="reset_subtitle_style",
+    ),
+    path(
         "videos/<int:video_id>/upload-logo/",
         views.upload_logo,
         name="upload_logo",
