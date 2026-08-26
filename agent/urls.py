@@ -89,6 +89,16 @@ urlpatterns = [
         name="save_selected_video",
     ),
     path(
+        "video-segments/<int:video_segment_id>/save-gradient/",
+        views.save_segment_gradient,
+        name="save_segment_gradient",
+    ),
+    path(
+        "video-segments/<int:video_segment_id>/set-media-source/",
+        views.set_segment_media_source,
+        name="set_segment_media_source",
+    ),
+    path(
         "video-segments/<int:video_segment_id>/upload-image/",
         views.upload_segment_image,
         name="upload_segment_image",
