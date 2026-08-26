@@ -129,7 +129,9 @@ class FinalVideoRenderer:
             logger.info(
                 f"Processing clip {index+1}/{total}: {duration:.2f}s gradient background"
             )
-            self.video.progress = f"Processing clip {index+1}/{total}: gradient background"
+            self.video.progress = (
+                f"Processing clip {index+1}/{total}: gradient background"
+            )
             self.video.save()
             self._generate_gradient_clip(proposal, duration, output_file)
             logger.info(f"Successfully created gradient clip {index}: {output_file}")

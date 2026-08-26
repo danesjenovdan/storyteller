@@ -836,14 +836,18 @@ def save_segment_gradient(request, video_segment_id):
         if (
             not isinstance(colors, list)
             or len(colors) != 3
-            or not all(isinstance(c, str) and GRADIENT_COLOR_RE.match(c) for c in colors)
+            or not all(
+                isinstance(c, str) and GRADIENT_COLOR_RE.match(c) for c in colors
+            )
         ):
             return JsonResponse(
                 {"error": _("colors must be a list of exactly 3 hex color strings")},
                 status=400,
             )
 
-        proposal = video_segment.video_proposals[0] if video_segment.video_proposals else {}
+        proposal = (
+            video_segment.video_proposals[0] if video_segment.video_proposals else {}
+        )
         proposal.update(
             {
                 "gradient_colors": colors,
@@ -890,15 +894,15 @@ def set_segment_media_source(request, video_segment_id):
         if source not in ("custom", "gradient"):
             return JsonResponse({"error": _("Invalid media source")}, status=400)
 
-        proposal = video_segment.video_proposals[0] if video_segment.video_proposals else {}
+        proposal = (
+            video_segment.video_proposals[0] if video_segment.video_proposals else {}
+        )
 
         if source == "gradient" and not proposal.get("gradient_colors"):
             proposal["gradient_colors"] = list(DEFAULT_GRADIENT_COLORS)
 
         proposal["media_source"] = source
-        proposal["selected"] = (
-            source == "gradient" or bool(proposal.get("video_url"))
-        )
+        proposal["selected"] = source == "gradient" or bool(proposal.get("video_url"))
 
         video_segment.video_proposals = [proposal]
         video_segment.save()
