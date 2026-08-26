@@ -18,7 +18,6 @@ from google.genai.types import Content, Part
 from huey import crontab
 from huey.contrib.djhuey import db_periodic_task, db_task
 from langchain.chat_models import init_chat_model
-from langchain_core.messages import HumanMessage
 from openai import OpenAI
 
 from agent.models import GenVideo, TipkoRequest, VideoSegment

@@ -352,9 +352,6 @@ def video_create(request):
             video.save()
             if video.scenario:
                 # If only scenario is provided, directly simplify to scenario
-                messages.success(
-                    request, _("Video ustvarjen! Generiranje zvočne datoteke...")
-                )
                 video.status = GenVideo.Statuses.GENERATING_VOICE
                 video.save()
                 if tts_provider == "elevenlabs":
@@ -372,14 +369,13 @@ def video_create(request):
                 generate_srt_file(video.id)
                 return redirect("video_detail", video_id=video.id)
             else:
-                messages.success(request, _("Video mora vsebovati scenario!"))
                 return render(
                     request,
                     "agent/video_create.html",
                     {"form": form, "tts_provider": tts_provider},
                 )
         else:
-            messages.error(request, _("Napaka pri ustvarjanju videa."))
+            pass
     else:
         form = VideoCreateForm(voice_models=voice_models)
 
@@ -1080,16 +1076,9 @@ def render_video(request, video_id):
             "Ne moreš renderirati videa - manjkajo izbrani video klipi (%(selected)s/%(total)s)",
             missing_count,
         ) % {"selected": len(segments_with_urls), "total": total_segments}
-        messages.error(
-            request,
-            error_message,
-        )
         return redirect("video_detail", video_id=video_id)
 
     if not video.voice_file:
-        messages.error(
-            request, _("Ne moreš renderirati videa - manjka zvočna datoteka")
-        )
         return redirect("video_detail", video_id=video_id)
 
     video.status = GenVideo.Statuses.RENDERING
@@ -1098,10 +1087,6 @@ def render_video(request, video_id):
     video.recovery_claimed_at = None
     video.save()
     render_final_video(video.id)
-
-    messages.success(
-        request, _("Renderiranje videa se je začelo! To lahko traja nekaj minut.")
-    )
 
     return redirect("video_detail", video_id=video_id)
 
@@ -1119,18 +1104,9 @@ def generate_voice(request, video_id):
     video = _query_user_video(video_id, request.user)
 
     if not video.scenario:
-        messages.error(
-            request, _("Ne moreš generirati zvoka - manjka vsebinski skript")
-        )
         return redirect("video_detail", video_id=video_id)
 
     if not video.voice_model:
-        messages.error(
-            request,
-            _(
-                "Ne moreš generirati zvoka - manjka glasovni model. Uredi skript in izberi glas."
-            ),
-        )
         return redirect("video_edit_script", video_id=video_id)
 
     # Get TTS provider from settings
@@ -1148,14 +1124,6 @@ def generate_voice(request, video_id):
         generate_voice_file_gemini(video.id)
     else:  # openai
         generate_voice_file_openai(video.id)
-
-    messages.success(
-        request,
-        _(
-            "Generiranje zvočnega posnetka se je začelo (%(provider)s)! Posnetek bo kmalu na voljo."
-        )
-        % {"provider": tts_provider.upper()},
-    )
 
     return redirect("video_detail", video_id=video_id)
 
@@ -1428,9 +1396,6 @@ def regenerate_segments(request, video_id):
     video = _query_user_video(video_id, request.user)
 
     if not video.scenario:
-        messages.error(
-            request, _("Ne moreš generirati segmentov - manjka vsebinski skript")
-        )
         return redirect("video_detail", video_id=video_id)
 
     # Delete existing segments
@@ -1444,7 +1409,6 @@ def regenerate_segments(request, video_id):
     # Trigger segment generation task
     get_video_segments(video.id)
 
-    messages.success(request, _("Segmenti se ponovno generirajo..."))
     return redirect("video_detail", video_id=video_id)
 
 
@@ -1464,9 +1428,6 @@ def regenerate_srt(request, video_id):
     video = _query_user_video(video_id, request.user)
 
     if not video.voice_file:
-        messages.error(
-            request, _("Ne moreš generirati podnapisov - manjka zvočna datoteka")
-        )
         return redirect("video_detail", video_id=video_id)
 
     # Delete existing SRT file
@@ -1487,17 +1448,6 @@ def regenerate_srt(request, video_id):
         generate_voice_file_eleven_labs(video.id)
     else:
         generate_srt_file(video.id)
-
-    if django_settings.TTS_PROVIDER == "elevenlabs" and not video.elevenlabs_alignment:
-        messages.success(
-            request,
-            _("Zvok se ponovno generira, da se lahko ustvarijo natančni podnapisi."),
-        )
-    else:
-        messages.success(
-            request,
-            _("Generiranje podnapisov se je začelo! Podnapisi bodo kmalu na voljo."),
-        )
 
     return redirect("video_detail", video_id=video_id)
 
