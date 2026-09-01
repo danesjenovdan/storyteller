@@ -27,12 +27,37 @@
         .segment-card.missing {
             border-left-color: #dc3545;
         }
-        .video-preview {
-            max-width: 100%;
-            aspect-ratio: 1;
+        .video-preview-container {
+            display: grid;
+            place-items: center;
+            height: 100%;
+            width: auto;
+            aspect-ratio: 9 / 16;
             border-radius: 8px;
+            background: #000;
+            overflow: hidden;
+        }
+        .video-preview-container .video-preview {
+            display: block;
+            max-width: 100%;
+            max-height: 100%;
+            min-width: 0;
+            min-height: 0;
+        }
+        .video-preview-container .video-preview.fit-mode--fit_width {
+            width: 100%;
+            height: auto;
+            object-fit: cover;
+        }
+        .video-preview-container .video-preview.fit-mode--fit_height {
+            width: auto;
+            height: 100%;
+            object-fit: cover;
+        }
+        .video-preview-container .video-preview.fit-mode--fit_both {
+            width: 100%;
+            height: 100%;
             object-fit: contain;
-            background: #888;
         }
         .progress {
             height: 30px;
@@ -157,9 +182,6 @@
             color: #0d6efd;
             display: block;
             margin-bottom: 0.5rem;
-        }
-        .segment-media-dropzone .video-preview {
-            width: 100%;
         }
         .segment-media-dropzone .segment-replace-hint {
             position: absolute;
@@ -303,7 +325,7 @@
                             <label class="form-label visually-hidden" for="scenarioInput">{% trans "Scenarij" %}</label>
                             <textarea class="form-control" id="scenarioInput" rows="10">{{ video.scenario }}</textarea>
                             <div class="d-flex align-items-center mt-3 gap-2">
-                                <button type="button" class="btn btn-primary" id="saveScenarioButton">
+                                <button type="button" class="btn btn-primary" id="saveScenarioButton" hidden>
                                     <i class="bi bi-save"></i> {% trans "Shrani scenarij" %}
                                 </button>
                                 <span class="small text-muted" id="scenarioSaveStatus"></span>
@@ -652,14 +674,16 @@
                                 <div class="segment-media-dropzone position-relative" data-segment-id="{{ segment.id }}">
                                     <input type="file" accept="video/*,image/*" class="segment-media-input d-none">
                                     {% if segment.video_proposals and segment.video_proposals.0.selected %}
-                                        {% if segment.video_proposals.0.is_image %}
-                                            <img src="{{ segment.video_proposals.0.video_url }}" class="video-preview w-100" alt="{% trans "Izbrana slika" %}">
-                                        {% else %}
-                                            <video controls class="video-preview">
-                                                <source src="{{ segment.video_proposals.0.video_url }}" type="video/mp4">
-                                                {% trans "Vaš brskalnik ne podpira predvajanja videa." %}
-                                            </video>
-                                        {% endif %}
+                                        <div class="video-preview-container">
+                                            {% if segment.video_proposals.0.is_image %}
+                                                <img src="{{ segment.video_proposals.0.video_url }}" class="video-preview fit-mode--{{ segment.video_proposals.0.fit_mode }}" alt="{% trans "Izbrana slika" %}">
+                                            {% else %}
+                                                <video controls class="video-preview fit-mode--{{ segment.video_proposals.0.fit_mode }}">
+                                                    <source src="{{ segment.video_proposals.0.video_url }}" type="video/mp4">
+                                                    {% trans "Vaš brskalnik ne podpira predvajanja videa." %}
+                                                </video>
+                                            {% endif %}
+                                        </div>
                                         <span class="segment-replace-hint">{% trans "Klikni ali spusti datoteko" %}</span>
                                     {% else %}
                                         <div class="segment-media-empty">
@@ -1229,6 +1253,16 @@
             updateSubtitlePreview();
             updateLogoPreview();
 
+            const scenarioInput = document.getElementById('scenarioInput');
+            if (scenarioInput) {
+                scenarioInput.addEventListener('input', function() {
+                    const saveButton = document.getElementById('saveScenarioButton');
+                    if (saveButton) {
+                        saveButton.removeAttribute('hidden');
+                    }
+                });
+            }
+
             const saveScenarioButton = document.getElementById('saveScenarioButton');
             if (saveScenarioButton) {
                 saveScenarioButton.addEventListener('click', saveScenario);
@@ -1395,8 +1429,10 @@
                         const segmentBody = this.closest('.segment-card').querySelector('.card-body');
                         const videoElement = segmentBody.querySelector('video source');
                         const imageElement = segmentBody.querySelector('img.video-preview');
+                        const videoVideoElement = segmentBody.querySelector('video.video-preview');
                         const videoUrl = videoElement ? videoElement.getAttribute('src') :
                                        imageElement ? imageElement.getAttribute('src') : null;
+                        const videoPreviewElement = videoVideoElement ? videoVideoElement : imageElement;
 
                         if (!videoUrl) {
                             alert(i18n.missingMediaUrl);
@@ -1438,6 +1474,12 @@
                                     fitModeBtn.classList.add('btn-outline-primary');
                                 }
                             });
+
+                            if (videoPreviewElement) {
+                                const oldClasses = Array.from(videoPreviewElement.classList).filter(cls => cls.startsWith('fit-mode--'));
+                                oldClasses.forEach(cls => videoPreviewElement.classList.remove(cls));
+                                videoPreviewElement.classList.add(`fit-mode--${newFitMode}`);
+                            }
 
                             if (statusEl) {
                                 statusEl.textContent = i18n.fitModeSaved;
