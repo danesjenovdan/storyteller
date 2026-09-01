@@ -784,6 +784,11 @@ def save_selected_video(request, video_segment_id):
                 "success": True,
                 "message": _("Video URL uspešno shranjen."),
                 "video_url": video_url,
+                "video_proposal": (
+                    video_segment.video_proposals[0]
+                    if video_segment.video_proposals
+                    else None
+                ),
             }
         )
 

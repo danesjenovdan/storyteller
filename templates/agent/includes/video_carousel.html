@@ -259,7 +259,7 @@
       return { segmentCard, previewCol, dropzone, input, actions };
     }
 
-    function renderSegmentPreview(video = null) {
+    function renderSegmentPreview(video = null, data = null) {
       const { dropzone, actions } = getSegmentPreviewElements();
       if (!dropzone) {
         return;
@@ -269,12 +269,23 @@
       let mediaHtml = '';
       let actionsHtml = '';
 
-      if (video && video.video_url) {
+      if (video && video.video_url && data && data.video_proposal) {
         dropzone.dataset.hasMedia = '1';
         if (video.is_image) {
-          mediaHtml = `<img src="${video.video_url}" class="video-preview w-100" alt="${i18n.selectedImageAlt}">`;
+          mediaHtml = `
+            <div class="video-preview-container">
+              <img src="${video.video_url}" class="video-preview fit-mode--${data.video_proposal.fit_mode}" alt="${i18n.selectedImageAlt}">
+            </div>
+          `;
         } else {
-          mediaHtml = `<video controls class="video-preview"><source src="${video.video_url}" type="video/mp4">${i18n.browserNoVideoSupport}</video>`;
+          mediaHtml = `
+            <div class="video-preview-container">
+              <video controls class="video-preview fit-mode--${data.video_proposal.fit_mode}">
+                <source src="${video.video_url}" type="video/mp4">
+                ${i18n.browserNoVideoSupport}
+              </video>
+            </div>
+          `;
         }
         mediaHtml += `<span class="segment-replace-hint">${i18n.clickOrDropToReplace}</span>`;
 
@@ -616,7 +627,7 @@
       }
     }
 
-    function updateSegmentUI(video) {
+    function updateSegmentUI(video, data) {
       // Find the segment card
       const segmentCard = el.closest('.segment-card');
       const cardBody = segmentCard.querySelector('.card-body > .row');
@@ -634,7 +645,7 @@
       // Update right column with preview
       const rightCol = cardBody.querySelector('.segment-preview-col');
       if (rightCol) {
-        renderSegmentPreview(video);
+        renderSegmentPreview(video, data);
       }
 
       // Show position and animation controls once a media item is selected.
@@ -721,7 +732,7 @@
         } else {
           showAlert(i18n.selectionSaved, 'success', video.is_image || false);
           // Update the UI to show selected video/image
-          updateSegmentUI(video);
+          updateSegmentUI(video, data);
         }
       } catch (error) {
         console.error(i18n.saveErrorPrefix, error);
