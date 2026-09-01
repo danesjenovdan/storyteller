@@ -303,7 +303,7 @@
                             <label class="form-label visually-hidden" for="scenarioInput">{% trans "Scenarij" %}</label>
                             <textarea class="form-control" id="scenarioInput" rows="10">{{ video.scenario }}</textarea>
                             <div class="d-flex align-items-center mt-3 gap-2">
-                                <button type="button" class="btn btn-primary" id="saveScenarioButton">
+                                <button type="button" class="btn btn-primary" id="saveScenarioButton" hidden>
                                     <i class="bi bi-save"></i> {% trans "Shrani scenarij" %}
                                 </button>
                                 <span class="small text-muted" id="scenarioSaveStatus"></span>
@@ -1228,6 +1228,16 @@
         window.addEventListener('DOMContentLoaded', function() {
             updateSubtitlePreview();
             updateLogoPreview();
+
+            const scenarioInput = document.getElementById('scenarioInput');
+            if (scenarioInput) {
+                scenarioInput.addEventListener('input', function() {
+                    const saveButton = document.getElementById('saveScenarioButton');
+                    if (saveButton) {
+                        saveButton.removeAttribute('hidden');
+                    }
+                });
+            }
 
             const saveScenarioButton = document.getElementById('saveScenarioButton');
             if (saveScenarioButton) {
