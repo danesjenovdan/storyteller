@@ -515,6 +515,7 @@
       sourceLinkEl.querySelector('.user').textContent = image.user;
 
       const previewEl = previewFragment.querySelector('.video-preview');
+      previewEl.style.width = (image.width / image.height * 200).toFixed(4) + 'px'; // Adjust width based on aspect ratio and fixed height of 200px
 
       previewEl.addEventListener('click', (e) => {
         const closestLink = e.target.closest('a');
