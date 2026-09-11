@@ -4,7 +4,6 @@
 {% block title %}{{ video.title }} - {% trans "Podrobnosti" %}{% endblock %}
 
 {% block extra_head %}
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&family=Bebas+Neue&family=Roboto:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         .status-badge {
@@ -63,26 +62,6 @@
             height: 30px;
             font-size: 1rem;
         }
-        .subtitle-preview-container {
-            background: #87CEEB;
-            border-radius: 8px;
-            position: relative;
-            width: 100%;
-            max-width: 300px;
-            margin: 0 auto;
-        }
-        .subtitle-preview-container::before {
-            content: "";
-            display: block;
-            padding-top: 177.78%; /* 9:16 aspect ratio */
-        }
-        .subtitle-preview-container > .subtitle-preview {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            left: 0;
-            right: 0;
-        }
         .subtitle-style-option {
             cursor: pointer;
             padding: 5px;
@@ -131,29 +110,6 @@
         .preview-logo.top-right {
             right: 12px;
             left: auto;
-        }
-        .logo-option {
-            cursor: pointer;
-            border: 2px solid transparent;
-            border-radius: 8px;
-            padding: 8px;
-            background: #f8f9fa;
-            transition: border-color 0.2s ease, transform 0.2s ease;
-        }
-        .logo-option.selected {
-            border-color: #198754;
-            background: #eef9f1;
-        }
-        .logo-option:hover {
-            border-color: #0d6efd;
-            transform: translateY(-2px);
-        }
-        .logo-option-thumb {
-            width: 100%;
-            max-height: 60px;
-            object-fit: contain;
-            background: #fff;
-            border-radius: 4px;
         }
         .segment-media-dropzone {
             border: 2px dashed #c7ced6;
@@ -219,26 +175,34 @@
 {% endblock %}
 
 {% block content %}
-    <div class="container mt-4">
-        <!-- Header -->
-        <div class="row mb-4">
-            <div class="col-md-12">
-                <nav aria-label="breadcrumb">
-                    <ol class="breadcrumb">
-                        <li class="breadcrumb-item"><a href="{% url 'video_list' %}">{% trans "Videi" %}</a></li>
-                        <li class="breadcrumb-item active">{{ video.title }}</li>
-                    </ol>
-                </nav>
-                <h1>{{ video.title }}</h1>
-                <div class="row">
-                    <div class="col-md-6">
-                        <p class="text-muted mb-0">
-                            {% trans "Ustvarjeno" %}: {{ video.created_at|date:"d.m.Y H:i" }}<br>
-                            {% trans "Posodobljeno" %}: {{ video.updated_at|date:"d.m.Y H:i" }}
-                        </p>
-                    </div>
-                    <div class="col-md-6 text-end">
-                        <div id="videoStatusContent">
+    <div class="container my-5">
+        <div class="main-header-row d-flex justify-content-between align-items-center">
+            <h1>{{ video.title }}</h1>
+        </div>
+
+        <div class="row">
+            <div class="col-12 col-lg-7 col-xl-8 card-with-header-col">
+                <div class="above-card-header">
+                    <h2><i class="bi bi-info-square"></i> Info</h2>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="position-absolute top-0 end-0 d-flex translate-middle-y me-3">
+                            <span class="badge
+                                {% if video.status == 'COMPLETED' %}bg-success
+                                {% elif video.status == 'PROCESSING' %}bg-warning
+                                {% elif video.status == 'FAILED' %}bg-danger
+                                {% else %}bg-secondary
+                                {% endif %}">
+                                {{ video.get_status_display }}
+                            </span>
+                        </div>
+
+                        <div>{% trans "Ustvarjeno" %}: {{ video.created_at|date:"j. n. Y G:i" }}</div>
+                        <div>{% trans "Posodobljeno" %}: {{ video.updated_at|date:"j. n. Y G:i" }}</div>
+
+                        <!-- TODO: styles for all these status options -->
+                        <div id="videoStatusContent" class="mt-3">
                         {% if video.status == 'GENERATING_SCENARIO' or video.status == 'GENERATING_SCRIPT' or video.status == 'GENERATING_VOICE' or video.status == 'GENERATING_SUBTITLES' or video.status == 'SUBTITLES_READY' or video.status == 'GENERATING_SEGMENTS' or video.status == 'RENDERING' or video.status == 'PROCESSING' %}
                             <div class="text-muted">
                                 <span id="videoStatusDisplay">{{ video.get_status_display }}</span><span id="videoProgress">{% if video.progress %} - {{ video.progress }}{% endif %}</span>
@@ -252,13 +216,13 @@
                                 </button>
                             </form>
                         {% elif video.status == 'FAILED' and video.error_details %}
-                            <div class="alert alert-danger mb-3" role="alert">
-                                <h6 class="alert-heading">
+                            <div class="alert alert-danger" role="alert">
+                                <h3 class="alert-heading">
                                     <i class="bi bi-exclamation-triangle-fill"></i> {% trans "Napaka" %}
                                     {% if video.error_type %}
                                         <span class="badge bg-danger ms-2">{{ video.get_error_type_display }}</span>
                                     {% endif %}
-                                </h6>
+                                </h3>
                                 <p class="mb-0">{{ video.error_details }}</p>
                             </div>
                         {% else %}
@@ -279,268 +243,318 @@
                     </div>
                 </div>
             </div>
-        </div>
-
-        <hr class="mt-0 mb-4">
-
-        <!-- Final Video -->
-        {% if video.final_file %}
-        <div class="row mb-4">
-            <div class="col-md-12">
-                <h5 class="d-flex align-items-center mb-3">
-                    <div>
-                        <i class="bi bi-camera-video-fill"></i> {% trans "Končni video" %}
-                    </div>
-                </h5>
+            <div class="col-12 col-lg-5 col-xl-4 card-with-header-col">
+                <div class="above-card-header">
+                    <h2><i class="bi bi-film"></i> {% trans "Končni video" %}</h2>
+                </div>
                 <div class="card">
                     <div class="card-body">
-                        <p class="text-success"><i class="bi bi-check-circle-fill"></i> {% trans "Pripravljen" %}</p>
-                        <video controls class="w-100 mb-2" style="max-height: 200px; background: #888;">
-                            <source src="{{ video.final_file.url }}" type="video/mp4">
-                            {% trans "Vaš brskalnik ne podpira predvajanja videa." %}
-                        </video>
-                        <a href="{{ video.final_file.url }}" class="btn btn-sm btn-success" target="_blank">
-                            <i class="bi bi-play-circle"></i> {% trans "Predvajaj" %}
-                        </a>
-                        <a href="{{ video.final_file.url }}" class="btn btn-sm btn-outline-primary" download>
-                            <i class="bi bi-download"></i> {% trans "Prenesi" %}
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Scenario and Script -->
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <div class="d-flex flex-column h-100">
-                    <h5 class="d-flex justify-content-between align-items-center mb-2">
-                        <div>
-                            <i class="bi bi-journal-text"></i> {% trans "Scenarij" %}
+                        {% if video.final_file %}
+                        <div class="position-absolute top-0 end-0 d-flex translate-middle-y me-3">
+                            <span class="badge bg-success">{% trans "Pripravljen" %}</span>
                         </div>
-                    </h5>
-                    <div class="card flex-grow-1">
-                        <div class="card-body">
-                            <label class="form-label visually-hidden" for="scenarioInput">{% trans "Scenarij" %}</label>
-                            <textarea class="form-control" id="scenarioInput" rows="10">{{ video.scenario }}</textarea>
-                            <div class="d-flex align-items-center mt-3 gap-2">
-                                <button type="button" class="btn btn-primary" id="saveScenarioButton" hidden>
-                                    <i class="bi bi-save"></i> {% trans "Shrani scenarij" %}
-                                </button>
-                                <span class="small text-muted" id="scenarioSaveStatus"></span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <!-- Voice File -->
-            <div class="col-md-6">
-                <div class="d-flex flex-column h-100">
-                    <h5 class="d-flex justify-content-between align-items-center mb-2">
-                        <div>
-                            <i class="bi bi-mic-fill"></i> {% trans "Zvočna datoteka" %}
-                        </div>
-                        <div class="d-flex align-items-center">
-                            <i class="bi bi-arrow-clockwise"></i>
-                            <form method="post" action="{% url 'generate_voice' video.id %}" style="margin: 0;" onsubmit="return confirm(i18n.confirmRegenerateAudio);">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-sm btn-link" {% if not video.scenario %}disabled{% endif %}>
-                                    {% trans "Generiraj ponovno" %}
-                                </button>
-                            </form>
-                        </div>
-                    </h5>
-                    <div class="card flex-grow-1">
-                        <div class="card-body">
-                            {% if video.voice_file %}
-                                <p class="text-success"><i class="bi bi-check-circle-fill"></i> {% trans "Naložena" %}</p>
-                                <audio controls class="w-100 mb-2">
-                                    <source src="{{ video.voice_file.url }}" type="audio/mpeg">
-                                    {% trans "Vaš brskalnik ne podpira predvajanja zvoka." %}
-                                </audio>
-                                <a href="{{ video.voice_file.url }}" class="btn btn-sm btn-outline-primary" download>
-                                    <i class="bi bi-download"></i> {% trans "Prenesi" %}
-                                </a>
-                            {% else %}
-                                <p class="text-muted">{% trans "Ni na voljo" %}</p>
-                            {% endif %}
+                        {% endif %}
 
-                            <hr class="my-3">
-
-                            <div class="mb-3">
-                                <label class="form-label" for="voiceModelSelect">{% trans "Glasovni model" %}</label>
-                                <select class="form-select" id="voiceModelSelect">
-                                    {% for voice_value, voice_label in voice_models %}
-                                        <option value="{{ voice_value }}" {% if video.voice_model == voice_value %}selected{% endif %}>{{ voice_label }}</option>
-                                    {% endfor %}
-                                </select>
-                                <div class="form-text">{% trans "Sprememba se shrani samodejno in velja pri naslednjem generiranju glasu." %}</div>
-                                <div id="voiceModelStatus" class="small mt-2 text-muted"></div>
-                            </div>
-
-                            {% if tts_provider == 'elevenlabs' %}
-                                <div class="mb-2">
-                                    <label class="form-label" for="voiceSamplePlayer">{% trans "Sample izbranega modela" %}</label>
-                                    <audio id="voiceSamplePlayer" controls class="w-100" style="display: none;">
-                                        {% trans "Vaš brskalnik ne podpira predvajanja zvoka." %}
-                                    </audio>
-                                    <div id="voiceSampleStatus" class="small mt-2 text-muted">{% trans "Izberi model za predvajanje sample-a." %}</div>
+                        <div class="row dynamic-cols">
+                            <div class="col fit-content">
+                                {% if video.final_file %}
+                                <div class="video-placeholder-aspect mx-auto">
+                                    <video controls style="background: #888;">
+                                        <source src="{{ video.final_file.url }}" type="video/mp4">
+                                    </video>
                                 </div>
-                            {% endif %}
+                                {% else %}
+                                <div class="video-placeholder-aspect mx-auto">
+                                    <p class="text-muted">{% trans "Video še ni na voljo." %}</p>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div class="col" style="max-width: 200px;">
+                                <div class="d-flex flex-column h-100 justify-content-center gap-3">
+                                    {% if video.final_file %}
+                                    <a href="{{ video.final_file.url }}" class="btn btn-primary w-100 d-flex justify-content-between align-items-center gap-3" target="_blank">
+                                        <span>{% trans "Predvajaj" %}</span>
+                                        <i class="bi bi-play"></i>
+                                    </a>
+                                    <a href="{{ video.final_file.url }}" class="btn btn-primary w-100 d-flex justify-content-between align-items-center gap-3" download>
+                                        <span>{% trans "Prenesi" %}</span>
+                                        <i class="bi bi-download"></i>
+                                    </a>
+                                    {% else %}
+                                    <a href="#" disabled class="disabled btn btn-secondary w-100 d-flex justify-content-between align-items-center gap-3" target="_blank">
+                                        <span>{% trans "Predvajaj" %}</span>
+                                        <i class="bi bi-play"></i>
+                                    </a>
+                                    <a href="#" disabled class="disabled btn btn-secondary w-100 d-flex justify-content-between align-items-center gap-3" download>
+                                        <span>{% trans "Prenesi" %}</span>
+                                        <i class="bi bi-download"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-
-        <!-- SRT File -->
-        <div class="row mb-4">
-            <div class="col-md-12">
-                <h5 class="d-flex justify-content-between align-items-center mb-2">
-                    <div>
-                        <i class="bi bi-file-text-fill"></i> {% trans "Podnapisi (SRT)" %}
+            <div class="col-12 col-lg-6 card-with-header-col">
+                <div class="above-card-header">
+                    <h2><i class="bi bi-journal-text"></i> {% trans "Scenarij" %}</h2>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <label class="form-label visually-hidden" for="scenarioInput">{% trans "Scenarij" %}</label>
+                        <textarea class="form-control" id="scenarioInput" rows="10">{{ video.scenario }}</textarea>
+                        <div class="d-flex align-items-center mt-3 gap-2">
+                            <button type="button" class="btn btn-primary" id="saveScenarioButton" hidden>
+                                <i class="bi bi-save"></i> {% trans "Shrani scenarij" %}
+                            </button>
+                            <span class="small text-muted" id="scenarioSaveStatus"></span>
+                        </div>
                     </div>
+                </div>
+            </div>
+            <div class="col-12 col-lg-6 card-with-header-col">
+                <div class="above-card-header">
+                    <h2><i class="bi bi-mic"></i> {% trans "Zvočna datoteka" %}</h2>
+                    {% if video.status != "GENERATING_VOICE" %}
                     <div class="d-flex align-items-center">
-                        <i class="bi bi-arrow-clockwise"></i>
-                        <form method="post" action="{% url 'regenerate_srt' video.id %}" style="margin: 0;" onsubmit="return confirm(i18n.confirmRegenerateSrt);">
+                        <form method="post" action="{% url 'generate_voice' video.id %}" style="margin: 0;" onsubmit="return confirm(i18n.confirmRegenerateAudio);">
                             {% csrf_token %}
-                            <button type="submit" class="btn btn-sm btn-link" {% if not video.voice_file %}disabled{% endif %}>
-                                {% trans "Generiraj ponovno" %}
+                            <button type="submit" class="btn btn-xs btn-secondary d-flex justify-content-between align-items-center gap-2" {% if not video.scenario %}disabled{% endif %}>
+                                <span>{% trans "Generiraj ponovno" %}</span>
+                                <i class="bi bi-arrow-repeat"></i>
                             </button>
                         </form>
                     </div>
-                </h5>
+                    {% endif %}
+                </div>
                 <div class="card">
                     <div class="card-body">
-                        {% if video.srt_file %}
-                        <div class="row g-3">
-                            <div class="col-lg-5">
-                                <p class="text-success"><i class="bi bi-check-circle-fill"></i> {% trans "Naloženi" %}</p>
-                                <a href="{{ video.srt_file.url }}" class="btn btn-sm btn-outline-primary mb-3" download>
-                                    <i class="bi bi-download"></i> {% trans "Prenesi" %}
+                        {% if video.status == "GENERATING_VOICE" %}
+                        <div class="position-absolute top-0 end-0 d-flex translate-middle-y me-3">
+                            <span class="badge bg-secondary">{% trans "Generiranje ..." %}</span>
+                        </div>
+                        {% elif video.voice_file %}
+                        <div class="position-absolute top-0 end-0 d-flex translate-middle-y me-3">
+                            <span class="badge bg-success">{% trans "Pripravljen" %}</span>
+                        </div>
+                        {% endif %}
+
+                        {% if video.voice_file %}
+                            <audio controls class="w-100 mb-2">
+                                <source src="{{ video.voice_file.url }}" type="audio/mpeg">
+                            </audio>
+                            <div class="d-flex align-items-center justify-content-end">
+                                <a href="{{ video.voice_file.url }}" class="btn btn-primary d-inline-flex justify-content-between align-items-center gap-3" download>
+                                    <span>{% trans "Prenesi" %}</span>
+                                    <i class="bi bi-download"></i>
                                 </a>
+                            </div>
+                        {% else %}
+                            <p class="text-muted">{% trans "Ni na voljo" %}</p>
+                        {% endif %}
 
-                                <h6 class="mt-3 mb-2">{% trans "Prilagodi podnapise:" %}</h6>
+                        <hr>
 
-                                <div class="row g-3 mb-3">
-                                    <div class="col-md-12">
-                                        <label class="form-label">{% trans "Font" %}</label>
-                                        <select class="form-select" id="fontFamily" onchange="updateSubtitlePreview()">
-                                            <option value="Montserrat" {% if video.subtitle_font_family == 'Montserrat' or not video.subtitle_font_family %}selected{% endif %}>Montserrat</option>
-                                            <option value="Impact" {% if video.subtitle_font_family == 'Impact' %}selected{% endif %}>Impact</option>
-                                            <option value="Arial" {% if video.subtitle_font_family == 'Arial' %}selected{% endif %}>Arial</option>
-                                            <option value="Bebas Neue" {% if video.subtitle_font_family == 'Bebas Neue' %}selected{% endif %}>Bebas Neue</option>
-                                            <option value="Roboto" {% if video.subtitle_font_family == 'Roboto' %}selected{% endif %}>Roboto</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">{% trans "Velikost" %}: <span id="fontSizeValue">{{ video.subtitle_font_size|default:20 }}</span>px</label>
-                                        <input type="range" class="form-range" min="15" max="30" value="{{ video.subtitle_font_size|default:20 }}" id="fontSize" oninput="updateSubtitlePreview()">
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">{% trans "Stroke" %}: <span id="strokeValue">{{ video.subtitle_stroke_weight|default:2 }}</span>px</label>
-                                        <input type="range" class="form-range" min="0" max="6" value="{{ video.subtitle_stroke_weight|default:2 }}" id="strokeWeight" oninput="updateSubtitlePreview()">
-                                    </div>
-                                    <div class="col-md-12">
-                                        <label class="form-label">{% trans "Font Weight" %}</label>
-                                        <select class="form-select" id="fontWeight" onchange="updateSubtitlePreview()">
-                                            <option value="400" {% if video.subtitle_font_weight == '400' %}selected{% endif %}>{% trans "Normal" %} (400)</option>
-                                            <option value="700" {% if video.subtitle_font_weight == '700' or not video.subtitle_font_weight %}selected{% endif %}>{% trans "Bold" %} (700)</option>
-                                            <option value="900" {% if video.subtitle_font_weight == '900' %}selected{% endif %}>{% trans "Heavy" %} (900)</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">{% trans "Shadow" %}: <span id="shadowValue">{{ video.subtitle_shadow|default:0 }}</span></label>
-                                        <input type="range" class="form-range" min="0" max="3" value="{{ video.subtitle_shadow|default:0 }}" id="shadow" oninput="updateSubtitlePreview()">
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">{% trans "Višina" %}: <span id="verticalPositionValue">{{ video.subtitle_vertical_position|default:15 }}</span>%</label>
-                                        <input type="range" class="form-range" min="0" max="50" value="{{ video.subtitle_vertical_position|default:15 }}" id="verticalPosition" oninput="updateSubtitlePreview()">
-                                    </div>
-                                    <div class="col-md-12">
-                                        <label class="form-label">{% trans "Maksimalno besed na zaslonu" %}: <span id="maxWordsPerScreenValue">{% if video.subtitle_max_words_per_screen %}{{ video.subtitle_max_words_per_screen }}{% else %}{% trans "Nedefinirano" %}{% endif %}</span></label>
-                                        <input type="range" class="form-range" min="0" max="15" value="{% if video.subtitle_max_words_per_screen %}{{ video.subtitle_max_words_per_screen }}{% else %}0{% endif %}" id="maxWordsPerScreen" oninput="updateSubtitlePreview()">
-                                        <div class="form-text">0 = {% trans "Nedefinirano" %}, 1-15</div>
-                                    </div>
-                                    <div class="col-md-12 d-flex gap-2">
-                                        <button class="btn btn-primary" onclick="saveSubtitleSettings('{{ video.id }}')">
-                                            <i class="bi bi-check-circle"></i> {% trans "Shrani nastavitve" %}
-                                        </button>
-                                        <button class="btn btn-outline-secondary" onclick="resetSubtitleSettings('{{ video.id }}')">
-                                            <i class="bi bi-arrow-counterclockwise"></i> {% trans "Ponastavi na privzeto" %}
-                                        </button>
+                        <div class="mb-3">
+                            <label class="form-label" for="voiceModelSelect">{% trans "Glasovni model" %}</label>
+                            <select class="form-select" id="voiceModelSelect">
+                                {% for voice_value, voice_label in voice_models %}
+                                    <option value="{{ voice_value }}" {% if video.voice_model == voice_value %}selected{% endif %}>{{ voice_label }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">{% trans "Sprememba se shrani samodejno in velja pri naslednjem generiranju glasu." %}</div>
+                            <div id="voiceModelStatus" class="small text-muted"></div>
+                        </div>
+
+                        {% if tts_provider == 'elevenlabs' %}
+                        <div class="mb-0">
+                            <label class="form-label" for="voiceSamplePlayer">{% trans "Sample izbranega modela" %}</label>
+                            <audio id="voiceSamplePlayer" controls class="w-100" style="display: none;"></audio>
+                            <div id="voiceSampleStatus" class="small text-muted">{% trans "Izberi model za predvajanje sample-a." %}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 card-with-header-col">
+                <div class="above-card-header">
+                    <h2><i class="bi bi-chat-left-text"></i> {% trans "Podnapisi" %}</h2>
+                    <div class="d-flex align-items-center">
+                        <form method="post" action="{% url 'regenerate_srt' video.id %}" style="margin: 0;" onsubmit="return confirm(i18n.confirmRegenerateSrt);">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-xs btn-secondary d-flex justify-content-between align-items-center gap-2" {% if not video.voice_file %}disabled{% endif %}>
+                                <span>{% trans "Generiraj ponovno" %}</span>
+                                <i class="bi bi-arrow-repeat"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        {% if video.status == "GENERATING_SUBTITLES" %}
+                        <div class="position-absolute top-0 end-0 d-flex translate-middle-y me-3">
+                            <span class="badge bg-secondary">{% trans "Generiranje ..." %}</span>
+                        </div>
+                        {% elif video.srt_file %}
+                        <div class="position-absolute top-0 end-0 d-flex translate-middle-y me-3">
+                            <span class="badge bg-success">{% trans "Pripravljen" %}</span>
+                        </div>
+                        {% endif %}
+
+                        {% if video.srt_file %}
+                        <div class="row subtitle-settings-row">
+                            <div class="col">
+                                <h3>{% trans "Predogled videa" %}</h3>
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="subtitle-preview-container">
+                                            <img
+                                                id="logoPreviewImage"
+                                                class="preview-logo {% if video.logo_position == 'top_left' %}top-left{% else %}top-right{% endif %}"
+                                                src="{% if video.logo %}{{ video.logo.logo_file.url }}{% endif %}"
+                                                alt="Logo preview"
+                                            >
+                                            <div class="subtitle-preview">
+                                                <span id="subtitlePreviewText">{% trans "Primer Teksta je takšen, a bi mel drugačnega?" %}</span>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-lg-3">
-                                <h6 class="mt-1 mb-2">{% trans "Logotip:" %}</h6>
-                                <div class="border rounded p-2 mb-2" style="max-height: 260px; overflow-y: auto;">
-                                    <div id="logoOptionsContainer" class="d-grid gap-2">
-                                        <label class="logo-option {% if not video.logo_id %}selected{% endif %}" data-logo-card-id="none">
-                                            <input class="form-check-input me-2" type="radio" name="selectedLogo" value="" data-logo-url="" {% if not video.logo_id %}checked{% endif %}>
-                                            <span class="small">{% trans "Brez logotipa" %}</span>
-                                        </label>
-                                        {% for logo in user_logos %}
-                                        <label class="logo-option {% if video.logo_id == logo.id %}selected{% endif %}" data-logo-card-id="{{ logo.id }}">
-                                            <input class="form-check-input me-2" type="radio" name="selectedLogo" value="{{ logo.id }}" data-logo-url="{{ logo.logo_file.url }}" {% if video.logo_id == logo.id %}checked{% endif %}>
-                                            <img src="{{ logo.logo_file.url }}" class="logo-option-thumb mt-2" alt="Logo {{ logo.id }}">
-                                        </label>
-                                        {% empty %}
-                                        <div class="text-muted small" id="noLogosMessage">{% trans "Ni še naloženih logotipov." %}</div>
-                                        {% endfor %}
+                            <div class="col">
+                                <h3>{% trans "Prilagodi podnapise" %}</h3>
+                                {% comment %} <a href="{{ video.srt_file.url }}" class="btn btn-sm btn-outline-primary mb-3" download>
+                                    <i class="bi bi-download"></i> {% trans "Prenesi" %}
+                                </a> {% endcomment %}
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="row g-2">
+                                            <div class="col-6">
+                                                <label class="form-label">{% trans "Font" %}</label>
+                                                <select class="form-select" id="fontFamily" onchange="updateSubtitlePreview()">
+                                                    <option value="Montserrat" {% if video.subtitle_font_family == 'Montserrat' or not video.subtitle_font_family %}selected{% endif %}>Montserrat</option>
+                                                    <option value="Impact" {% if video.subtitle_font_family == 'Impact' %}selected{% endif %}>Impact</option>
+                                                    <option value="Arial" {% if video.subtitle_font_family == 'Arial' %}selected{% endif %}>Arial</option>
+                                                    <option value="Bebas Neue" {% if video.subtitle_font_family == 'Bebas Neue' %}selected{% endif %}>Bebas Neue</option>
+                                                    <option value="Roboto" {% if video.subtitle_font_family == 'Roboto' %}selected{% endif %}>Roboto</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label">{% trans "Font Weight" %}</label>
+                                                <select class="form-select" id="fontWeight" onchange="updateSubtitlePreview()">
+                                                    <option value="400" {% if video.subtitle_font_weight == '400' %}selected{% endif %}>{% trans "Normal" %} (400)</option>
+                                                    <option value="700" {% if video.subtitle_font_weight == '700' or not video.subtitle_font_weight %}selected{% endif %}>{% trans "Bold" %} (700)</option>
+                                                    <option value="900" {% if video.subtitle_font_weight == '900' %}selected{% endif %}>{% trans "Heavy" %} (900)</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">{% trans "Velikost" %}: <span id="fontSizeValue">{{ video.subtitle_font_size|default:20 }}</span>px</label>
+                                                <input type="range" class="form-range" min="15" max="30" value="{{ video.subtitle_font_size|default:20 }}" id="fontSize" oninput="updateSubtitlePreview()">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">{% trans "Stroke" %}: <span id="strokeValue">{{ video.subtitle_stroke_weight|default:2 }}</span>px</label>
+                                                <input type="range" class="form-range" min="0" max="6" value="{{ video.subtitle_stroke_weight|default:2 }}" id="strokeWeight" oninput="updateSubtitlePreview()">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">{% trans "Shadow" %}: <span id="shadowValue">{{ video.subtitle_shadow|default:0 }}</span></label>
+                                                <input type="range" class="form-range" min="0" max="3" value="{{ video.subtitle_shadow|default:0 }}" id="shadow" oninput="updateSubtitlePreview()">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">{% trans "Višina" %}: <span id="verticalPositionValue">{{ video.subtitle_vertical_position|default:15 }}</span>%</label>
+                                                <input type="range" class="form-range" min="0" max="50" value="{{ video.subtitle_vertical_position|default:15 }}" id="verticalPosition" oninput="updateSubtitlePreview()">
+                                            </div>
+                                            <div class="col-md-12">
+                                                <label class="form-label">{% trans "Maksimalno besed na zaslonu" %}: <span id="maxWordsPerScreenValue">{% if video.subtitle_max_words_per_screen %}{{ video.subtitle_max_words_per_screen }}{% else %}{% trans "Nedefinirano" %}{% endif %}</span></label>
+                                                <input type="range" class="form-range" min="0" max="15" value="{% if video.subtitle_max_words_per_screen %}{{ video.subtitle_max_words_per_screen }}{% else %}0{% endif %}" id="maxWordsPerScreen" oninput="updateSubtitlePreview()">
+                                                <div class="form-text">0 = {% trans "Nedefinirano" %}, 1-15</div>
+                                            </div>
+                                        </div>
+                                        <div class="d-grid gap-1 mt-auto">
+                                            <button class="btn btn-secondary d-inline-flex justify-content-between align-items-center gap-3" onclick="resetSubtitleSettings('{{ video.id }}')">
+                                                <span>{% trans "Ponastavi na privzeto" %}</span>
+                                                <i class="bi bi-arrow-counterclockwise"></i>
+                                            </button>
+                                            <button class="btn btn-primary d-inline-flex justify-content-between align-items-center gap-3" onclick="saveSubtitleSettings('{{ video.id }}')">
+                                                <span>{% trans "Shrani nastavitve" %}</span>
+                                                <i class="bi bi-floppy"></i>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-
-                                <div class="mb-2">
-                                    <label class="form-label">{% trans "Položaj logotipa" %}</label>
-                                    <select class="form-select" id="logoPosition" onchange="updateLogoPreview()">
-                                        <option value="top_left" {% if video.logo_position == 'top_left' %}selected{% endif %}>{% trans "Zgoraj levo" %}</option>
-                                        <option value="top_right" {% if video.logo_position != 'top_left' %}selected{% endif %}>{% trans "Zgoraj desno" %}</option>
-                                    </select>
-                                </div>
-                                <div class="mb-2">
-                                    <label class="form-label">{% trans "Velikost" %}: <span id="logoSizeValue">{{ video.logo_size_percent|default:15 }}</span>%</label>
-                                    <input type="range" class="form-range" min="5" max="40" value="{{ video.logo_size_percent|default:15 }}" id="logoSizePercent" oninput="updateLogoPreview()">
-                                </div>
-                                <div class="d-grid mb-2">
-                                    <button class="btn btn-outline-primary btn-sm" onclick="saveLogoSettings('{{ video.id }}')">
-                                        <i class="bi bi-check-circle"></i> {% trans "Shrani logo nastavitve" %}
-                                    </button>
-                                </div>
-
-                                <form id="logoUploadForm" class="border rounded p-2" enctype="multipart/form-data">
-                                    <label class="form-label mb-1">{% trans "Naloži nov logotip" %}</label>
-                                    <input type="file" class="form-control form-control-sm mb-2" id="logoFileInput" name="logo" accept="image/*" required>
-                                    <div class="d-grid">
-                                        <button type="submit" class="btn btn-sm btn-success">
-                                            <i class="bi bi-upload"></i> {% trans "Upload" %}
-                                        </button>
-                                    </div>
-                                </form>
                             </div>
-                            <div class="col-lg-4">
-                                <div class="subtitle-preview-container">
-                                    <img
-                                        id="logoPreviewImage"
-                                        class="preview-logo {% if video.logo_position == 'top_left' %}top-left{% else %}top-right{% endif %}"
-                                        src="{% if video.logo %}{{ video.logo.logo_file.url }}{% endif %}"
-                                        alt="Logo preview"
-                                    >
-                                    <div class="subtitle-preview">
-                                        <span id="subtitlePreviewText">{% trans "Primer Teksta je takšen, a bi mel drugačnega?" %}</span>
+                            <div class="col">
+                                <h3>{% trans "Prilagodi logotip" %}</h3>
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="row g-2">
+                                            <div class="col-12">
+                                                <form id="logoUploadForm" enctype="multipart/form-data">
+                                                    <label class="form-label mb-1">{% trans "Naloži nov logotip" %}</label>
+                                                    <input type="file" class="form-control form-control-sm mb-2" id="logoFileInput" name="logo" accept="image/*" required>
+                                                    <div class="d-grid">
+                                                        <button type="submit" class="btn btn-sm btn-primary d-inline-flex justify-content-between align-items-center gap-3">
+                                                            <span>{% trans "Upload" %}</span>
+                                                            <i class="bi bi-upload"></i>
+                                                        </button>
+                                                    </div>
+                                                </form>
+                                                <hr>
+                                            </div>
+                                            <div class="col-12">
+                                                <div class="border p-2" style="height: 220px; overflow-y: auto;">
+                                                    <div id="logoOptionsContainer" class="d-grid gap-2">
+                                                        <label class="logo-option {% if not video.logo_id %}selected{% endif %}" data-logo-card-id="none">
+                                                            <input class="form-check-input me-2" type="radio" name="selectedLogo" value="" data-logo-url="" {% if not video.logo_id %}checked{% endif %}>
+                                                            <span class="small">{% trans "Brez logotipa" %}</span>
+                                                        </label>
+                                                        {% for logo in user_logos %}
+                                                        <label class="logo-option {% if video.logo_id == logo.id %}selected{% endif %}" data-logo-card-id="{{ logo.id }}">
+                                                            <input class="form-check-input me-2" type="radio" name="selectedLogo" value="{{ logo.id }}" data-logo-url="{{ logo.logo_file.url }}" {% if video.logo_id == logo.id %}checked{% endif %}>
+                                                            <img src="{{ logo.logo_file.url }}" class="logo-option-thumb" alt="Logo {{ logo.id }}">
+                                                        </label>
+                                                        {% empty %}
+                                                        <div class="text-muted small" id="noLogosMessage">{% trans "Ni še naloženih logotipov." %}</div>
+                                                        {% endfor %}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div>
+                                                    <label class="form-label">{% trans "Položaj logotipa" %}</label>
+                                                    <select class="form-select form-select-sm" id="logoPosition" onchange="updateLogoPreview()">
+                                                        <option value="top_left" {% if video.logo_position == 'top_left' %}selected{% endif %}>{% trans "Zgoraj levo" %}</option>
+                                                        <option value="top_right" {% if video.logo_position != 'top_left' %}selected{% endif %}>{% trans "Zgoraj desno" %}</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div>
+                                                    <label class="form-label">{% trans "Velikost" %}: <span id="logoSizeValue">{{ video.logo_size_percent|default:15 }}</span>%</label>
+                                                    <input type="range" class="form-range" min="5" max="40" value="{{ video.logo_size_percent|default:15 }}" id="logoSizePercent" oninput="updateLogoPreview()">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="d-grid mt-auto">
+                                            <button class="btn btn-primary d-inline-flex justify-content-between align-items-center gap-3" onclick="saveLogoSettings('{{ video.id }}')">
+                                                <span>{% trans "Shrani nastavitve" %}</span>
+                                                <i class="bi bi-floppy"></i>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                         {% else %}
-                            <p class="text-muted">{% trans "Ni na voljo" %}</p>
+                        <p class="text-muted">{% trans "Ni na voljo" %}</p>
                         {% endif %}
                     </div>
                 </div>
             </div>
         </div>
+    </div>
 
+    <div class="container mt-4">
         <!-- Video Segments -->
         <div class="row mb-4">
             <div class="col-md-12">
@@ -996,7 +1010,7 @@
             if (!statusEl) {
                 return;
             }
-            statusEl.className = `small mt-2 text-${level}`;
+            statusEl.className = `small text-${level}`;
             statusEl.textContent = message;
         }
 
@@ -1005,7 +1019,7 @@
             if (!statusEl) {
                 return;
             }
-            statusEl.className = `small mt-2 text-${level}`;
+            statusEl.className = `small text-${level}`;
             statusEl.textContent = message;
         }
 
