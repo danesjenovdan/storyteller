@@ -3,50 +3,14 @@
 
 {% block title %}{% trans "Ustvari nov video" %}{% endblock %}
 
-{% block extra_head %}
-    <style>
-        .nav-tabs {
-            border-bottom: 2px solid #dee2e6;
-        }
-        .nav-link {
-            border: none;
-            border-bottom: 3px solid transparent;
-            color: #6c757d;
-            transition: all 0.3s ease;
-        }
-        .nav-link:hover {
-            border-bottom-color: #0d6efd;
-            color: #0d6efd;
-        }
-        .nav-link.active {
-            border-bottom-color: #0d6efd;
-            color: #0d6efd;
-            background-color: transparent;
-        }
-        .card.bg-light {
-            border: 2px dashed #dee2e6;
-        }
-        #audio-content input[type="file"] {
-            cursor: pointer;
-        }
-    </style>
-{% endblock %}
-
 {% block content %}
-    <div class="container mt-5">
+    <div class="container my-5">
+        <div class="main-header-row d-flex justify-content-between align-items-center">
+            <h1>{% trans "Ustvari nov video" %}</h1>
+        </div>
+
         <div class="row">
-            <div class="col-md-8 offset-md-2">
-                <h1 class="mb-4">{% trans "Ustvari nov video" %}</h1>
-
-                {% if messages %}
-                    {% for message in messages %}
-                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                            {{ message }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    {% endfor %}
-                {% endif %}
-
+            <div class="col-12 medium-wide">
                 <div class="card">
                     <div class="card-body">
                         <form id="createVideoForm" method="post" enctype="multipart/form-data">
@@ -75,10 +39,10 @@
                                 </ul>
                                 <div class="tab-content" id="contentTabContent">
                                     <div class="tab-pane fade show active" id="scenario-content" role="tabpanel">
-                                        <div class="my-3">
-                                            <div class="d-flex">
+                                        <div class="mb-3">
+                                            <div class="d-flex align-items-end">
                                                 <label for="{{ form.scenario.id_for_label }}" class="form-label">{% trans "Vpiši scenarij videa" %}</label>
-                                                <button type="button" class="ms-auto btn btn-sm btn-outline-secondary" id="togglePrompt" data-bs-toggle="modal" data-bs-target="#promptModal">
+                                                <button type="button" class="ms-auto mb-1 btn btn-sm btn-outline-secondary" id="togglePrompt" data-bs-toggle="modal" data-bs-target="#promptModal">
                                                     {% trans "Optimiziraj z AI" %}
                                                 </button>
                                             </div>
@@ -107,7 +71,7 @@
                                             </div>
                                         {% endif %}
 
-                                        <div class="mb-3">
+                                        <div class="mb-0">
                                             <label for="{{ form.language.id_for_label }}" class="form-label">{{ form.language.label }}</label>
                                             {{ form.language }}
                                             {% if form.language.errors %}
@@ -116,26 +80,24 @@
                                         </div>
                                     </div>
                                     <div class="tab-pane fade" id="audio-content" role="tabpanel">
-                                        <div class="mt-3">
-                                            <div class="card bg-light">
-                                                <div class="card-body">
-                                                    <h5 class="card-title">Naloži zvočni posnetek</h5>
-                                                    <p class="card-text text-muted">Namesto pisanja scenarija lahko naložiš že pripravljen zvočni posnetek.</p>
-                                                    <div class="mb-3">
-                                                        <label for="{{ form.voice_file.id_for_label }}" class="form-label">{{ form.voice_file.label }} (mp3, wav, ogg, m4a)</label>
-                                                        {{ form.voice_file }}
-                                                        {% if form.voice_file.errors %}
-                                                            <div class="text-danger">{{ form.voice_file.errors }}</div>
-                                                        {% endif %}
-                                                        <small class="text-muted">Največja velikost datoteke: 100 MB</small>
-                                                    </div>
-                                                    <div id="audioPreview" class="mt-3" style="display: none;">
-                                                        <label class="form-label">Predogled:</label>
-                                                        <audio id="audioPlayer" controls style="width: 100%;">
-                                                            Tvoj brskalnik ne podpira audio elementa.
-                                                        </audio>
-                                                    </div>
-                                                </div>
+                                        <div class="mb-3">
+                                            <label class="form-label lead">Namesto pisanja scenarija lahko naložiš že pripravljen zvočni posnetek.</label>
+                                        </div>
+                                        <div class="mb-0">
+                                            <label for="{{ form.voice_file.id_for_label }}" class="form-label d-flex align-items-end">
+                                                <span>{{ form.voice_file.label }} (mp3, wav, ogg, m4a)</span>
+                                                <small class="text-muted ms-auto">Največja velikost datoteke: 100 MB</small>
+                                            </label>
+
+                                            {{ form.voice_file }}
+                                            {% if form.voice_file.errors %}
+                                                <div class="text-danger">{{ form.voice_file.errors }}</div>
+                                            {% endif %}
+                                            <div id="audioPreview" class="mt-3" style="display: none;">
+                                                <label class="form-label">Predogled:</label>
+                                                <audio id="audioPlayer" controls style="display: block; width: 100%;">
+                                                    Tvoj brskalnik ne podpira audio elementa.
+                                                </audio>
                                             </div>
                                         </div>
                                     </div>
@@ -144,7 +106,10 @@
 
                             <div class="d-flex justify-content-between">
                                 <a href="{% url 'video_list' %}" class="btn btn-secondary">{% trans "Prekliči" %}</a>
-                                <button type="submit" id="submitBtn" class="btn btn-primary">{% trans "Ustvari video" %}</button>
+                                <button type="submit" id="submitBtn" class="btn btn-primary d-flex justify-content-between align-items-center gap-3">
+                                    <span>{% trans "Ustvari video" %}</span>
+                                    <i class="bi bi-chevron-right"></i>
+                                </button>
                             </div>
 
                             <div id="submitOverlay" style="display:none; position:fixed; inset:0; background:rgba(255,255,255,0.65); z-index:9999; align-items:center; justify-content:center; flex-direction:column; gap:1rem;">

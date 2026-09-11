@@ -55,6 +55,11 @@ class VideoCreateForm(forms.ModelForm):
                     "class": "form-select",
                 }
             ),
+            "voice_file": forms.ClearableFileInput(
+                attrs={
+                    "class": "form-control",
+                }
+            ),
         }
         labels = {
             "title": _("Naslov"),

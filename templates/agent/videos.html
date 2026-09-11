@@ -4,32 +4,23 @@
 {% block title %}{% trans "Moji videi" %}{% endblock %}
 
 {% block content %}
-    <div class="container mt-5">
-        <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="container my-5">
+        <div class="main-header-row d-flex justify-content-between align-items-center">
             <h1>{% trans "Moji videi" %}</h1>
-            <a href="{% url 'video_create' %}" class="btn btn-primary">{% trans "+ Nov video" %}</a>
+            <a href="{% url 'video_create' %}" class="btn btn-primary d-flex justify-content-between align-items-center gap-3">
+                <span>{% trans "Nov video" %}</span>
+                <i class="bi bi-plus-square"></i>
+            </a>
         </div>
-        
-        {% if messages %}
-            {% for message in messages %}
-                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-            {% endfor %}
-        {% endif %}
-        
+
         {% if videos %}
             <div class="row">
                 {% for video in videos %}
-                    <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="col-md-6 col-xl-4 mb-4">
                         <div class="card h-100">
-                            <div class="card-body">
-                                <h5 class="card-title">{{ video.title }}</h5>
-                                <p class="card-text text-muted">{{ video.scenario|truncatewords:20 }}</p>
-                                
-                                <div class="mb-2">
-                                    <span class="badge 
+                            <div class="card-body d-flex flex-column">
+                                <div class="position-absolute top-0 end-0 d-flex translate-middle-y me-3">
+                                    <span class="badge
                                         {% if video.status == 'COMPLETED' %}bg-success
                                         {% elif video.status == 'PROCESSING' %}bg-warning
                                         {% elif video.status == 'FAILED' %}bg-danger
@@ -38,15 +29,43 @@
                                         {{ video.get_status_display }}
                                     </span>
                                 </div>
-                                
-                                <small class="text-muted d-block mb-3">
-                                    {% trans "Ustvarjeno" %}: {{ video.created_at|date:"d.m.Y H:i" }}
-                                </small>
-                                
-                                <div class="d-flex gap-2">
-                                    <a href="{% url 'video_detail' video.id %}" class="btn btn-sm btn-primary">
-                                        {% trans "Podrobnosti" %}
-                                    </a>
+
+                                <div class="card-part-top">
+                                    <h2 class="card-title"><span class="truncate-lines-1">{{ video.title }}</span></h2>
+                                </div>
+
+                                <div class="card-part-bottom">
+                                    <div class="row dynamic-cols">
+                                        <div class="col fit-content">
+                                            {% if video.final_file %}
+                                            <div class="video-placeholder-aspect">
+                                                <video controls style="background: #888;">
+                                                    <source src="{{ video.final_file.url }}" type="video/mp4">
+                                                </video>
+                                            </div>
+                                            {% else %}
+                                            <div class="video-placeholder-aspect">
+                                                <p class="text-muted">{% trans "Video še ni na voljo." %}</p>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        <div class="col">
+                                            <div class="d-flex flex-column gap-2 h-100">
+                                                <div class="position-relative overflow-hidden flex-grow-1">
+                                                    <p class="small position-absolute top-0 start-0">{{ video.scenario|truncatewords:30 }}</p>
+                                                </div>
+                                                <small class="text-muted d-block mt-auto">
+                                                    {% trans "Ustvarjeno" %}: {{ video.created_at|date:"j. n. Y G:i" }}
+                                                </small>
+                                                <div class="d-flex gap-2">
+                                                    <a href="{% url 'video_detail' video.id %}" class="btn btn-sm btn-primary w-100 d-flex justify-content-between align-items-center gap-1">
+                                                        <span>{% trans "Podrobnosti" %}</span>
+                                                        <i class="bi bi-chevron-right"></i>
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
