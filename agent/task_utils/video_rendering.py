@@ -596,9 +596,19 @@ class FinalVideoRenderer:
         font_size = video.subtitle_font_size or 12
         font_family = video.subtitle_font_family or "Montserrat"
         font_weight = video.subtitle_font_weight or "900"
-        stroke_weight = video.subtitle_stroke_weight or 3
-        shadow = video.subtitle_shadow or 1
-        vertical_position = video.subtitle_vertical_position or 10
+        # 0 is a valid, intentional value for these, so `or` (falsy check) would
+        # silently override it with the fallback - use explicit None checks instead.
+        stroke_weight = (
+            video.subtitle_stroke_weight
+            if video.subtitle_stroke_weight is not None
+            else 3
+        )
+        shadow = video.subtitle_shadow if video.subtitle_shadow is not None else 1
+        vertical_position = (
+            video.subtitle_vertical_position
+            if video.subtitle_vertical_position is not None
+            else 10
+        )
 
         bold = 1 if int(font_weight) >= 700 else 0
         max_margin_v = 300

@@ -7,7 +7,6 @@ from functools import wraps
 
 import requests
 from django.conf import settings as django_settings
-from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.files.storage import default_storage
 from django.db import transaction
@@ -1390,7 +1389,6 @@ def regenerate_segments(request, video_id):
     Regenerate video segments from content script.
     Deletes existing segments and creates new ones.
     """
-    from django.contrib import messages
     from django.shortcuts import redirect
 
     from agent.tasks import get_video_segments
