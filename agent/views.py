@@ -1479,7 +1479,7 @@ def set_subtitle_style(request, video_id):
         vertical_position = data.get("vertical_position", 15)
         max_words_per_screen = data.get("max_words_per_screen")
 
-        video.subtitle_font_size = max(15, min(30, int(font_size)))
+        video.subtitle_font_size = max(8, min(30, int(font_size)))
         video.subtitle_font_family = font_family
         normalized_font_weight = str(font_weight)
         if normalized_font_weight not in {"400", "700", "900"}:

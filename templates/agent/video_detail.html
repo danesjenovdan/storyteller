@@ -450,7 +450,7 @@
                                             </div>
                                             <div class="col-md-6">
                                                 <label class="form-label">{% trans "Velikost" %}: <span id="fontSizeValue">{{ video.subtitle_font_size|default:20 }}</span>px</label>
-                                                <input type="range" class="form-range" min="15" max="30" value="{{ video.subtitle_font_size|default:20 }}" id="fontSize" oninput="updateSubtitlePreview()">
+                                                <input type="range" class="form-range" min="8" max="30" value="{{ video.subtitle_font_size|default:20 }}" id="fontSize" oninput="updateSubtitlePreview()">
                                             </div>
                                             <div class="col-md-6">
                                                 <label class="form-label">{% trans "Stroke" %}: <span id="strokeValue">{{ video.subtitle_stroke_weight|default:2 }}</span>px</label>
