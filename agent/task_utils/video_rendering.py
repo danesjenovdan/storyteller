@@ -70,6 +70,9 @@ class FinalVideoRenderer:
     GRADIENT_TYPE = "spiral"
     GRADIENT_SPEED = 0.03
 
+    # Peak zoom amount for zoom_in/zoom_out (0.18 = start/end 18% more zoomed in).
+    ZOOM_AMOUNT = 0.18
+
     def __init__(self, video: GenVideo):
         self.video = video
 
@@ -314,25 +317,28 @@ class FinalVideoRenderer:
 
     @staticmethod
     def _animation_mid_filter(animation: str, clip_duration: float) -> Optional[str]:
-        safe_duration = max(float(clip_duration or 0.0), 0.1)
+        safe_duration = max(float(clip_duration or 0.0), 0.1) * 2
         animation = (animation or "none").strip().lower()
+        zoom_amount = FinalVideoRenderer.ZOOM_AMOUNT
 
         if animation == "zoom_in":
             return (
                 # Apply zoom to the already-fitted 1080x1920 frame so motion starts
-                # from the exact fit_mode result and remains centered.
-                f"scale=1080*(1+0.10*min(t/{safe_duration:.3f}\\,1)):"
-                f"1920*(1+0.10*min(t/{safe_duration:.3f}\\,1)):eval=frame,"
-                f"crop=1080:1920:1080*0.10*min(t/{safe_duration:.3f}\\,1)/2:"
-                f"1920*0.10*min(t/{safe_duration:.3f}\\,1)/2"
+                # from the exact fit_mode result and remains centered. crop's x/y
+                # use iw/ih (scale's actual, rounded per-frame output) instead of
+                # re-deriving the offset from t, since that duplicate calculation
+                # can drift by a pixel from scale's rounding and cause jitter.
+                f"scale=1080*(1+{zoom_amount:.3f}*min(t/{safe_duration:.3f}\\,1)):"
+                f"1920*(1+{zoom_amount:.3f}*min(t/{safe_duration:.3f}\\,1)):eval=frame,"
+                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
             )
         if animation == "zoom_out":
             return (
-                # Start zoomed in (1.1x) and ease back to fit_mode (1.0x).
-                f"scale=1080*(1+0.10*(1-min(t/{safe_duration:.3f}\\,1))):"
-                f"1920*(1+0.10*(1-min(t/{safe_duration:.3f}\\,1))):eval=frame,"
-                f"crop=1080:1920:1080*0.10*(1-min(t/{safe_duration:.3f}\\,1))/2:"
-                f"1920*0.10*(1-min(t/{safe_duration:.3f}\\,1))/2"
+                # Start zoomed in and ease back to fit_mode (1.0x). See
+                # zoom_in above for why crop derives x/y from iw/ih.
+                f"scale=1080*(1+{zoom_amount:.3f}*(1-min(t/{safe_duration:.3f}\\,1))):"
+                f"1920*(1+{zoom_amount:.3f}*(1-min(t/{safe_duration:.3f}\\,1))):eval=frame,"
+                "crop=1080:1920:(iw-1080)/2:(ih-1920)/2"
             )
         return None
 
