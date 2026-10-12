@@ -928,10 +928,11 @@
             previewSpan.style.fontWeight = fontWeight;
 
             // Update vertical position (padding from bottom)
-            // Convert percentage to pixels based on container height (~355px for 200px width)
-            // At 50% slider, we want ~180px from bottom
-            const paddingPx = (verticalPosition / 50) * 180; // Linear scale: 0-50% → 0-180px
-            previewContainer.style.paddingBottom = paddingPx + 'px';
+            // Mirror the renderer: MarginV = pos% * 300 in libass's default 288px-high
+            // script space, so scale that to the actual preview height.
+            const previewHeight = previewContainer.parentElement.clientHeight || previewContainer.clientHeight;
+            const marginV = (verticalPosition / 100) * 300;
+            previewContainer.style.paddingBottom = (marginV / 288 * previewHeight) + 'px';
 
             // Build text-shadow for stroke and shadow
             let textShadow = [];
