@@ -775,7 +775,9 @@ def get_video_segments(video_id: int) -> None:
         video_instance.segments.all().delete()  # Clear existing segments if any
 
         # prompt the model for the minutes
-        model = init_chat_model(settings.GEMINI_MODEL_VERSION, model_provider="google_genai")
+        model = init_chat_model(
+            settings.GEMINI_MODEL_VERSION, model_provider="google_genai"
+        )
         logger.info(
             f"Video segments prompt for video {video_instance.id}: {video_instance.video_segments_keywords_prompt}"
         )
