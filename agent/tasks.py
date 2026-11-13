@@ -435,7 +435,7 @@ def generate_voice_file_eleven_labs(video_id: int) -> None:
             model_id = selected_value
         else:
             voice_id = selected_value or configured_default_voice
-            model_id = "eleven_v3"
+            model_id = settings.ELEVENLABS_MODEL_VERSION
 
         logger.info(
             "Generating voice for video %s with voice %s and model %s",
@@ -670,7 +670,7 @@ def generate_voice_file_gemini(video_id: int) -> None:
 
         # Initialize Gemini model with audio generation
         model = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash-preview-tts",
+            model=settings.GEMINI_MODEL_VERSION,
             google_api_key=settings.GOOGLE_API_KEY,
         )
 
@@ -775,7 +775,9 @@ def get_video_segments(video_id: int) -> None:
         video_instance.segments.all().delete()  # Clear existing segments if any
 
         # prompt the model for the minutes
-        model = init_chat_model("gemini-3-flash-preview", model_provider="google_genai")
+        model = init_chat_model(
+            settings.GEMINI_MODEL_VERSION, model_provider="google_genai"
+        )
         logger.info(
             f"Video segments prompt for video {video_instance.id}: {video_instance.video_segments_keywords_prompt}"
         )
@@ -936,7 +938,7 @@ def generate_srt_file(video_id: int) -> None:
                 )
             ]
             response = client.models.generate_content(
-                model="gemini-3-flash-preview",
+                model=settings.GEMINI_MODEL_VERSION,
                 contents=contents,
             )
             filename = f"srt_{video.id}.srt"

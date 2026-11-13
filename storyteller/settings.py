@@ -231,6 +231,7 @@ TTS_PROVIDER = os.getenv(
 # ElevenLabs API Settings
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1/text-to-speech"
+ELEVENLABS_MODEL_VERSION = os.getenv("ELEVENLABS_MODEL_VERSION", "eleven_v4")
 
 # Pexels API Settings
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY", "")
@@ -239,6 +240,7 @@ PEXELS_API_KEY = os.getenv("PEXELS_API_KEY", "")
 PIXABAY_API_KEY = os.getenv("PIXABAY_API_KEY", "")
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
+GEMINI_MODEL_VERSION = os.getenv("GEMINI_MODEL_VERSION", "gemini-3.8-flash")
 
 # OpenAI API Settings
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
