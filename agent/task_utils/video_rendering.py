@@ -619,6 +619,8 @@ class FinalVideoRenderer:
         bold = 1 if int(font_weight) >= 700 else 0
         max_margin_v = 300
         margin_v = int((vertical_position / 100) * max_margin_v)
+        # Note: FFmpeg's Shadow parameter creates a solid bottom-right shadow (no gradient).
+        # The CSS preview in video_detail.html has been updated to match this behavior.
         style = (
             f"FontName={font_family},FontSize={font_size},Bold={bold},"
             "PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,"

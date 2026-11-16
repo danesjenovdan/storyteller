@@ -1471,13 +1471,13 @@ def set_subtitle_style(request, video_id):
 
     try:
         data = json.loads(request.body)
-        font_size = data.get("font_size", 20)
-        font_family = data.get("font_family", "Montserrat")
-        font_weight = data.get("font_weight", "700")
-        stroke_weight = data.get("stroke_weight", 2)
-        shadow = data.get("shadow", 0)
-        vertical_position = data.get("vertical_position", 15)
-        max_words_per_screen = data.get("max_words_per_screen")
+        font_size = data.get("font_size", 12)
+        font_family = data.get("font_family", "Roboto")
+        font_weight = data.get("font_weight", "400")
+        stroke_weight = data.get("stroke_weight", 1)
+        shadow = data.get("shadow", 1)
+        vertical_position = data.get("vertical_position", 13)
+        max_words_per_screen = data.get("max_words_per_screen", 6)
 
         video.subtitle_font_size = max(8, min(30, int(font_size)))
         video.subtitle_font_family = font_family
@@ -1523,13 +1523,13 @@ def reset_subtitle_style(request, video_id):
 
     video = _query_user_video(video_id, request.user)
 
-    video.subtitle_font_size = 20
-    video.subtitle_font_family = "Montserrat"
-    video.subtitle_font_weight = "700"
-    video.subtitle_stroke_weight = 2
-    video.subtitle_shadow = 0
-    video.subtitle_vertical_position = 15
-    video.subtitle_max_words_per_screen = None
+    video.subtitle_font_size = 12
+    video.subtitle_font_family = "Roboto"
+    video.subtitle_font_weight = "400"
+    video.subtitle_stroke_weight = 1
+    video.subtitle_shadow = 1
+    video.subtitle_vertical_position = 13
+    video.subtitle_max_words_per_screen = 6
     video.save()
 
     return JsonResponse(

@@ -1,0 +1,57 @@
+name: Run Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+      - k8s
+
+jobs:
+  tests:
+    name: Run Django Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: storyteller
+          POSTGRES_USER: storyteller
+          POSTGRES_PASSWORD: storyteller
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run Django Tests
+        env:
+          DEBUG: "False"
+          DATABASE_URL: postgresql://storyteller:storyteller@localhost:5432/storyteller
+          ALLOWED_HOSTS: "localhost,127.0.0.1"
+          SECRET_KEY: "test-secret-key-for-ci-only"
+        run: uv run python manage.py test agent --no-input
+
+      - name: Check formatting
+        run: |
+          uv run black --check .
+          uv run isort --check-only .

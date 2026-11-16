@@ -256,7 +256,7 @@ class VideoStatusTests(TestCase):
         response = self.client.post(self.url)
 
         self.assertEqual(response.status_code, 405)
-        self.assertEqual(response.json()["error"], "Method not allowed")
+        self.assertEqual(response.json()["error"], "Metoda ni dovoljena")
 
     def test_rejects_unauthenticated_requests_with_json(self) -> None:
         self.client.logout()
@@ -264,7 +264,7 @@ class VideoStatusTests(TestCase):
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, 401)
-        self.assertEqual(response.json()["error"], "Authentication required")
+        self.assertEqual(response.json()["error"], "Avtentikacija je zahtevana")
 
 
 class InterruptedVideoRecoveryTests(TestCase):

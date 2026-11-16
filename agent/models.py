@@ -102,6 +102,7 @@ class GenVideo(models.Model):
     subtitle_max_words_per_screen = models.IntegerField(
         null=True,
         blank=True,
+        default=6,
         help_text="Maximum number of words displayed on screen at once",
     )
     final_file = models.FileField(
