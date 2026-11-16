@@ -87,6 +87,9 @@
             transition: padding-bottom 0.3s ease;
             height: 100%;
             z-index: 2;
+            line-height: 1.1;
+            padding-left: 30px;
+            padding-right: 30px;
         }
         .subtitle-preview span {
             color: white;
@@ -416,8 +419,9 @@
                                                 alt="Logo preview"
                                             >
                                             <div class="subtitle-preview">
-                                                <span id="subtitlePreviewText">{% trans "Primer Teksta je takšen, a bi mel drugačnega?" %}</span>
+                                                <span id="subtitlePreviewText">{% trans "Riba plava po morju, ladja tudi." %}</span>
                                             </div>
+                                            <textarea id="srtContent" style="display: none;">{{ video.srt_content }}</textarea>
                                         </div>
                                     </div>
                                 </div>
@@ -433,11 +437,11 @@
                                             <div class="col-6">
                                                 <label class="form-label">{% trans "Font" %}</label>
                                                 <select class="form-select" id="fontFamily" onchange="updateSubtitlePreview()">
-                                                    <option value="Montserrat" {% if video.subtitle_font_family == 'Montserrat' or not video.subtitle_font_family %}selected{% endif %}>Montserrat</option>
+                                                    <option value="Roboto" {% if video.subtitle_font_family == 'Roboto' or not video.subtitle_font_family %}selected{% endif %}>Roboto</option>
+                                                    <option value="Montserrat" {% if video.subtitle_font_family == 'Montserrat' %}selected{% endif %}>Montserrat</option>
                                                     <option value="Impact" {% if video.subtitle_font_family == 'Impact' %}selected{% endif %}>Impact</option>
                                                     <option value="Arial" {% if video.subtitle_font_family == 'Arial' %}selected{% endif %}>Arial</option>
                                                     <option value="Bebas Neue" {% if video.subtitle_font_family == 'Bebas Neue' %}selected{% endif %}>Bebas Neue</option>
-                                                    <option value="Roboto" {% if video.subtitle_font_family == 'Roboto' %}selected{% endif %}>Roboto</option>
                                                 </select>
                                             </div>
                                             <div class="col-6">
@@ -449,20 +453,20 @@
                                                 </select>
                                             </div>
                                             <div class="col-md-6">
-                                                <label class="form-label">{% trans "Velikost" %}: <span id="fontSizeValue">{{ video.subtitle_font_size|default:20 }}</span>px</label>
-                                                <input type="range" class="form-range" min="8" max="30" value="{{ video.subtitle_font_size|default:20 }}" id="fontSize" oninput="updateSubtitlePreview()">
+                                                <label class="form-label">{% trans "Velikost" %}: <span id="fontSizeValue">{{ video.subtitle_font_size|default:12 }}</span>px</label>
+                                                <input type="range" class="form-range" min="8" max="30" value="{{ video.subtitle_font_size|default:12 }}" id="fontSize" oninput="updateSubtitlePreview()">
                                             </div>
                                             <div class="col-md-6">
-                                                <label class="form-label">{% trans "Stroke" %}: <span id="strokeValue">{{ video.subtitle_stroke_weight|default:2 }}</span>px</label>
-                                                <input type="range" class="form-range" min="0" max="6" value="{{ video.subtitle_stroke_weight|default:2 }}" id="strokeWeight" oninput="updateSubtitlePreview()">
+                                                <label class="form-label">{% trans "Stroke" %}: <span id="strokeValue">{{ video.subtitle_stroke_weight|default:1 }}</span>px</label>
+                                                <input type="range" class="form-range" min="0" max="6" value="{{ video.subtitle_stroke_weight|default:1 }}" id="strokeWeight" oninput="updateSubtitlePreview()">
                                             </div>
                                             <div class="col-md-6">
-                                                <label class="form-label">{% trans "Shadow" %}: <span id="shadowValue">{{ video.subtitle_shadow|default:0 }}</span></label>
-                                                <input type="range" class="form-range" min="0" max="3" value="{{ video.subtitle_shadow|default:0 }}" id="shadow" oninput="updateSubtitlePreview()">
+                                                <label class="form-label">{% trans "Shadow" %}: <span id="shadowValue">{{ video.subtitle_shadow|default:1 }}</span></label>
+                                                <input type="range" class="form-range" min="0" max="3" value="{{ video.subtitle_shadow|default:1 }}" id="shadow" oninput="updateSubtitlePreview()">
                                             </div>
                                             <div class="col-md-6">
-                                                <label class="form-label">{% trans "Višina" %}: <span id="verticalPositionValue">{{ video.subtitle_vertical_position|default:15 }}</span>%</label>
-                                                <input type="range" class="form-range" min="0" max="50" value="{{ video.subtitle_vertical_position|default:15 }}" id="verticalPosition" oninput="updateSubtitlePreview()">
+                                                <label class="form-label">{% trans "Višina" %}: <span id="verticalPositionValue">{{ video.subtitle_vertical_position|default:13 }}</span>%</label>
+                                                <input type="range" class="form-range" min="0" max="50" value="{{ video.subtitle_vertical_position|default:13 }}" id="verticalPosition" oninput="updateSubtitlePreview()">
                                             </div>
                                             <div class="col-md-12">
                                                 <label class="form-label">{% trans "Maksimalno besed na zaslonu" %}: <span id="maxWordsPerScreenValue">{% if video.subtitle_max_words_per_screen %}{{ video.subtitle_max_words_per_screen }}{% else %}{% trans "Nedefinirano" %}{% endif %}</span></label>
@@ -888,6 +892,48 @@
             }
         }
 
+        // Function to parse SRT content and extract subtitles
+        function parseSrtContent(srtContent) {
+            if (!srtContent || srtContent.trim() === '') {
+                return [];
+            }
+
+            const subtitles = [];
+            const blocks = srtContent.trim().split(/\n\s*\n/);
+
+            for (const block of blocks) {
+                const lines = block.trim().split('\n');
+                if (lines.length < 3) continue;
+
+                const textLines = lines.slice(2);
+                const text = textLines.join('\n').trim();
+
+                if (text) {
+                    subtitles.push(text);
+                }
+            }
+
+            return subtitles;
+        }
+
+        // Function to split text into chunks based on max words per screen
+        function splitSubtitleText(texts, maxWordsPerScreen) {
+            if (!maxWordsPerScreen || maxWordsPerScreen === 0 || maxWordsPerScreen === '0') {
+                // No limit, concatenate all texts
+                return texts.join(' ');
+            }
+
+            const maxWords = parseInt(maxWordsPerScreen);
+            const allWords = texts.join(' ').split(/\s+/).filter(w => w.length > 0);
+
+            if (allWords.length <= maxWords) {
+                return allWords.join(' ');
+            }
+
+            // For preview, show just the first chunk
+            return allWords.slice(0, maxWords).join(' ');
+        }
+
         // Function to update subtitle preview
         function updateSubtitlePreview() {
             const fontSizeInput = document.getElementById('fontSize');
@@ -923,9 +969,20 @@
             const previewSpan = document.getElementById('subtitlePreviewText');
             const previewContainer = previewSpan.closest('.subtitle-preview');
 
-            previewSpan.style.fontFamily = fontFamily + ', sans-serif';
-            previewSpan.style.fontSize = fontSize + 'px';
-            previewSpan.style.fontWeight = fontWeight;
+            // Load and display actual subtitle text
+            const srtContentElement = document.getElementById('srtContent');
+            if (srtContentElement && srtContentElement.value) {
+                const srtContent = srtContentElement.value;
+                const subtitles = parseSrtContent(srtContent);
+                if (subtitles.length > 0) {
+                    const displayText = splitSubtitleText(subtitles, maxWordsPerScreen);
+                    previewSpan.textContent = displayText;
+                }
+            }
+
+            previewSpan.style.fontFamily = fontFamily;// + ', sans-serif';
+            previewSpan.style.fontSize = (fontSize * 2) + 'px';
+            previewSpan.style.fontWeight = fontWeight*1.2;
 
             // Update vertical position (padding from bottom)
             // Mirror the renderer: MarginV = pos% * 300 in libass's default 288px-high
@@ -949,10 +1006,15 @@
                 }
             }
 
-            // Add shadow
+            // Add shadow (matching FFmpeg: solid, continuous bottom-right shadow,
+            // no gradient). A single offset copy would leave a transparent gap
+            // between the letter/outline and the shadow, so fill every step in
+            // between to keep it connected, like FFmpeg's rendering.
             if (shadow > 0) {
                 const shadowSize = parseInt(shadow) * 2;
-                textShadow.push(`-${shadowSize}px -${shadowSize}px ${shadowSize}px rgba(0,0,0,0.5)`);
+                for (let i = 1; i <= shadowSize; i++) {
+                    textShadow.push(`${i}px ${i}px 0 #000`);
+                }
             }
 
             previewSpan.style.textShadow = textShadow.join(', ');
