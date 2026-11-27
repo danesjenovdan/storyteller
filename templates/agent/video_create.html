@@ -42,9 +42,13 @@
                                         <div class="mb-3">
                                             <div class="d-flex align-items-end">
                                                 <label for="{{ form.scenario.id_for_label }}" class="form-label">{% trans "Vpiši scenarij videa" %}</label>
-                                                <button type="button" class="ms-auto mb-1 btn btn-sm btn-outline-secondary" id="togglePrompt" data-bs-toggle="modal" data-bs-target="#promptModal">
-                                                    {% trans "Optimiziraj z AI" %}
-                                                </button>
+                                                {% if users_quota_used < users_quota %}
+                                                    <button type="button" class="ms-auto mb-1 btn btn-sm btn-outline-secondary" id="togglePrompt" data-bs-toggle="modal" data-bs-target="#promptModal">
+                                                        {% trans "Optimiziraj z AI" %}
+                                                    </button>
+                                                {% else %}
+                                                    <span class="text-danger ms-auto mb-1">{% trans "You have used all daily credits for AI assistance" %}</span>
+                                                {% endif %}
                                             </div>
                                             {{ form.scenario }}
                                             <div class="alert alert-danger small py-1 px-2 js-scenario-character-limit" style="display:none;"><span>{% trans "Dovoljenih je največ 3000 znakov. Za skrajšanje besedila uporabite Optimiziraj z AI." %}</span></div>

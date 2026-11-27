@@ -32,6 +32,9 @@
                 </form>
                 {% if user.is_authenticated %}
                     <span class="small">{{ user.username }}</span>
+                    {% if users_quota is not None and users_quota_used is not None %}
+                        <span class="small">{% trans "Credits:" %} {{ users_quota_used }}/{{ users_quota }}</span>
+                    {% endif %}
                     <form action="{% url 'logout' %}" method="post" class="mb-0">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-sm btn-outline-light">{% trans "Logout" %}</button>
