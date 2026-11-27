@@ -285,14 +285,14 @@ def get_voice_models_for_provider(tts_provider):
     return options
 
 
-@login_required(login_url="/admin/login/")
+@login_required
 def video_list(request):
     user = request.user
     videos = user.videos.all().order_by("-created_at")
     return render(request, "agent/videos.html", {"videos": videos})
 
 
-@login_required(login_url="/admin/login/")
+@login_required
 def modify_scenario_with_gemini(request):
     """AJAX endpoint to modify scenario using Gemini API."""
     import json
@@ -337,7 +337,7 @@ def modify_scenario_with_gemini(request):
         )
 
 
-@login_required(login_url="/admin/login/")
+@login_required
 def video_create(request):
     """View for creating a new video with title, scenario, and prompt."""
     # Get TTS provider from settings
@@ -987,7 +987,7 @@ def update_video_scenario(request, video_id):
     )
 
 
-@login_required(login_url="/admin/login/")
+@login_required
 def video_detail(request, video_id):
     """
     Display video details, status, and all associated files.
@@ -1052,7 +1052,7 @@ def video_status(request, video_id):
     )
 
 
-@login_required(login_url="/admin/login/")
+@login_required
 def render_video(request, video_id):
     """
     Trigger rendering of final video from all VideoSegment clips.
@@ -1095,7 +1095,7 @@ def render_video(request, video_id):
     return redirect("video_detail", video_id=video_id)
 
 
-@login_required(login_url="/admin/login/")
+@login_required
 def generate_voice(request, video_id):
     """
     Generate voice file from scenario based on TTS provider.
@@ -1383,7 +1383,7 @@ def elevenlabs_voice_sample_audio_create(request):
         )
 
 
-@login_required(login_url="/admin/login/")
+@login_required
 def regenerate_segments(request, video_id):
     """
     Regenerate video segments from content script.
@@ -1455,7 +1455,7 @@ def regenerate_srt(request, video_id):
     return redirect("video_detail", video_id=video_id)
 
 
-@login_required(login_url="/admin/login/")
+@login_required
 def set_subtitle_style(request, video_id):
     """
     Set subtitle style for video rendering.
@@ -1546,7 +1546,7 @@ def reset_subtitle_style(request, video_id):
     )
 
 
-@login_required(login_url="/admin/login/")
+@login_required
 def upload_logo(request, video_id):
     """
     Upload a new logo for the current user and optionally select it for this video.
@@ -1584,7 +1584,7 @@ def upload_logo(request, video_id):
         return JsonResponse({"error": str(e)}, status=500)
 
 
-@login_required(login_url="/admin/login/")
+@login_required
 def set_video_logo(request, video_id):
     """
     Select which user logo should be used for a specific video.
@@ -1620,7 +1620,7 @@ def set_video_logo(request, video_id):
         return JsonResponse({"error": str(e)}, status=500)
 
 
-@login_required(login_url="/admin/login/")
+@login_required
 def set_logo_settings(request, video_id):
     """
     Save logo placement settings (corner and size) for a video.

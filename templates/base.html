@@ -20,15 +20,26 @@
     <header class="border-bottom bg-dark text-light">
         <nav class="container py-3 d-flex justify-content-between align-items-center">
             <a href="{% url 'video_list' %}" class="nav-link-home">{% trans "Storyteller" %}</a>
-            <form action="{% url 'set_language' %}" method="post" class="lang-switch d-flex align-items-center gap-2">
-                {% csrf_token %}
-                <input type="hidden" name="next" value="{{ request.path }}">
-                <label for="language-select" class="form-label mb-0">{% trans "Jezik" %}</label>
-                <select id="language-select" name="language" class="form-select form-select-sm" onchange="this.form.submit()">
-                    <option value="sl" {% if CURRENT_LANGUAGE|slice:":2" == 'sl' %}selected{% endif %}>Slovenščina</option>
-                    <option value="en" {% if CURRENT_LANGUAGE|slice:":2" == 'en' %}selected{% endif %}>English</option>
-                </select>
-            </form>
+            <div class="d-flex align-items-center gap-3">
+                <form action="{% url 'set_language' %}" method="post" class="lang-switch d-flex align-items-center gap-2 mb-0">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.path }}">
+                    <label for="language-select" class="form-label mb-0">{% trans "Jezik" %}</label>
+                    <select id="language-select" name="language" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="sl" {% if CURRENT_LANGUAGE|slice:":2" == 'sl' %}selected{% endif %}>Slovenščina</option>
+                        <option value="en" {% if CURRENT_LANGUAGE|slice:":2" == 'en' %}selected{% endif %}>English</option>
+                    </select>
+                </form>
+                {% if user.is_authenticated %}
+                    <span class="small">{{ user.username }}</span>
+                    <form action="{% url 'logout' %}" method="post" class="mb-0">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-outline-light">{% trans "Logout" %}</button>
+                    </form>
+                {% else %}
+                    <a href="{% url 'login' %}" class="btn btn-sm btn-outline-light">{% trans "Login" %}</a>
+                {% endif %}
+            </div>
         </nav>
     </header>
 

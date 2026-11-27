@@ -47,9 +47,11 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     # third party apps
+    "behaviors.apps.BehaviorsConfig",
     "huey.contrib.djhuey",
     # localapps
     "agent",
+    "account",
 ]
 
 MIDDLEWARE = [
@@ -84,6 +86,10 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "storyteller.wsgi.application"
+
+LOGIN_URL = "login"
+LOGIN_REDIRECT_URL = "video_list"
+LOGOUT_REDIRECT_URL = "login"
 
 
 # Database
