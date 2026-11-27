@@ -80,6 +80,7 @@ TEMPLATES = [
                 "django.template.context_processors.i18n",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "account.context_processors.users_quota",
             ],
         },
     },
@@ -254,3 +255,5 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 TIPKO_API_ENDPOINT = os.getenv("TIPKO_API_ENDPOINT", "")
 TIPKO_API_USERNAME = os.getenv("TIPKO_API_USERNAME", "")
 TIPKO_API_PASSWORD = os.getenv("TIPKO_API_PASSWORD", "")
+
+DEFAULT_PAID_API_LIMIT = 10

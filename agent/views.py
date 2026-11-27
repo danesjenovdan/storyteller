@@ -17,6 +17,7 @@ from django.utils.translation import ngettext
 from elevenlabs import ElevenLabs
 from PIL import Image
 
+from account.models import UserPaidApiUsage
 from agent.content_apis import (
     resolve_sources,
     search_images_by_sources,
@@ -323,8 +324,18 @@ def modify_scenario_with_gemini(request):
             full_prompt = modify_prompt
 
         # Call Gemini model
-        model = init_chat_model("gemini-2.5-flash", model_provider="google_genai")
+        model = init_chat_model(
+            django_settings.GEMINI_MODEL_VERSION, model_provider="google_genai"
+        )
         model_response = model.invoke(full_prompt)
+
+        UserPaidApiUsage.objects.create(
+            user=request.user,
+            video=None,
+            api="google_genai",
+            usage_type="modify_scenario",
+            usage_amount=1,
+        )
 
         return JsonResponse(
             {"success": True, "modified_scenario": model_response.content}

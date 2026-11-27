@@ -20,6 +20,7 @@ from huey.contrib.djhuey import db_periodic_task, db_task
 from langchain.chat_models import init_chat_model
 from openai import OpenAI
 
+from account.models import UserPaidApiUsage
 from agent.models import GenVideo, TipkoRequest, VideoSegment
 from agent.recovery import reset_recovery_state
 from agent.task_utils.tipko_source import Api
@@ -443,6 +444,13 @@ def generate_voice_file_eleven_labs(video_id: int) -> None:
             voice_id,
             model_id,
         )
+        api_usage = UserPaidApiUsage.objects.create(
+            user=video.user,
+            api=f"elevenlabs {model_id}",
+            usage_type="per character",
+            usage_amount=len(video.scenario),
+            video=video,
+        )
 
         # Initialize ElevenLabs client
         client = ElevenLabs(api_key=settings.ELEVENLABS_API_KEY)
@@ -467,6 +475,9 @@ def generate_voice_file_eleven_labs(video_id: int) -> None:
         # Save the audio file to the model
         filename = f"voice_{video.id}.mp3"
         video.voice_file.save(filename, ContentFile(audio_bytes), save=False)
+
+        api_usage.success = True
+        api_usage.save()
 
         try:
             with get_temporary_file_path(video.voice_file) as temp_audio_path:
@@ -767,7 +778,13 @@ def get_video_segments(video_id: int) -> None:
     try:
         video_instance = GenVideo.objects.get(id=video_id)
         ensure_google_api_key()
-
+        api_usage = UserPaidApiUsage.objects.create(
+            user=video_instance.user,
+            video=video_instance,
+            api="google_genai",
+            usage_type="segments_generation",
+            usage_amount=len(video_instance.video_segments_keywords_prompt),
+        )
         video_instance.status = GenVideo.Statuses.GENERATING_SEGMENTS
         video_instance.recovery_claimed_at = None
         video_instance.save()
@@ -783,6 +800,9 @@ def get_video_segments(video_id: int) -> None:
         )
         model_response = model.invoke(video_instance.video_segments_keywords_prompt)
 
+        api_usage.success = True
+        api_usage.save()
+
         # Check for blocked content
         if hasattr(model_response, "response_metadata"):
             block_reason = model_response.response_metadata.get("block_reason")
@@ -794,6 +814,8 @@ def get_video_segments(video_id: int) -> None:
                 video_instance.error_details = _(
                     "Gemini je blokiral vsebino. Vsebina morda krši Gemini politiko. Poskusite preformulirati prompt ali scenarij."
                 )
+                api_usage.success = False
+                api_usage.save()
                 video_instance.save()
                 raise ValueError(error_msg)
 
